@@ -1,0 +1,25 @@
+# Environment variables (contains secrets - never push this)
+.env
+
+# Python virtual environment (large, auto-generated)
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Generated reports (patient data - never push to GitHub)
+backend/reports/
+backend/reports-pgta/
+backend/reports-karyotype/
+backend/temp/
+backend/drafts/
+backend/uploads/
+
+# Editor / tooling (local only)
+.vscode/
+.claude/
+
+# OS files
+.DS_Store
+Thumbs.db

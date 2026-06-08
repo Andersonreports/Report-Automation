@@ -1,0 +1,1244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Karyotype Report Generator &mdash; Anderson Diagnostics</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" crossorigin="anonymous" />
+  <!-- PDF.js — render preview pages to canvas (clean, no browser PDF toolbar), same as PGTA/NIPT -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    (function(){ var p=window['pdfjs-dist/build/pdf']; if(p) p.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; })();
+  </script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root{
+      --primary:#1F497D; --primary-hover:#163a63;
+      --accent:#F9BE8F; --accent-deep:#e89a5c;
+      --success:#10b981; --danger:#ef4444;
+      --bg:#f0f4f8; --panel:rgba(255,255,255,0.88);
+      --panel-border:rgba(255,255,255,0.6); --card-border:#e2e8f0;
+      --text:#1e293b; --text-muted:#64748b;
+      --input-bg:#ffffff; --input-border:#d1d5db;
+      --shadow:0 2px 8px rgba(0,0,0,0.08); --radius:10px;
+      /* legacy aliases kept so existing class names map cleanly */
+      --blue:#1F497D; --green:#10b981; --red:#ef4444;
+    }
+    body{
+      font-family:'Inter','Segoe UI',Arial,sans-serif;
+      background:var(--bg); color:var(--text); min-height:100vh;
+    }
+    a{ color:inherit; }
+
+    /* Top header */
+    .topbar{
+      display:flex; align-items:center; gap:16px;
+      padding:14px 28px; position:sticky; top:0; z-index:50;
+      background:rgba(255,255,255,0.9); backdrop-filter:blur(12px);
+      border-bottom:1px solid var(--card-border); box-shadow:0 1px 6px rgba(0,0,0,0.04);
+    }
+    .back-btn{
+      display:inline-flex; align-items:center; gap:8px;
+      background:var(--primary); border:1px solid transparent; border-radius:7px;
+      padding:8px 16px; color:#fff; font-size:12px; font-weight:600;
+      text-decoration:none; transition:.15s; cursor:pointer;
+    }
+    .back-btn:hover{ background:var(--primary-hover); }
+    .rp-icon{ width:44px;height:44px;border-radius:12px;
+      background:linear-gradient(135deg,var(--primary),#4F81BD);
+      display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(31,73,125,.25);}
+    .rp-icon i{ font-size:20px;color:#fff;}
+    .rp-title h2{ font-size:20px;font-weight:800;letter-spacing:-.3px;
+      background:linear-gradient(135deg,#1F497D,#4F81BD);
+      -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;}
+    .rp-title .tag{ font-size:10.5px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-top:2px;}
+
+    /* Tabs */
+    .tabs{ display:flex; gap:8px; padding:14px 28px 0; }
+    .tab{
+      padding:9px 22px; border:1px solid var(--card-border); border-radius:8px;
+      background:rgba(255,255,255,0.75); color:var(--text-muted);
+      font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;
+      display:flex;align-items:center;gap:8px;transition:.2s;
+    }
+    .tab:hover{ color:var(--text); }
+    .tab.active{ background:var(--primary); color:#fff; border-color:var(--primary); }
+
+    .panel{ display:none; padding:18px 28px 60px; }
+    .panel.active{ display:block; }
+
+    .layout{ display:grid; grid-template-columns: minmax(360px, 1fr) minmax(420px, 1.15fr); gap:20px; align-items:start; }
+    @media (max-width:1050px){ .layout{ grid-template-columns:1fr; } }
+
+    /* Cards */
+    .glass{
+      background:var(--panel); backdrop-filter:blur(12px);
+      border:1px solid var(--panel-border); border-radius:var(--radius);
+      box-shadow:var(--shadow); padding:18px;
+    }
+    .glass h3{ font-size:13px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.6px;
+      margin-bottom:14px; padding-bottom:8px; border-bottom:2px solid var(--accent);
+      display:flex; align-items:center; gap:8px; }
+    .glass h3 i{ color:var(--accent-deep); }
+
+    /* Fields */
+    label.fld{ display:block; margin-bottom:12px; }
+    label.fld span{ display:block; font-size:11px; font-weight:600; color:var(--text-muted);
+      margin-bottom:5px; letter-spacing:.4px; text-transform:uppercase; }
+    input[type=text], select, textarea{
+      width:100%; padding:8px 11px; border-radius:6px;
+      background:var(--input-bg); border:1px solid var(--input-border);
+      color:var(--text); font-size:13px; font-family:inherit; transition:.15s; outline:none;
+    }
+    input::placeholder, textarea::placeholder{ color:#9aa6b2; }
+    input:focus, select:focus, textarea:focus{ border-color:var(--primary); box-shadow:0 0 0 3px rgba(31,73,125,.08); }
+    select option{ background:#fff; color:var(--text); }
+    textarea{ resize:vertical; min-height:64px; line-height:1.5; }
+
+    .row2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    @media (max-width:560px){ .row2{ grid-template-columns:1fr; } }
+
+    /* Buttons */
+    .btn{
+      display:inline-flex; align-items:center; justify-content:center; gap:8px;
+      padding:9px 16px; border-radius:7px; cursor:pointer;
+      font-size:12.5px; font-weight:700; font-family:inherit; transition:.15s;
+      color:var(--text); background:#fff; border:1px solid var(--input-border);
+    }
+    .btn:hover{ background:#f1f5f9; border-color:#cbd5e1; }
+    .btn.primary{ background:var(--primary); color:#fff; border-color:transparent; }
+    .btn.primary:hover{ background:var(--primary-hover); }
+    .btn.gold{ background:var(--accent); color:#7a4a1e; border-color:transparent; }
+    .btn.gold:hover{ background:var(--accent-deep); color:#fff; }
+    .btn.green{ background:var(--success); color:#fff; border-color:transparent; }
+    .btn.green:hover{ filter:brightness(1.08); }
+    .btn.sm{ padding:6px 12px; font-size:11.5px; }
+    .btn:disabled{ opacity:.45; cursor:not-allowed; }
+    .btnrow{ display:flex; gap:8px; flex-wrap:wrap; }
+
+    .rt-row{ display:flex; gap:8px; align-items:flex-end; margin-bottom:16px; }
+    .rt-row .fld{ flex:1; margin-bottom:0; }
+
+    .imglist{ display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
+    .imgchip{ position:relative; width:84px; height:84px; border-radius:8px; overflow:hidden;
+      border:1px solid var(--input-border); background:#f1f5f9; }
+    .imgchip img{ width:100%; height:100%; object-fit:cover; }
+    .imgchip button{ position:absolute; top:3px; right:3px; width:20px;height:20px;border-radius:50%;
+      border:none; background:rgba(0,0,0,.55); color:#fff; cursor:pointer; font-size:11px; line-height:1;}
+    .imgchip button:hover{ background:var(--danger); }
+    .hint{ font-size:11px; color:var(--text-muted); margin-top:6px; line-height:1.5; }
+
+    .preview-wrap{ position:sticky; top:86px; }
+    .preview-bar{ display:flex; align-items:center; gap:12px; margin-bottom:12px; }
+    .preview-status{ font-size:12px; color:var(--text-muted); font-style:italic; flex:1; }
+    iframe.pdf{ width:100%; height:78vh; border:none; border-radius:4px; background:#fff; }
+    #m_pvhost{ height:78vh; overflow-y:auto; background:#eef2f6; border-radius:8px;
+      display:flex; flex-direction:column; align-items:center; padding:8px; gap:8px; }
+    .preview-page-canvas{ display:block; width:100%; max-width:820px; background:#fff;
+      box-shadow:0 2px 8px rgba(0,0,0,0.15); border-radius:4px; }
+    .preview-empty{ flex:1; width:100%; min-height:220px; border:1px dashed #cbd5e1;
+      border-radius:8px; display:flex; align-items:center; justify-content:center; text-align:center;
+      color:var(--text-muted); font-size:13px; padding:30px; background:#f8fafc; }
+
+    .tablewrap{ max-height:340px; overflow:auto; border-radius:8px; border:1px solid var(--card-border); }
+    table.bulk{ width:100%; border-collapse:collapse; font-size:12.5px; }
+    table.bulk th{ position:sticky; top:0; background:rgba(31,73,125,0.06); color:var(--text-muted); text-align:left;
+      padding:8px 10px; font-weight:700; border-bottom:1px solid var(--input-border); white-space:nowrap; }
+    table.bulk td{ padding:8px 10px; border-bottom:1px solid #eef2f6; color:var(--text); }
+    table.bulk tr{ cursor:pointer; }
+    table.bulk tr:hover td{ background:#f0f4f8; }
+    table.bulk tr.sel td{ background:#dbeafe; }
+    .noimg{ color:var(--danger); font-weight:600; }
+    .pill{ display:inline-block; padding:2px 9px; border-radius:20px; font-size:11px; font-weight:600;
+      background:rgba(31,73,125,0.1); color:var(--primary); }
+
+    .prog{ height:8px; border-radius:6px; background:#e2e8f0; overflow:hidden; margin-top:10px; display:none; }
+    .prog > i{ display:block; height:100%; width:0; background:var(--success); transition:width .25s; }
+    .prog-lbl{ font-size:12px; color:var(--text-muted); margin-top:6px; display:none; }
+
+    /* Bulk 3-column workspace — mirrors desktop layout: table | editor | preview */
+    .bulk-3col{ display:flex; gap:16px; align-items:stretch; height:clamp(480px,66vh,840px); }
+    @media (max-width:1050px){ .bulk-3col{ flex-direction:column; height:auto; } }
+    .bulk-col{
+      background:var(--panel); backdrop-filter:blur(12px);
+      border:1px solid var(--panel-border); border-radius:var(--radius);
+      box-shadow:var(--shadow); display:flex; flex-direction:column; overflow:hidden; min-width:0;
+    }
+    .bulk-col-left{ flex:0 0 300px; }
+    .bulk-col-center{ flex:1.1; }
+    .bulk-col-right{ flex:1.7; }
+    @media (max-width:1050px){
+      .bulk-col{ flex:none; }
+      .bulk-col-center{ flex:none; }
+      .bulk-col-left{ height:340px; } .bulk-col-right{ height:560px; }
+    }
+    .bulk-col-header{
+      display:flex; align-items:center; justify-content:space-between; gap:8px;
+      padding:12px 16px; font-size:12px; font-weight:700; color:var(--primary);
+      text-transform:uppercase; letter-spacing:.6px; border-bottom:2px solid var(--accent); flex-shrink:0;
+    }
+    .bulk-col-header > span{ display:inline-flex; align-items:center; gap:8px; }
+    .bulk-col-header i{ color:var(--accent-deep); }
+    .bulk-select-row{ display:flex; gap:8px; padding:10px 14px 0; flex-shrink:0; }
+    .bulk-table-scroll{ flex:1; overflow:auto; }
+    .bulk-table-scroll table.bulk th{ background:#eaf0f6; }   /* solid so rows don't show through sticky header */
+    .bulk-col-scroll{ flex:1; overflow:auto; padding:14px 16px; }
+    .bulk-placeholder{ color:var(--text-muted); font-style:italic; text-align:center; padding:44px 12px; font-size:13px; }
+    .fld-cap{ display:block; font-size:11px; font-weight:600; color:var(--text-muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:.4px; }
+    .bulk-preview-host{ flex:1; min-height:0; overflow-y:auto; background:#eef2f6;
+      display:flex; flex-direction:column; align-items:center; padding:8px; gap:8px; }
+    .bulk-preview-host .preview-empty{ background:transparent; }
+    .bulk-genrow{ display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; }
+
+    /* Compact bulk load bar (mirrors the other reports' top bar) */
+    .bulk-top-bar{ display:flex; align-items:center; gap:12px; padding:10px 14px;
+      background:var(--panel); backdrop-filter:blur(12px); border:1px solid var(--panel-border);
+      border-radius:var(--radius); box-shadow:var(--shadow); margin-bottom:16px; flex-wrap:wrap; }
+    .drop-zone-compact{ display:flex; align-items:center; gap:10px; padding:9px 14px;
+      border:2px dashed var(--input-border); border-radius:8px; cursor:pointer;
+      color:var(--text-muted); font-size:12px; transition:.2s; flex:1; min-width:200px; }
+    .drop-zone-compact:hover{ border-color:var(--primary); background:rgba(31,73,125,0.04); color:var(--primary); }
+    .drop-zone-compact i{ font-size:16px; color:var(--accent-deep); flex-shrink:0; }
+    .drop-zone-compact span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .bulk-top-sep{ width:1px; height:28px; background:var(--input-border); flex-shrink:0; }
+
+    /* Report Comparison */
+    .cmp-upload-row{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+    .cmp-upload-box{ flex:1; min-width:220px; border:2px dashed var(--input-border); border-radius:10px;
+      padding:16px; text-align:center; cursor:pointer; transition:.2s; background:#fff; }
+    .cmp-upload-box:hover{ border-color:var(--primary); background:rgba(31,73,125,0.04); }
+    .cmp-upload-box.has-file{ border-color:var(--success); border-style:solid; background:#f0fdf4; }
+    .cmp-upload-box > i{ font-size:22px; color:var(--accent-deep); }
+    .cmp-upload-label{ font-size:12px; font-weight:700; color:var(--text); margin-top:6px; }
+    .cmp-fname{ font-size:11px; color:var(--text-muted); margin-top:4px; word-break:break-all; }
+    .cmp-vs-badge{ font-weight:800; color:var(--text-muted); font-size:13px; flex:0 0 auto; }
+    .cmp-summary-badge{ display:inline-flex; align-items:center; gap:6px; padding:4px 12px; border-radius:99px; font-weight:700; font-size:12px; }
+    .cmp-summary-badge.match{ background:#ecfdf5; color:#065f46; }
+    .cmp-summary-badge.diff{ background:#fef2f2; color:#991b1b; }
+    .cmp-files-row{ display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
+    .cmp-file-card{ background:#f8fafc; border:1px dashed #cbd5e1; border-radius:8px; padding:10px; }
+    .cmp-file-card .lbl{ font-size:10px; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:4px; }
+    .cmp-file-card .val{ font-size:11px; word-break:break-all; }
+    .cmp-legend{ display:flex; gap:16px; margin:10px 0; font-size:11.5px; color:var(--text-muted); flex-wrap:wrap; }
+    .cmp-legend span{ display:inline-flex; align-items:center; gap:6px; }
+    .cmp-swatch{ width:13px; height:13px; border-radius:3px; display:inline-block; }
+    .diff-wrapper{ overflow:auto; border:1px solid var(--card-border); border-radius:8px; background:#fff; max-height:70vh; }
+    .diff-wrapper table.diff{ width:100%; border-collapse:collapse; font-family:'Courier New',monospace; font-size:11.5px; }
+    .diff-wrapper table.diff td{ padding:2px 6px; vertical-align:top; white-space:pre-wrap; word-break:break-all; }
+    .diff-wrapper .diff_header{ background:#e8edf2; color:#374151; text-align:right; }
+    .diff-wrapper .diff_next{ display:none; }
+    .diff-wrapper .diff_add{ background:#d1fae5; }
+    .diff-wrapper .diff_chg{ background:#fef9c3; }
+    .diff-wrapper .diff_sub{ background:#fee2e2; }
+
+    .toast-wrap{ position:fixed; right:20px; bottom:20px; z-index:1000; display:flex; flex-direction:column; gap:10px; }
+    .toast{ background:#fff; border:1px solid var(--card-border); border-left:4px solid var(--accent-deep);
+      padding:12px 16px; border-radius:8px; box-shadow:0 12px 32px rgba(0,0,0,.18); font-size:13px; color:var(--text);
+      max-width:360px; animation:tin .25s ease; }
+    .toast.ok{ border-left-color:var(--success); }
+    .toast.err{ border-left-color:var(--danger); }
+    .toast a{ color:var(--primary); font-weight:700; }
+    @keyframes tin{ from{transform:translateY(12px);opacity:0;} to{transform:none;opacity:1;} }
+
+    .guide-container{ max-width:860px; margin:0 auto; }
+    .guide-header-bar{ background:var(--primary); color:#fff; padding:22px 20px; border-radius:var(--radius);
+      margin-bottom:14px; text-align:center; box-shadow:var(--shadow); }
+    .guide-header-bar h2{ font-size:20px; font-weight:800; }
+    .guide-header-bar p{ margin-top:4px; font-size:12px; opacity:.85; }
+    .guide-card{ background:var(--panel); border-radius:var(--radius); padding:16px 18px; margin-bottom:12px;
+      border-left:4px solid var(--primary); box-shadow:var(--shadow); }
+    .guide-card h3{ color:var(--primary); font-size:13px; font-weight:700; margin-bottom:10px; padding-bottom:7px;
+      border-bottom:2px solid var(--accent); text-transform:uppercase; letter-spacing:.5px; display:block; }
+    .guide-card ul, .guide-card ol{ padding-left:20px; margin:0; }
+    .guide-card li{ padding:4px 0; font-size:12.5px; line-height:1.55; }
+    .guide-card p{ font-size:12.5px; line-height:1.6; margin:6px 0; }
+    .guide-card table{ width:100%; border-collapse:collapse; margin:6px 0; font-size:12px; }
+    .guide-card th{ background:rgba(31,73,125,0.08); color:var(--primary); padding:7px 10px; text-align:left; border:1px solid var(--card-border); }
+    .guide-card td{ border:1px solid var(--card-border); padding:6px 10px; }
+    .guide-card code{ background:#eef2f6; padding:2px 6px; border-radius:4px; font-family:Consolas,monospace; color:var(--primary); }
+    .guide-tip{ background:#e7f3ff; border:1px solid #b8daff; padding:11px 14px; border-radius:8px; color:#004085; font-size:12.5px; margin-bottom:12px; }
+    .guide .glass{ line-height:1.65; font-size:13.5px; color:var(--text); }
+    .guide h1{ font-size:22px;color:var(--primary);margin-bottom:6px; }
+    .guide h4{ color:var(--primary); margin:18px 0 8px; font-size:13px; text-transform:uppercase; letter-spacing:.6px;
+      padding-bottom:6px; border-bottom:2px solid var(--accent); }
+    .guide table{ width:100%; border-collapse:collapse; margin:8px 0; font-size:12.5px; }
+    .guide th{ background:rgba(31,73,125,0.08); color:var(--primary); padding:7px 10px; text-align:left; border:1px solid var(--card-border); }
+    .guide td{ border:1px solid var(--card-border); padding:6px 10px; }
+    .guide code{ background:#eef2f6; padding:2px 6px; border-radius:4px; font-family:Consolas,monospace; color:var(--primary); }
+    .guide ul,.guide ol{ padding-left:22px; }
+    .guide li{ margin:4px 0; }
+    .tip{ background:rgba(249,190,143,0.18); border-left:4px solid var(--accent-deep); padding:10px 14px; border-radius:6px; margin:10px 0; color:var(--text); }
+
+    .spinner{ display:inline-block; width:13px;height:13px;border:2px solid rgba(31,73,125,.25);
+      border-top-color:var(--primary); border-radius:50%; animation:spin .7s linear infinite; vertical-align:middle;}
+    .btn .spinner, .btn.primary .spinner, .btn.green .spinner{ border-color:rgba(255,255,255,.45); border-top-color:#fff; }
+    @keyframes spin{ to{ transform:rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+  <div class="topbar">
+    <a class="back-btn" href="index.html"><i class="fas fa-arrow-left"></i> Home</a>
+    <div class="rp-icon"><i class="fas fa-th"></i></div>
+    <div class="rp-title">
+      <h2>Karyotype Report Generator</h2>
+      <div class="tag">Anderson Diagnostics &mdash; Peripheral Blood Karyotyping</div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" data-tab="manual"><i class="fas fa-user-edit"></i> Manual Entry</button>
+    <button class="tab" data-tab="bulk"><i class="fas fa-table"></i> Bulk Upload</button>
+    <button class="tab" data-tab="compare"><i class="fas fa-balance-scale"></i> Report Comparison</button>
+    <button class="tab" data-tab="guide"><i class="fas fa-info-circle"></i> User Guide</button>
+  </div>
+
+  <!-- MANUAL -->
+  <section class="panel active" id="panel-manual">
+    <div class="layout">
+      <div>
+        <div class="glass" style="margin-bottom:18px;">
+          <h3><i class="fas fa-vial"></i> Patient &amp; Result Data</h3>
+          <div class="rt-row">
+            <label class="fld"><span>Report Type</span><select id="m_rt"></select></label>
+            <button class="btn gold" id="m_apply">Apply Template</button>
+          </div>
+          <div id="m_fields"></div>
+        </div>
+
+        <div class="glass" style="margin-bottom:18px;">
+          <h3><i class="fas fa-images"></i> Karyogram Images</h3>
+          <div class="btnrow">
+            <button class="btn sm" id="m_addimg"><i class="fas fa-plus"></i> Add Image(s)</button>
+            <input type="file" id="m_imgfile" accept=".jpg,.jpeg,.png" multiple hidden />
+          </div>
+          <div class="imglist" id="m_imglist"></div>
+          <div class="hint">1 image &rarr; centred karyogram &middot; 2 &rarr; side-by-side (mosaic) &middot; 3 &rarr; scatter + zoom + full karyogram.</div>
+        </div>
+
+        <div class="glass">
+          <h3><i class="fas fa-cog"></i> Generate</h3>
+          <div class="row2">
+            <label class="fld"><span>Logo</span>
+              <select id="m_logo"><option>With Logo</option><option>Without Logo</option></select></label>
+          </div>
+          <div class="btnrow" style="margin-top:6px;">
+            <button class="btn primary" id="m_gen"><i class="fas fa-file-pdf"></i> Generate Report</button>
+            <button class="btn" id="m_savedraft"><i class="fas fa-save"></i> Save Draft</button>
+            <button class="btn" id="m_loaddraft"><i class="fas fa-folder-open"></i> Load Draft</button>
+            <button class="btn" id="m_clear"><i class="fas fa-eraser"></i> Clear</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="preview-wrap">
+        <div class="glass">
+          <div class="preview-bar">
+            <h3 style="margin:0;"><i class="fas fa-eye"></i> Live PDF Preview</h3>
+            <button class="btn sm" id="m_refresh"><i class="fas fa-sync"></i> Refresh</button>
+          </div>
+          <div class="preview-status" id="m_status">Fill in a Patient Name to enable preview.</div>
+          <div id="m_pvhost"><div class="preview-empty">No preview yet</div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BULK -->
+  <section class="panel" id="panel-bulk">
+    <div class="bulk-top-bar">
+      <label class="drop-zone-compact" for="b_excel" style="flex:1.4;">
+        <i class="fas fa-file-excel"></i>
+        <span id="b_excel_label">Click to browse Excel file (.xls / .xlsx / .xlsm)</span>
+        <input type="file" id="b_excel" accept=".xls,.xlsx,.xlsm" hidden
+          onchange="document.getElementById('b_excel_label').textContent=this.files[0]?this.files[0].name:'Click to browse Excel file (.xls / .xlsx / .xlsm)';" />
+      </label>
+      <div class="bulk-top-sep"></div>
+      <label class="drop-zone-compact" for="b_images" style="flex:1;">
+        <i class="fas fa-folder-open"></i>
+        <span id="b_images_label">Click to select a folder of karyogram images (optional — auto-matched by Sample Number)</span>
+        <input type="file" id="b_images" accept=".jpg,.jpeg,.png" multiple webkitdirectory hidden />
+      </label>
+      <div class="bulk-top-sep"></div>
+      <button class="btn primary" id="b_load"><i class="fas fa-upload"></i> Load &amp; Parse</button>
+      <span class="preview-status" id="b_loadstatus" style="flex:0 1 auto;white-space:nowrap;"></span>
+    </div>
+
+    <div class="bulk-3col">
+      <!-- LEFT: patient table -->
+      <div class="bulk-col bulk-col-left">
+        <div class="bulk-col-header"><span><i class="fas fa-table"></i> Review &amp; Edit Patients</span></div>
+        <div class="bulk-select-row">
+          <button class="btn sm" id="b_selall">Select All</button>
+          <button class="btn sm" id="b_deselall">Deselect All</button>
+        </div>
+        <div class="bulk-table-scroll">
+          <table class="bulk">
+            <thead><tr>
+              <th><input type="checkbox" id="b_checkall" /></th>
+              <th>#</th><th>Patient Name</th><th>Sample No.</th>
+              <th>ISCN Result</th><th>Report Type</th><th>Images</th>
+            </tr></thead>
+            <tbody id="b_tbody">
+              <tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:24px;">No data loaded</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- CENTER: patient editor -->
+      <div class="bulk-col bulk-col-center">
+        <div class="bulk-col-header"><span><i class="fas fa-user-edit"></i> Patient Editor</span></div>
+        <div class="bulk-col-scroll">
+          <div class="bulk-placeholder" id="b_editor_ph">Click a row in the table to edit.</div>
+          <div id="b_editor" style="display:none;">
+            <div class="rt-row">
+              <label class="fld"><span>Report Type</span><select id="b_rt"></select></label>
+              <button class="btn gold" id="b_apply">Apply Template</button>
+            </div>
+            <div id="b_fields"></div>
+            <div style="margin-top:8px;">
+              <span class="fld-cap">Karyogram Images</span>
+              <div class="btnrow"><button class="btn sm" id="b_addimg"><i class="fas fa-plus"></i> Add Image(s)</button>
+                <input type="file" id="b_imgfile" accept=".jpg,.jpeg,.png" multiple hidden /></div>
+              <div class="imglist" id="b_imglist"></div>
+            </div>
+            <div class="btnrow" style="margin-top:14px;">
+              <button class="btn gold" id="b_save"><i class="fas fa-check"></i> Save Changes</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- RIGHT: live preview -->
+      <div class="bulk-col bulk-col-right">
+        <div class="bulk-col-header">
+          <span><i class="fas fa-eye"></i> Live Preview</span>
+          <button class="btn sm" id="b_refresh"><i class="fas fa-sync"></i> Refresh</button>
+        </div>
+        <div class="preview-status" id="b_status" style="padding:8px 14px 0;flex:0 0 auto;">Select a row to preview.</div>
+        <div class="bulk-preview-host" id="b_pvhost"><div class="preview-empty">No preview yet</div></div>
+      </div>
+    </div>
+
+    <!-- 3. Generate -->
+    <div class="glass" style="margin-top:18px;">
+      <h3><i class="fas fa-cog"></i> 3. Generate Reports</h3>
+      <div class="bulk-genrow">
+        <label class="fld" style="margin-bottom:0;max-width:200px;"><span>Logo</span>
+          <select id="b_logo"><option>With Logo</option><option>Without Logo</option></select></label>
+        <button class="btn primary" id="b_gensel" disabled><i class="fas fa-file-pdf"></i> Generate Selected</button>
+        <button class="btn green" id="b_genall" disabled><i class="fas fa-layer-group"></i> Generate All</button>
+      </div>
+      <div class="prog" id="b_prog"><i></i></div>
+      <div class="prog-lbl" id="b_proglbl"></div>
+      <div id="b_results" style="margin-top:12px;"></div>
+    </div>
+  </section>
+
+  <!-- REPORT COMPARISON -->
+  <section class="panel" id="panel-compare">
+    <div style="max-width:1100px;margin:0 auto;">
+      <div class="glass" style="margin-bottom:18px;">
+        <h3><i class="fas fa-balance-scale"></i> Report Comparison</h3>
+        <p class="hint" style="margin-bottom:14px;">Select a <b>Manual</b> report and an <b>Automated</b> report (PDF) to compare them line by line. Differences are highlighted; export the result as a standalone HTML file.</p>
+        <div class="cmp-upload-row">
+          <label class="cmp-upload-box" id="cmpDropManual" for="cmpFileManual">
+            <i class="fas fa-file-pdf"></i>
+            <div class="cmp-upload-label">Manual Report</div>
+            <div class="cmp-fname" id="cmpManualName" style="display:none;"></div>
+            <div class="hint" id="cmpManualHint">Click to choose a PDF</div>
+            <input type="file" id="cmpFileManual" accept=".pdf" hidden onchange="cmpFileSelected('manual',this)" />
+          </label>
+          <div class="cmp-vs-badge">VS</div>
+          <label class="cmp-upload-box" id="cmpDropAuto" for="cmpFileAuto">
+            <i class="fas fa-file-pdf"></i>
+            <div class="cmp-upload-label">Automated Report</div>
+            <div class="cmp-fname" id="cmpAutoName" style="display:none;"></div>
+            <div class="hint" id="cmpAutoHint">Click to choose a PDF</div>
+            <input type="file" id="cmpFileAuto" accept=".pdf" hidden onchange="cmpFileSelected('auto',this)" />
+          </label>
+        </div>
+        <div class="btnrow" style="margin-top:14px;">
+          <button class="btn primary" id="cmpBtn" onclick="runComparison()" disabled><i class="fas fa-balance-scale"></i> Compare Reports</button>
+          <button class="btn" id="cmpClearBtn" onclick="clearComparison()"><i class="fas fa-eraser"></i> Clear</button>
+          <button class="btn gold" id="cmpDownloadBtn" onclick="downloadComparison()" style="display:none;"><i class="fas fa-download"></i> Download HTML</button>
+        </div>
+      </div>
+      <div id="cmpResults"></div>
+    </div>
+  </section>
+
+  <!-- GUIDE -->
+  <section class="panel guide" id="panel-guide">
+    <div class="guide-container">
+
+      <div class="guide-header-bar">
+        <h2>Karyotype Report Generator &mdash; User Guide</h2>
+        <p>Anderson Diagnostics &nbsp;|&nbsp; Peripheral Blood Karyotyping (PBK)</p>
+      </div>
+
+      <div class="guide-card">
+        <h3>1. Quick Start</h3>
+        <ul>
+          <li><b>Manual Entry</b> &mdash; Select a <b>Report Type</b>, click <i>Apply Template</i>, fill in patient details, then click <b>Generate Report</b>.</li>
+          <li><b>Bulk Upload</b> &mdash; Load an Excel file (optionally with a folder of karyogram images), review / edit each patient in the inline editor, then click <b>Generate All</b>.</li>
+        </ul>
+      </div>
+
+      <div class="guide-card">
+        <h3>2. Report Types &amp; Templates</h3>
+        <table>
+          <tr><th>Report Type</th><th>Typical ISCN</th><th>Layout</th></tr>
+          <tr><td>Normal Male</td><td>46,XY</td><td>2-page</td></tr>
+          <tr><td>Normal Female</td><td>46,XX</td><td>2-page</td></tr>
+          <tr><td>Trisomy 21 (Down Syndrome)</td><td>47,XY,+21 / 47,XX,+21</td><td>3-page</td></tr>
+          <tr><td>Translocation</td><td>46,XX,t(11;22)&hellip;</td><td>3-page</td></tr>
+          <tr><td>Mosaic</td><td>mos 46,X,del(Y)&hellip;[43]/45,X[7]</td><td>3-page</td></tr>
+          <tr><td>Klinefelter's Syndrome (47,XXY)</td><td>47,XXY</td><td>3-page</td></tr>
+          <tr><td>Turner Syndrome (45,X)</td><td>45,X</td><td>3-page</td></tr>
+          <tr><td>Chromosomal Variant</td><td>46,XY,del(&hellip;)</td><td>3-page</td></tr>
+          <tr><td>Other (Custom)</td><td>Any</td><td>Auto (by Comments field)</td></tr>
+        </table>
+      </div>
+
+      <div class="guide-tip"><b>Auto-detection:</b> When loading from Excel the Report Type is automatically guessed from the ISCN result. You can change it in the editor and click <i>Apply Template</i> to update Interpretation / Comments / Recommendations.</div>
+
+      <div class="guide-card">
+        <h3>3. Layout Rules</h3>
+        <ul>
+          <li><b>2-page</b> &mdash; Comments field is empty (Normal Male / Female).</li>
+          <li><b>3-page</b> &mdash; Comments field has content (all abnormal / variant reports).</li>
+        </ul>
+      </div>
+
+      <div class="guide-card">
+        <h3>4. Image Auto-Discovery (Bulk)</h3>
+        <p>Select a folder of karyogram images alongside the Excel file. Files are matched by Sample Number:</p>
+        <ul>
+          <li><code>260154818.jpg</code> &mdash; single image (exact match)</li>
+          <li><code>260161295 1.jpg</code>, <code>260161295 2.jpg</code> &mdash; multiple images (numbered suffix)</li>
+        </ul>
+        <p>Use <i>Add Image(s)</i> in the editor to manually adjust if auto-discovery misses files.</p>
+      </div>
+
+      <div class="guide-card">
+        <h3>5. Excel Column Reference</h3>
+        <table>
+          <tr><th>Column</th><th>Description</th></tr>
+          <tr><td>NAME</td><td>Patient full name</td></tr>
+          <tr><td>GENDER</td><td>Male / Female</td></tr>
+          <tr><td>AGE</td><td>Age (e.g. 25 Years)</td></tr>
+          <tr><td>SPECIMEN</td><td>e.g. Peripheral blood</td></tr>
+          <tr><td>PIN</td><td>Patient ID number</td></tr>
+          <tr><td>SAMPLE NUMBER</td><td>Lab sample number (used for image matching)</td></tr>
+          <tr><td>SAMPLE COLLECTION DATE</td><td>DD-MM-YYYY</td></tr>
+          <tr><td>SAMPLE RECEIPT DATE</td><td>DD-MM-YYYY</td></tr>
+          <tr><td>REPORT DATE</td><td>DD-MM-YYYY</td></tr>
+          <tr><td>REFERRING CLINICIAN</td><td>Doctor / clinician name</td></tr>
+          <tr><td>HOSPITAL/CLINIC</td><td>Referring hospital or clinic</td></tr>
+          <tr><td>TEST INDICATION</td><td>Clinical reason for test</td></tr>
+          <tr><td>RESULT</td><td>ISCN notation (e.g. 46,XX)</td></tr>
+          <tr><td>METAPHASE ANALYSED</td><td>Number of metaphases counted</td></tr>
+          <tr><td>ESTIMATED BAND RESOLUTION</td><td>e.g. 475</td></tr>
+          <tr><td>AUTOSOME</td><td>Normal / Abnormal / Variant Observed</td></tr>
+          <tr><td>SEX CHROMOSOME</td><td>Normal / Abnormal</td></tr>
+          <tr><td>INTERPRETATION</td><td>Clinical interpretation paragraph</td></tr>
+          <tr><td>COMMENTS</td><td>Additional clinical comments (blank &rarr; 2-page layout)</td></tr>
+          <tr><td>RECOMMENDATIONS</td><td>Clinical recommendations</td></tr>
+        </table>
+      </div>
+
+      <div class="guide-card">
+        <h3>6. Fixed Signatories</h3>
+        <ul>
+          <li>Dr. R. Deepika &mdash; Consultant Cytogeneticist</li>
+          <li>Dr. Teena Koshy &mdash; Consultant Cytogeneticist</li>
+          <li>Dr. Suriya kumar G &mdash; Senior Consultant &amp; HOD</li>
+        </ul>
+      </div>
+
+    </div>
+  </section>
+
+  <div class="toast-wrap" id="toasts"></div>
+
+  <script>
+  "use strict";
+  // ===== Data model (verbatim from the desktop application) =====
+  var API = (window.location.protocol === "file:" ||
+             ((window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost") &&
+              window.location.port !== "8000"))
+      ? "http://127.0.0.1:8000"
+      : "";  // same-origin when served by FastAPI
+  function apiUrl(path){
+    if(!path) return "";
+    if(/^https?:\/\//i.test(path) || /^data:/i.test(path)) return path;
+    return API + (path.charAt(0)==="/" ? path : "/"+path);
+  }
+  var BULLET = "•";       // matches backend recommendation bullet
+  var RSQUO  = "’";       // right single quote used in desktop templates
+
+  var REPORT_TEMPLATES = {
+    "Normal Male": {
+      INTERPRETATION:"Karyotype shows an apparently normal male.", COMMENTS:"",
+      RECOMMENDATIONS: BULLET+" Genetic counseling is recommended to discuss the implications of the result.\n"+BULLET+" Additional genetic testing may be warranted based on the specific phenotypic indication.",
+      AUTOSOME:"Normal", "SEX CHROMOSOME":"Normal" },
+    "Normal Female": {
+      INTERPRETATION:"Karyotype shows an apparently normal female.", COMMENTS:"",
+      RECOMMENDATIONS: BULLET+" Genetic counseling is recommended to discuss the implications of the result.\n"+BULLET+" Additional genetic testing may be warranted based on the specific phenotypic indication.",
+      AUTOSOME:"Normal", "SEX CHROMOSOME":"Normal" },
+    "Trisomy 21 (Down Syndrome)": {
+      INTERPRETATION:"The constitutional karyotype shows a [male/female] with three copies of chromosome 21, indicating Down (Trisomy 21) syndrome.",
+      COMMENTS:"Trisomy 21 is a genetic syndrome associated with impairment of cognitive ability and physical growth as well as a particular set of facial characteristics.",
+      RECOMMENDATIONS:"Advised genetic counseling for the parents.",
+      AUTOSOME:"Abnormal", "SEX CHROMOSOME":"Normal" },
+    "Translocation": {
+      INTERPRETATION:"Karyotype shows a [male/female] with an apparently balanced translocation involving chromosome [X] and [Y] with the breakpoints [Xp/q] and [Yp/q].",
+      COMMENTS:"Usually this arrangement has no effect on development or general health because no genes have been lost or gained. However, the carrier of a balanced translocation has an increased risk of infertility, recurrent abortions and live-born offspring with chromosome imbalances like Emanuel syndrome.",
+      RECOMMENDATIONS:"Genetic counseling advised (to include review of partners"+RSQUO+" karyotype). Prenatal diagnosis of all subsequent pregnancies is strongly recommended.",
+      AUTOSOME:"Abnormal", "SEX CHROMOSOME":"Normal" },
+    "Mosaic": {
+      INTERPRETATION:"Karyotype analysis showed the presence of two cell lines: [X]% cells with [description] and [Y]% of the cells with [description]. This indicates a mosaic karyotype.",
+      COMMENTS:"Reports of individuals with this mosaic karyotype have indicated that they can present a wide spectrum of phenotypes. Clinical correlation is advised.",
+      RECOMMENDATIONS:"Clinical correlation and genetic counselling.",
+      AUTOSOME:"Normal", "SEX CHROMOSOME":"Abnormal" },
+    "Klinefelter's Syndrome (47,XXY)": {
+      INTERPRETATION:"Karyotype analysis shows two X chromosomes and one Y chromosome, indicating Klinefelter"+RSQUO+"s syndrome.",
+      COMMENTS:"Klinefelter"+RSQUO+"s syndrome is characterized by eunuchoid body proportions, taller than average, gynecomastia, elevated luteinizing hormone (LH) and follicle stimulating hormone (FSH) levels.",
+      RECOMMENDATIONS:"Advised genetic counseling.",
+      AUTOSOME:"Normal", "SEX CHROMOSOME":"Abnormal" },
+    "Turner Syndrome (45,X)": {
+      INTERPRETATION:"Karyotype analysis shows a single X chromosome (monosomy X), indicating Turner syndrome.",
+      COMMENTS:"Turner syndrome is characterized by short stature, gonadal dysgenesis, and various clinical features that may include cardiac defects and infertility.",
+      RECOMMENDATIONS:"Advised genetic counseling and specialist evaluation.",
+      AUTOSOME:"Normal", "SEX CHROMOSOME":"Abnormal" },
+    "Chromosomal Variant": {
+      INTERPRETATION:"", COMMENTS:"", RECOMMENDATIONS:"Genetic counseling advised.",
+      AUTOSOME:"Variant Observed", "SEX CHROMOSOME":"Normal" },
+    "Other (Custom)": {
+      INTERPRETATION:"", COMMENTS:"", RECOMMENDATIONS:"",
+      AUTOSOME:"Normal", "SEX CHROMOSOME":"Normal" }
+  };
+  var REPORT_TYPE_OPTIONS = Object.keys(REPORT_TEMPLATES);
+
+  // [label, key, type, placeholder|options]
+  var FIELD_DEFS = [
+    ["Patient Name","NAME","line",""],
+    ["Gender","GENDER","combo",["Male","Female"]],
+    ["Age","AGE","line","e.g. 25 Years"],
+    ["Specimen","SPECIMEN","line","Peripheral blood"],
+    ["PIN","PIN","line",""],
+    ["Sample Number","SAMPLE NUMBER","line",""],
+    ["Sample Collection Date","SAMPLE COLLECTION DATE","line","DD-MM-YYYY"],
+    ["Sample Receipt Date","SAMPLE RECEIPT DATE","line","DD-MM-YYYY"],
+    ["Report Date","REPORT DATE","line","DD-MM-YYYY"],
+    ["Referring Clinician","REFERRING CLINICIAN","line",""],
+    ["Hospital / Clinic","HOSPITAL/CLINIC","line",""],
+    ["Test Indication","TEST INDICATION","line","To rule out gross chromosomal abnormality"],
+    ["ISCN Result","RESULT","line","e.g. 46,XX"],
+    ["Metaphase Analysed","METAPHASE ANALYSED","line","25"],
+    ["Estimated Band Resolution","ESTIMATED BAND RESOLUTION","line","475"],
+    ["Autosome","AUTOSOME","combo",["Normal","Abnormal","Variant Observed"]],
+    ["Sex Chromosome","SEX CHROMOSOME","combo",["Normal","Abnormal"]],
+    ["Interpretation","INTERPRETATION","text",""],
+    ["Comments","COMMENTS","text",""],
+    ["Recommendations","RECOMMENDATIONS","text",""]
+  ];
+  var TEXT_KEYS = ["INTERPRETATION","COMMENTS","RECOMMENDATIONS"];
+
+  function detectReportType(iscn){
+    var s=(iscn||"").trim(); if(!s) return "Other (Custom)";
+    var sl=s.toLowerCase();
+    if(sl.indexOf("mos")===0) return "Mosaic";
+    if(sl.indexOf("xxy")>=0) return "Klinefelter's Syndrome (47,XXY)";
+    if(/45\s*,\s*x\b/.test(sl)) return "Turner Syndrome (45,X)";
+    if(sl.indexOf("t(")>=0||sl.indexOf("rob(")>=0) return "Translocation";
+    if(s.indexOf("+21")>=0) return "Trisomy 21 (Down Syndrome)";
+    if(/^46\s*,\s*xy$/i.test(s)) return "Normal Male";
+    if(/^46\s*,\s*xx$/i.test(s)) return "Normal Female";
+    if(/del\(|dup\(|inv\(|ins\(|add\(/.test(sl)) return "Chromosomal Variant";
+    return "Other (Custom)";
+  }
+
+  // ===== utils =====
+  function $(id){ return document.getElementById(id); }
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];}); }
+  function toast(msg, kind){
+    var t=document.createElement("div"); t.className="toast "+(kind||"");
+    t.innerHTML=msg; $("toasts").appendChild(t);
+    setTimeout(function(){ t.style.transition="opacity .3s"; t.style.opacity="0"; setTimeout(function(){t.remove();},300); }, kind==="err"?9000:6000);
+  }
+  function buildSelect(sel, options){ sel.innerHTML=options.map(function(o){return "<option>"+esc(o)+"</option>";}).join(""); }
+  function fileToDataUrl(file){
+    return new Promise(function(resolve){
+      var reader=new FileReader();
+      reader.onload=function(){ resolve(reader.result||""); };
+      reader.onerror=function(){ resolve(""); };
+      reader.readAsDataURL(file);
+    });
+  }
+  function imagePayload(arr){
+    return (arr||[]).map(function(im){
+      if(typeof im==="string") return im;
+      if(im && im.data_url) return {filename:im.filename||im.original, original:im.original||im.filename, data_url:im.data_url};
+      return im && im.filename ? im.filename : im;
+    }).filter(Boolean);
+  }
+  function imageStem(name){
+    return String(name||"").replace(/\.[^.]+$/,"").replace(/[_+\-]/g," ").replace(/\s+/g," ").trim();
+  }
+  function matchImagesForSample(images, sampleNo){
+    var sample=String(sampleNo||"").trim();
+    if(!sample) return [];
+    return (images||[]).filter(function(im){
+      var stem=imageStem(im.original||im.filename);
+      return stem===sample || new RegExp("^"+sample.replace(/[.*+?^${}()|[\]\\]/g,"\\$&")+"\\s+\\d+$").test(stem);
+    });
+  }
+
+  function buildForm(host){
+    host.innerHTML="";
+    var inputs={};
+    FIELD_DEFS.forEach(function(def){
+      var label=def[0], key=def[1], type=def[2], opt=def[3];
+      var wrap=document.createElement("label"); wrap.className="fld";
+      var span=document.createElement("span"); span.textContent=label; wrap.appendChild(span);
+      var el;
+      if(type==="combo"){ el=document.createElement("select"); buildSelect(el,opt); }
+      else if(type==="text"){ el=document.createElement("textarea"); el.rows=3; }
+      else { el=document.createElement("input"); el.type="text"; if(opt) el.placeholder=opt; }
+      el.dataset.key=key;
+      wrap.appendChild(el); host.appendChild(wrap);
+      inputs[key]=el;
+    });
+    return inputs;
+  }
+  function readForm(inputs){ var d={}; for(var k in inputs){ var v=inputs[k].value; d[k]=(typeof v==="string")?v.trim():v; } return d; }
+  function writeForm(inputs, data){
+    for(var k in inputs){
+      var v=(data && data[k]!=null) ? String(data[k]) : "";
+      if(v==="nan"||v==="NaT"||v==="None"||v==="NaN") v="";
+      inputs[k].value=v;
+    }
+  }
+  function applyTemplate(inputs, tplName){
+    var tpl=REPORT_TEMPLATES[tplName]||{};
+    TEXT_KEYS.forEach(function(k){ if(inputs[k] && tpl[k]!=null) inputs[k].value=tpl[k]; });
+    ["AUTOSOME","SEX CHROMOSOME"].forEach(function(k){ if(inputs[k]&&tpl[k]!=null) inputs[k].value=tpl[k]; });
+  }
+  function withTemplateDefaults(data, tplName){
+    var out={}, tpl=REPORT_TEMPLATES[tplName]||{};
+    Object.keys(data||{}).forEach(function(k){ out[k]=data[k]; });
+    TEXT_KEYS.concat(["AUTOSOME","SEX CHROMOSOME"]).forEach(function(k){
+      if((out[k]==null || String(out[k]).trim()==="") && tpl[k]!=null) out[k]=tpl[k];
+    });
+    return out;
+  }
+
+  // ── PDF preview: render pages to stacked canvases via PDF.js (same as PGTA/NIPT) ──
+  var _pdfTokens = {};
+  function renderPdfToCanvas(arrayBuffer, host, token, tokenKey){
+    var lib = window['pdfjs-dist/build/pdf'];
+    if(!lib){
+      // Fallback: embed via iframe if the PDF.js CDN is unavailable
+      if(host.dataset.blobUrl) URL.revokeObjectURL(host.dataset.blobUrl);
+      var u = URL.createObjectURL(new Blob([arrayBuffer], {type:"application/pdf"}));
+      host.dataset.blobUrl = u;
+      host.innerHTML = '<iframe class="pdf" src="'+u+'#toolbar=0&navpanes=0&scrollbar=0&zoom=page-width"></iframe>';
+      return Promise.resolve();
+    }
+    return lib.getDocument({data: arrayBuffer}).promise.then(function(doc){
+      if(_pdfTokens[tokenKey]!==token) return;
+      host.innerHTML="";
+      var containerW = Math.max((host.clientWidth||440) - 24, 240);
+      var dpr = Math.min(window.devicePixelRatio || 1, 3);   // render at device resolution for crisp text
+      var chain = Promise.resolve();
+      var _loop = function(n){
+        chain = chain.then(function(){
+          if(_pdfTokens[tokenKey]!==token) return;
+          return doc.getPage(n).then(function(page){
+            if(_pdfTokens[tokenKey]!==token) return;
+            var vp = page.getViewport({scale:1});
+            var cssScale = Math.max(0.4, containerW / vp.width);
+            var svp = page.getViewport({scale: cssScale * dpr});
+            var canvas = document.createElement("canvas");
+            canvas.className = "preview-page-canvas";
+            canvas.width = svp.width; canvas.height = svp.height;   // hi-DPI backing store; CSS width:100% sets display size
+            host.appendChild(canvas);
+            return page.render({canvasContext: canvas.getContext("2d"), viewport: svp}).promise;
+          });
+        });
+      };
+      for(var num=1; num<=doc.numPages; num++) _loop(num);
+      return chain;
+    });
+  }
+
+  // Live preview with race-guard token (newest request wins)
+  function makePreviewer(hostId, statusId){
+    _pdfTokens[hostId] = 0;
+    return function(payload, enabled){
+      var host=$(hostId), status=$(statusId);
+      if(!enabled){ host.innerHTML='<div class="preview-empty">No preview yet</div>'; return; }
+      if(!payload.data || !(payload.data.NAME||"").trim()){
+        status.textContent="Enter a Patient Name to enable preview."; return;
+      }
+      var myTok=++_pdfTokens[hostId];
+      status.innerHTML='<span class="spinner"></span> Generating preview...';
+      fetch(API+"/karyotype/preview",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)})
+        .then(function(r){ return r.json().then(function(j){ if(!r.ok && !j.error) j.error="Preview failed ("+r.status+")"; return j; }); })
+        .then(function(j){
+          if(_pdfTokens[hostId]!==myTok) return;
+          if(j.error){ status.textContent="Preview error: "+j.error; return; }
+          var previewUrl = j.preview_url || j.previewUrl || j.pdf_url || j.pdfUrl ||
+                           j.file_url || j.fileUrl || j.url ||
+                           ((j.file || j.filename) ? "/karyotype/preview-file/"+(j.file || j.filename) : "");
+          if(!previewUrl){
+            status.textContent="Preview error: server did not return a PDF URL.";
+            host.innerHTML='<div class="preview-empty">Preview unavailable</div>';
+            return;
+          }
+          return fetch(apiUrl(previewUrl), {cache:"no-store"})
+            .then(function(resp){
+              var ctype=(resp.headers.get("content-type")||"").toLowerCase();
+              if(!resp.ok) throw new Error("PDF file not found ("+resp.status+")");
+              if(ctype.indexOf("text/html")>=0) throw new Error("Preview URL returned the app page, not a PDF.");
+              return resp.arrayBuffer();
+            })
+            .then(function(buf){
+              if(_pdfTokens[hostId]!==myTok) return;
+              return renderPdfToCanvas(buf, host, myTok, hostId);
+            })
+            .then(function(){ if(_pdfTokens[hostId]===myTok) status.textContent="Preview updated ("+new Date().toLocaleTimeString()+")"; });
+        })
+        .catch(function(e){ if(_pdfTokens[hostId]===myTok) status.textContent="Preview error: "+e.message; });
+    };
+  }
+
+  // Upload one or more image files -> returns array of {filename,url,original}
+  function uploadImages(fileList){
+    var files=Array.prototype.slice.call(fileList||[]);
+    return files.reduce(function(chain, f){
+      return chain.then(function(out){
+        return fileToDataUrl(f).then(function(dataUrl){
+          var fd=new FormData(); fd.append("file",f);
+          return fetch(API+"/karyotype/upload-image",{method:"POST",body:fd})
+          .then(function(r){ return r.json().catch(function(){ return {error:"upload failed ("+r.status+")"}; }); })
+          .then(function(j){
+            if(j && j.error){ toast("Image upload failed: "+esc(j.error),"err"); }
+            if(j && j.filename){
+              j.url=apiUrl(j.url);
+              j.data_url=dataUrl;
+              out.push(j);
+            } else if(dataUrl) {
+              out.push({filename:f.name, original:f.name, url:dataUrl, data_url:dataUrl});
+            }
+            return out;
+          })
+          .catch(function(e){
+            toast("Image upload failed: "+esc(e.message)+". Using browser copy for preview.","err");
+            if(dataUrl) out.push({filename:f.name, original:f.name, url:dataUrl, data_url:dataUrl});
+            return out;
+          });
+        });
+      });
+    }, Promise.resolve([]));
+  }
+
+  // Render a list of {url,original,filename} chips with a remove callback
+  function renderImgList(host, arr, onRemove){
+    host.innerHTML = arr.length ? "" : '<div class="hint">No images added.</div>';
+    arr.forEach(function(im, idx){
+      var d=document.createElement("div"); d.className="imgchip";
+      d.innerHTML='<img src="'+im.url+'" title="'+esc(im.original||im.filename)+'"/><button title="Remove">&times;</button>';
+      d.querySelector("button").addEventListener("click", function(){ onRemove(idx); });
+      host.appendChild(d);
+    });
+  }
+
+  // ===== Tabs =====
+  Array.prototype.forEach.call(document.querySelectorAll(".tab"), function(t){
+    t.addEventListener("click", function(){
+      Array.prototype.forEach.call(document.querySelectorAll(".tab"), function(x){ x.classList.remove("active"); });
+      Array.prototype.forEach.call(document.querySelectorAll(".panel"), function(x){ x.classList.remove("active"); });
+      t.classList.add("active");
+      $("panel-"+t.dataset.tab).classList.add("active");
+    });
+  });
+
+  // ===== MANUAL ENTRY =====
+  var M_images=[];                       // [{filename,url,original}]
+  var m_inputs=buildForm($("m_fields"));
+  buildSelect($("m_rt"),REPORT_TYPE_OPTIONS);
+  var m_preview=makePreviewer("m_pvhost","m_status");
+  var m_timer=null;
+  function m_schedule(){ clearTimeout(m_timer); m_timer=setTimeout(m_run,900); }
+  function m_payload(){
+    return { data:withTemplateDefaults(readForm(m_inputs), $("m_rt").value),
+             images:imagePayload(M_images),
+             with_logo:$("m_logo").value==="With Logo" };
+  }
+  function m_run(){ var p=m_payload(); m_preview(p, !!(p.data.NAME||"").trim()); }
+  function m_renderImgs(){
+    renderImgList($("m_imglist"), M_images, function(i){ M_images.splice(i,1); m_renderImgs(); m_schedule(); });
+  }
+  m_renderImgs();
+
+  Object.keys(m_inputs).forEach(function(k){
+    m_inputs[k].addEventListener("input", m_schedule);
+    m_inputs[k].addEventListener("change", m_schedule);
+  });
+  $("m_logo").addEventListener("change", m_schedule);
+  $("m_apply").addEventListener("click", function(){ applyTemplate(m_inputs,$("m_rt").value); m_schedule(); });
+  $("m_refresh").addEventListener("click", m_run);
+  $("m_addimg").addEventListener("click", function(){ $("m_imgfile").click(); });
+  $("m_imgfile").addEventListener("change", function(e){
+    var files=e.target.files;
+    uploadImages(files).then(function(ups){
+      M_images=M_images.concat(ups);
+      if(M_images.length>3){ M_images=M_images.slice(0,3); toast("Maximum 3 karyogram images per report — extra images ignored.","err"); }
+      m_renderImgs();
+      m_schedule();
+    });
+    e.target.value="";
+  });
+
+  $("m_gen").addEventListener("click", function(){
+    var p=m_payload();
+    if(!(p.data.NAME||"").trim()){ toast("Patient Name is required.","err"); return; }
+    var btn=$("m_gen"); var old=btn.innerHTML; btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Generating...';
+    fetch(API+"/karyotype/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)})
+      .then(function(r){return r.json();})
+      .then(function(j){
+        if(j.error){ toast("Error: "+esc(j.error),"err"); }
+        else toast('Report generated: <a href="'+apiUrl(j.url)+'" target="_blank">'+esc(j.file)+'</a>',"ok");
+      })
+      .catch(function(e){ toast("Error: "+esc(e.message),"err"); })
+      .then(function(){ btn.disabled=false; btn.innerHTML=old; });
+  });
+
+  $("m_savedraft").addEventListener("click", function(){
+    var body={ data:readForm(m_inputs), report_type:$("m_rt").value, images:M_images };
+    fetch(API+"/karyotype/draft/save",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
+      .then(function(r){return r.json();})
+      .then(function(j){ toast(j.saved?("Draft saved: "+esc(j.saved)):"Save failed", j.saved?"ok":"err"); });
+  });
+  $("m_loaddraft").addEventListener("click", function(){
+    fetch(API+"/karyotype/draft/list").then(function(r){return r.json();}).then(function(j){
+      var list=j.drafts||[];
+      if(!list.length){ toast("No saved drafts.","err"); return; }
+      var pick=prompt("Load which draft?\n\n"+list.map(function(d,i){return (i+1)+". "+d;}).join("\n")+"\n\nEnter number:");
+      var idx=parseInt(pick,10)-1;
+      if(isNaN(idx)||idx<0||idx>=list.length) return;
+      fetch(API+"/karyotype/draft/load/"+encodeURIComponent(list[idx])).then(function(r){return r.json();}).then(function(dr){
+        if(dr.error){ toast("Load failed","err"); return; }
+        writeForm(m_inputs, dr.data||{});
+        var rt=dr.report_type || detectReportType((dr.data||{}).RESULT||"");
+        if(REPORT_TYPE_OPTIONS.indexOf(rt)>=0) $("m_rt").value=rt;
+        M_images=(dr.images||[]).map(function(im){
+          return (typeof im==="string")
+            ? {filename:im,url:apiUrl("/karyotype/image/"+im),original:im}
+            : {filename:im.filename, url:apiUrl(im.url||("/karyotype/image/"+im.filename)), original:im.original||im.filename};
+        });
+        m_renderImgs(); m_schedule();
+        toast("Draft loaded.","ok");
+      });
+    });
+  });
+  $("m_clear").addEventListener("click", function(){
+    writeForm(m_inputs,{});
+    Object.keys(m_inputs).forEach(function(k){ if(m_inputs[k].tagName==="SELECT") m_inputs[k].selectedIndex=0; });
+    $("m_rt").selectedIndex=0; M_images=[]; m_renderImgs();
+    $("m_pvhost").innerHTML='<div class="preview-empty">No preview yet</div>';
+    $("m_status").textContent="Fill in a Patient Name to enable preview.";
+  });
+
+  // ===== BULK UPLOAD =====
+  var B_rows=[];                // [{...fields, REPORT_TYPE, IMAGES:[names]}]
+  var B_uploadedImages=[];      // [{filename, original, url, data_url}] selected with the Excel
+  var B_current=-1;
+  var B_checked={};             // idx -> bool; survives table re-renders (missing = checked)
+  var b_inputs=buildForm($("b_fields"));
+  buildSelect($("b_rt"),REPORT_TYPE_OPTIONS);
+  var b_preview=makePreviewer("b_pvhost","b_status");
+  var b_timer=null;
+  function b_schedule(){ if(B_current<0) return; clearTimeout(b_timer); b_timer=setTimeout(b_run,900); }
+
+  $("b_images").addEventListener("change", function(){
+    var imgs=Array.prototype.filter.call(this.files, function(f){ return /\.(jpe?g|png)$/i.test(f.name); });
+    var folder=(this.files[0] && this.files[0].webkitRelativePath) ? this.files[0].webkitRelativePath.split("/")[0] : "";
+    $("b_images_label").textContent = imgs.length
+      ? (imgs.length+" image(s)"+(folder?(' in "'+folder+'"'):""))
+      : "Click to select a folder of karyogram images (optional — auto-matched by Sample Number)";
+  });
+  $("b_load").addEventListener("click", function(){
+    var ex=$("b_excel").files[0];
+    if(!ex){ toast("Choose an Excel file first.","err"); return; }
+    var fd=new FormData(); fd.append("file",ex);
+    // Folder pick (webkitdirectory) returns every file in the folder — keep only images
+    var bulkFiles=Array.prototype.slice.call($("b_images").files||[]).filter(function(f){ return /\.(jpe?g|png)$/i.test(f.name); });
+    bulkFiles.forEach(function(f){ fd.append("images",f); });
+    $("b_loadstatus").innerHTML='<span class="spinner"></span> Parsing...';
+    Promise.all(bulkFiles.map(function(f){
+      return fileToDataUrl(f).then(function(dataUrl){
+        return {filename:f.name, original:f.name, url:dataUrl, data_url:dataUrl};
+      });
+    })).then(function(clientImages){
+      B_uploadedImages=clientImages;
+      return fetch(API+"/karyotype/parse-excel",{method:"POST",body:fd});
+    })
+      .then(function(r){return r.json();})
+      .then(function(j){
+        if(j.error){ $("b_loadstatus").textContent="Error: "+j.error; return; }
+        B_rows=(j.rows||[]).map(function(row){
+          row.IMAGES=row.IMAGES||[];
+          if(!row.IMAGES.length){
+            row.IMAGES=matchImagesForSample(B_uploadedImages, row["SAMPLE NUMBER"]);
+          }
+          if(!row.REPORT_TYPE) row.REPORT_TYPE=detectReportType(row.RESULT||"");
+          return row;
+        });
+        B_checked={};   // fresh load → every row selected by default
+        var withImgs=B_rows.filter(function(r){return (r.IMAGES||[]).length;}).length;
+        $("b_loadstatus").textContent="Loaded "+B_rows.length+" patient(s)"+(bulkFiles.length?(" — "+withImgs+" matched to images"):"")+".";
+        renderBulkTable();
+        $("b_gensel").disabled=B_rows.length===0; $("b_genall").disabled=B_rows.length===0;
+        B_current=-1; $("b_editor").style.display="none"; $("b_editor_ph").style.display="";
+        $("b_pvhost").innerHTML='<div class="preview-empty">No preview yet</div>';
+        $("b_status").textContent="Select a row to preview.";
+      })
+      .catch(function(e){ $("b_loadstatus").textContent="Error: "+e.message; });
+  });
+
+  function renderBulkTable(){
+    var tb=$("b_tbody");
+    if(!B_rows.length){ tb.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:24px;">No data loaded</td></tr>'; return; }
+    tb.innerHTML="";
+    B_rows.forEach(function(row,i){
+      var tr=document.createElement("tr"); tr.dataset.idx=i;
+      var nimg=(row.IMAGES||[]).length;
+      tr.innerHTML=
+        '<td><input type="checkbox" class="b_chk" data-idx="'+i+'"></td>'+
+        '<td>'+(i+1)+'</td>'+
+        '<td>'+esc(row.NAME||"")+'</td>'+
+        '<td>'+esc(row["SAMPLE NUMBER"]||"")+'</td>'+
+        '<td>'+esc(row.RESULT||"")+'</td>'+
+        '<td><span class="pill">'+esc(row.REPORT_TYPE||"")+'</span></td>'+
+        '<td class="'+(nimg?"":"noimg")+'">'+(nimg?nimg+" image(s)":"No images")+'</td>';
+      tr.addEventListener("click", function(e){ if(e.target.classList.contains("b_chk")) return; selectRow(i); });
+      tb.appendChild(tr);
+      var chk=tr.querySelector(".b_chk");
+      chk.checked = B_checked[i]!==false;       // restore prior selection (default checked)
+      chk.addEventListener("change", function(){ B_checked[+this.dataset.idx]=this.checked; syncCheckAll(); });
+    });
+    syncCheckAll();
+  }
+  function highlightRow(){
+    Array.prototype.forEach.call(document.querySelectorAll("#b_tbody tr"), function(tr){
+      tr.classList.toggle("sel", (+tr.dataset.idx)===B_current);
+    });
+  }
+  function syncCheckAll(){
+    var boxes=document.querySelectorAll(".b_chk");
+    var allOn=boxes.length>0 && Array.prototype.every.call(boxes, function(c){ return c.checked; });
+    $("b_checkall").checked=allOn;
+  }
+  function setAllChecked(val){
+    B_rows.forEach(function(_,i){ B_checked[i]=val; });
+    Array.prototype.forEach.call(document.querySelectorAll(".b_chk"), function(c){ c.checked=val; });
+    syncCheckAll();
+  }
+
+  function selectRow(i){
+    if(B_current>=0) saveEditorToRow(B_current, false);
+    B_current=i; highlightRow();
+    var row=B_rows[i];
+    $("b_editor").style.display="block"; $("b_editor_ph").style.display="none";
+    writeForm(b_inputs,row);
+    var rt=row.REPORT_TYPE||detectReportType(row.RESULT||"");
+    if(REPORT_TYPE_OPTIONS.indexOf(rt)>=0) $("b_rt").value=rt;
+    b_renderImgs();
+    b_run();
+  }
+  function saveEditorToRow(i, notify){
+    if(i<0||i>=B_rows.length) return;
+    var imgs=B_rows[i].IMAGES||[];
+    var d=readForm(b_inputs); d.REPORT_TYPE=$("b_rt").value; d.IMAGES=imgs;
+    B_rows[i]=d;
+    renderBulkTable(); highlightRow();
+    if(notify) toast("Row "+(i+1)+" saved.","ok");
+  }
+  function b_payload(){
+    var imgs=(B_rows[B_current]&&B_rows[B_current].IMAGES)||[];
+    return { data:withTemplateDefaults(readForm(b_inputs), $("b_rt").value),
+             images:imagePayload(imgs),
+             with_logo:$("b_logo").value==="With Logo" };
+  }
+  function b_run(){ if(B_current<0) return; var p=b_payload(); b_preview(p, !!(p.data.NAME||"").trim()); }
+
+  Object.keys(b_inputs).forEach(function(k){
+    b_inputs[k].addEventListener("input", b_schedule);
+    b_inputs[k].addEventListener("change", b_schedule);
+  });
+  $("b_logo").addEventListener("change", b_run);
+  $("b_rt").addEventListener("change", b_schedule);
+  $("b_apply").addEventListener("click", function(){ applyTemplate(b_inputs,$("b_rt").value); b_schedule(); });
+  $("b_save").addEventListener("click", function(){ saveEditorToRow(B_current,true); });
+  $("b_refresh").addEventListener("click", b_run);
+
+  function b_renderImgs(){
+    var row=B_rows[B_current]; if(!row) return;
+    var arr=(row.IMAGES||[]).map(function(n){
+      if(n && typeof n==="object") return {filename:n.filename||n.original, url:n.url||n.data_url||apiUrl("/karyotype/image/"+n.filename), original:n.original||n.filename, data_url:n.data_url};
+      return {filename:n, url:apiUrl("/karyotype/image/"+n), original:String(n).split("/").pop()};
+    });
+    renderImgList($("b_imglist"), arr, function(idx){ row.IMAGES.splice(idx,1); b_renderImgs(); renderBulkTable(); highlightRow(); b_schedule(); });
+  }
+  $("b_addimg").addEventListener("click", function(){ $("b_imgfile").click(); });
+  $("b_imgfile").addEventListener("change", function(e){
+    var row=B_rows[B_current]; if(!row) return;
+    var files=e.target.files;
+    uploadImages(files).then(function(ups){
+      row.IMAGES=(row.IMAGES||[]).concat(ups.map(function(u){return u.filename;}));
+      if(row.IMAGES.length>3){ row.IMAGES=row.IMAGES.slice(0,3); toast("Maximum 3 karyogram images per report — extra images ignored.","err"); }
+      b_renderImgs(); renderBulkTable(); highlightRow(); b_schedule();
+    });
+    e.target.value="";
+  });
+
+  $("b_selall").addEventListener("click", function(){ setAllChecked(true); });
+  $("b_deselall").addEventListener("click", function(){ setAllChecked(false); });
+  $("b_checkall").addEventListener("change", function(e){ setAllChecked(e.target.checked); });
+
+  function selectedIndices(){
+    return Array.prototype.slice.call(document.querySelectorAll(".b_chk")).filter(function(c){return c.checked;}).map(function(c){return +c.dataset.idx;});
+  }
+
+  function runBulk(indices){
+    if(B_current>=0) saveEditorToRow(B_current,false);
+    if(!indices.length){ toast("No rows selected.","err"); return; }
+    var patients=indices.map(function(i){
+      var row=Object.assign({}, B_rows[i]);
+      row=withTemplateDefaults(row, row.REPORT_TYPE||detectReportType(row.RESULT||""));
+      return { data:row, images:imagePayload(B_rows[i].IMAGES||[]) };
+    });
+    var prog=$("b_prog"), lbl=$("b_proglbl");
+    prog.style.display="block"; lbl.style.display="block";
+    prog.firstElementChild.style.width="15%"; lbl.textContent="Generating "+patients.length+" report(s)...";
+    $("b_gensel").disabled=true; $("b_genall").disabled=true;
+    fetch(API+"/karyotype/generate-bulk",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({patients:patients, with_logo:$("b_logo").value==="With Logo"})})
+      .then(function(r){return r.json();})
+      .then(function(j){
+        prog.firstElementChild.style.width="100%";
+        lbl.textContent="Done — "+j.generated+" generated"+((j.errors&&j.errors.length)?(", "+j.errors.length+" failed"):"")+".";
+        var res=$("b_results");
+        res.innerHTML=(j.results||[]).map(function(x){ return '<div style="font-size:12.5px;margin:3px 0;">&#10003; <a href="'+apiUrl(x.url)+'" target="_blank">'+esc(x.file)+'</a></div>'; }).join("")
+          +(j.errors||[]).map(function(e){ return '<div style="font-size:12.5px;margin:3px 0;color:#ff8c7a;">&#10005; '+esc(e)+'</div>'; }).join("");
+        toast(j.generated+" report(s) generated.", (j.errors&&j.errors.length)?"err":"ok");
+      })
+      .catch(function(e){ lbl.textContent="Error: "+e.message; toast("Error: "+esc(e.message),"err"); })
+      .then(function(){ $("b_gensel").disabled=false; $("b_genall").disabled=false; setTimeout(function(){ prog.style.display="none"; },1500); });
+  }
+  $("b_gensel").addEventListener("click", function(){ runBulk(selectedIndices()); });
+  $("b_genall").addEventListener("click", function(){ runBulk(B_rows.map(function(_,i){return i;})); });
+
+  // ===== REPORT COMPARISON (Manual vs Automated PDF, styled like the other reports) =====
+  var cmpFiles = { manual:null, auto:null };
+  var _lastCmpData = null;
+  function cmpFileSelected(type, input){
+    var file = input.files[0]; if(!file) return;
+    cmpFiles[type] = file;
+    var nameEl=$(type==="manual"?"cmpManualName":"cmpAutoName");
+    var hintEl=$(type==="manual"?"cmpManualHint":"cmpAutoHint");
+    var dropEl=$(type==="manual"?"cmpDropManual":"cmpDropAuto");
+    nameEl.style.display="block"; nameEl.textContent=file.name;
+    if(hintEl) hintEl.style.display="none";
+    dropEl.classList.add("has-file");
+    if(cmpFiles.manual && cmpFiles.auto){ $("cmpBtn").disabled=false; runComparison(); }
+  }
+  function clearComparison(){
+    cmpFiles={manual:null,auto:null}; _lastCmpData=null;
+    ["cmpManualName","cmpAutoName"].forEach(function(id){ var el=$(id); if(el){el.style.display="none";el.textContent="";} });
+    ["cmpManualHint","cmpAutoHint"].forEach(function(id){ var el=$(id); if(el) el.style.display=""; });
+    ["cmpDropManual","cmpDropAuto"].forEach(function(id){ var el=$(id); if(el) el.classList.remove("has-file"); });
+    $("cmpFileManual").value=""; $("cmpFileAuto").value="";
+    $("cmpResults").innerHTML="";
+    $("cmpBtn").disabled=true;
+    $("cmpDownloadBtn").style.display="none";
+  }
+  function runComparison(){
+    if(!cmpFiles.manual || !cmpFiles.auto){ toast("Select both reports first.","err"); return; }
+    var btn=$("cmpBtn"); var old=btn.innerHTML; btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Comparing...';
+    $("cmpDownloadBtn").style.display="none";
+    $("cmpResults").innerHTML='<div style="text-align:center;padding:30px;color:var(--text-muted);"><span class="spinner"></span><div style="margin-top:8px;font-size:12px;">Extracting and comparing report text&hellip;</div></div>';
+    var fd=new FormData(); fd.append("manual",cmpFiles.manual); fd.append("automated",cmpFiles.auto);
+    fetch(API+"/pgta/compare",{method:"POST",body:fd})
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d.error) throw new Error(d.error);
+        d.manual_file=cmpFiles.manual.name; d.auto_file=cmpFiles.auto.name;  // server doesn't return names
+        _lastCmpData=d;
+        renderComparisonResult(d);
+        $("cmpDownloadBtn").style.display="";
+      })
+      .catch(function(e){ $("cmpResults").innerHTML='<div class="glass"><span class="cmp-summary-badge diff"><i class="fas fa-exclamation-circle"></i> Comparison error: '+esc(e.message)+'</span></div>'; })
+      .then(function(){ btn.disabled=false; btn.innerHTML=old; });
+  }
+  function renderComparisonResult(d){
+    var isMatch = d.match || d.total_changes===0;
+    var badge = isMatch
+      ? '<span class="cmp-summary-badge match"><i class="fas fa-check-circle"></i> Reports Match</span>'
+      : '<span class="cmp-summary-badge diff"><i class="fas fa-exclamation-triangle"></i> '+d.total_changes+' Difference'+(d.total_changes!==1?"s":"")+' Found</span>';
+    var filesRow='<div class="cmp-files-row">'
+      +'<div class="cmp-file-card"><div class="lbl">Manual Report</div><div class="val">'+esc(d.manual_file||"-")+'</div></div>'
+      +'<div class="cmp-file-card"><div class="lbl">Automated Report</div><div class="val">'+esc(d.auto_file||"-")+'</div></div></div>';
+    var legend='<div class="cmp-legend">'
+      +'<span><span class="cmp-swatch" style="background:#d1fae5;"></span> Added in Automated</span>'
+      +'<span><span class="cmp-swatch" style="background:#fee2e2;"></span> Removed from Manual</span>'
+      +'<span><span class="cmp-swatch" style="background:#fef9c3;"></span> Changed</span></div>';
+    var diffBlock = d.html_diff
+      ? legend+'<div class="diff-wrapper">'+d.html_diff+'</div>'
+      : '<span class="cmp-summary-badge match"><i class="fas fa-check-circle"></i> All content matches — no differences found.</span>';
+    $("cmpResults").innerHTML='<div class="glass">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;">'
+      +'<strong style="font-size:13px;color:var(--primary);">Comparison Result</strong>'+badge+'</div>'
+      +filesRow+diffBlock+'</div>';
+  }
+  function downloadComparison(){
+    if(!_lastCmpData){ toast("No comparison to download.","err"); return; }
+    var d=_lastCmpData, ts=new Date().toLocaleString();
+    var statusText = d.match ? "MATCH" : (d.total_changes+" DIFFERENCE(S)");
+    var html='<!DOCTYPE html>\n<html lang="en"><head><meta charset="UTF-8">'
+      +'<title>Karyotype Report Comparison</title><style>'
+      +'body{font-family:Segoe UI,Arial,sans-serif;margin:0;padding:20px;background:#f8fafc;color:#1e293b;}'
+      +'h1{font-size:18px;color:#1F497D;margin-bottom:4px;}'
+      +'.meta{font-size:12px;color:#64748b;margin-bottom:16px;}'
+      +'.badge-match{background:#ecfdf5;color:#065f46;padding:4px 14px;border-radius:99px;font-weight:700;font-size:12px;}'
+      +'.badge-diff{background:#fef2f2;color:#991b1b;padding:4px 14px;border-radius:99px;font-weight:700;font-size:12px;}'
+      +'table.diff{border-collapse:collapse;width:100%;font-family:Courier New,monospace;font-size:11px;}'
+      +'table.diff td{padding:3px 8px;vertical-align:top;white-space:pre-wrap;word-break:break-all;}'
+      +'.diff_header{background:#e8edf2;text-align:right;} .diff_next{display:none;}'
+      +'.diff_add{background:#d1fae5;} .diff_chg{background:#fef9c3;} .diff_sub{background:#fee2e2;}'
+      +'.legend{display:flex;gap:16px;margin-bottom:14px;font-size:12px;} .legend span{display:inline-flex;align-items:center;gap:6px;}'
+      +'.swatch{width:14px;height:14px;border-radius:3px;display:inline-block;}'
+      +'</style></head><body>'
+      +'<h1>Karyotype Report Comparison</h1>'
+      +'<div class="meta"><strong>Manual:</strong> '+esc(d.manual_file)+' &nbsp;|&nbsp; <strong>Automated:</strong> '+esc(d.auto_file)+' &nbsp;|&nbsp; <strong>Generated:</strong> '+ts+'</div>'
+      +'<p><span class="'+(d.match?"badge-match":"badge-diff")+'">'+statusText+'</span></p>'
+      +'<div class="legend"><span><span class="swatch" style="background:#d1fae5;"></span> Added in Automated</span>'
+      +'<span><span class="swatch" style="background:#fee2e2;"></span> Removed from Manual</span>'
+      +'<span><span class="swatch" style="background:#fef9c3;"></span> Changed</span></div>'
+      +(d.html_diff||"<p>No differences found.</p>")
+      +'</body></html>';
+    var blob=new Blob([html],{type:"text/html"});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement("a"); a.href=url; a.download="karyotype_comparison_"+Date.now()+".html"; a.click();
+    URL.revokeObjectURL(url);
+    toast("Comparison exported as HTML.","ok");
+  }
+  </script>
+</body>
+</html>

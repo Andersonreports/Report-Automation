@@ -1,0 +1,24 @@
+version: "3.9"
+
+services:
+  anderson-reports:
+    build: .
+    container_name: anderson-reports
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
+    volumes:
+      # Persist generated reports outside the container
+      - ./data/reports:/app/backend/reports
+      - ./data/reports-pgta:/app/backend/reports-pgta
+      - ./data/reports-karyotype:/app/backend/reports-karyotype
+      - ./data/drafts:/app/backend/drafts
+      - ./data/uploads:/app/backend/uploads
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0) if urllib.request.urlopen('http://localhost:8000/health').status==200 else sys.exit(1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s

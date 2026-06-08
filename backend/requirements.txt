@@ -1,0 +1,35 @@
+# Anderson Report Automation – Python Dependencies
+# Install: pip install -r requirements.txt
+
+fastapi>=0.110.0
+uvicorn[standard]>=0.27.0
+python-multipart>=0.0.9
+python-dotenv>=1.0.0
+
+# PDF generation
+reportlab>=4.0.0
+
+# PDF reading / comparison
+pdfplumber>=0.10.0
+PyPDF2>=3.0.0
+
+# Data processing
+pandas>=2.0.0
+xlrd>=2.0.1
+openpyxl>=3.1.0
+
+# Image processing
+Pillow>=10.0.0
+
+# DOCX generation
+python-docx>=1.1.0
+
+# QR code generation
+qrcode[pil]>=7.4.2
+
+# MySQL database
+mysql-connector-python>=8.3.0
+
+# Optional: JWT auth for report tracker
+# python-jose[cryptography]>=3.3.0
+# bcrypt>=4.0.0

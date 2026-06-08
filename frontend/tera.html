@@ -1,0 +1,1997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TERA Report Generator</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <script src="xlsx.full.min.js"></script>
+  <style>
+    /* ── Variables ── */
+    :root {
+      --primary: #1F497D;
+      --primary-hover: #163a63;
+      --accent: #F9BE8F;
+      --success: #10b981;
+      --danger: #ef4444;
+      --bg: #f0f4f8;
+      --panel: rgba(255,255,255,0.88);
+      --panel-border: rgba(255,255,255,0.6);
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --input-bg: #fff;
+      --input-border: #d1d5db;
+      --shadow: 0 2px 8px rgba(0,0,0,0.08);
+      --radius: 10px;
+    }
+
+    @font-face { font-family: 'SegoeUI'; src: url('/pgta-fonts/SEGOEUI.TTF'); }
+    @font-face { font-family: 'SegoeUI-Bold'; src: url('/pgta-fonts/SEGOEUIB.TTF'); }
+    @font-face { font-family: 'GillSansMT-Bold'; src: url('/pgta-fonts/GILB____.TTF'); }
+    @font-face { font-family: 'Calibri'; src: url('/pgta-fonts/CALIBRI.TTF'); }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'SegoeUI', 'Inter', sans-serif;
+      font-size: 13px;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Main Layout ── */
+    .main {
+      height: 100vh;
+      padding: 10px 24px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Page Header ── */
+    .page-hdr {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      flex-shrink: 0;
+    }
+    .page-hdr-left { display: flex; align-items: center; gap: 14px; }
+    .page-hdr-left h1 {
+      font-family: 'GillSansMT-Bold', sans-serif;
+      font-size: 20px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #1F497D, #4F81BD);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .home-btn {
+      display: inline-flex;
+      align-items: center;
+      padding: 6px 14px;
+      background: var(--primary);
+      color: #fff;
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    .home-btn:hover { background: var(--primary-hover); }
+    .signout-btn {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 6px 14px; background: transparent;
+      color: #fff; border: 1.5px solid rgba(255,255,255,0.5);
+      border-radius: 7px; font-size: 12px; font-weight: 600;
+      cursor: pointer; transition: 0.15s; white-space: nowrap;
+      font-family: inherit;
+    }
+    .signout-btn:hover { background: rgba(255,255,255,0.15); border-color: #fff; }
+
+    /* ── Tab Bar ── */
+    .tab-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+      flex-shrink: 0;
+    }
+    .tab {
+      padding: 9px 22px;
+      background: rgba(255,255,255,0.75);
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: 0.2s;
+      font-family: 'Inter', sans-serif;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .tab i { font-size: 12px; }
+    .tab:hover { color: var(--text); }
+    .tab.active { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600; }
+
+    /* ── Tab Content ── */
+    .tab-content { display: none; }
+    .tab-content.active {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+    }
+
+    /* ── Workspace Split (Manual: form + sidebar) ── */
+    .workspace {
+      display: flex;
+      gap: 20px;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .content-area {
+      flex: 1;
+      min-width: 0;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Form Panel ── */
+    .form-panel { display: flex; flex-direction: column; gap: 14px; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--panel);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px 18px;
+    }
+    .card h3 {
+      font-family: 'GillSansMT-Bold', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid var(--accent);
+    }
+
+    /* ── Form Grid (2-col, label above input) ── */
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px 16px;
+    }
+    .form-grid .full { grid-column: 1 / -1; }
+    .field { display: flex; flex-direction: column; gap: 4px; }
+    .field label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .field input, .field select {
+      background: var(--input-bg);
+      border: 1px solid var(--input-border);
+      border-radius: 6px;
+      padding: 7px 10px;
+      font-size: 12px;
+      color: var(--text);
+      font-family: 'Inter', sans-serif;
+      transition: border-color 0.15s;
+      width: 100%;
+      height: 34px;
+    }
+    .field input:focus, .field select:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(31,73,125,0.08);
+    }
+
+    /* ── Manual Action Bar ── */
+    .manual-action-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .btn-action {
+      padding: 5px 14px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 5px;
+      cursor: pointer;
+      border: 1.5px solid;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: 0.15s;
+      background: transparent;
+      font-family: 'Inter', sans-serif;
+    }
+    .btn-draft { border-color: var(--primary); color: var(--primary); }
+    .btn-draft:hover { background: var(--primary); color: #fff; }
+    .btn-clear { border-color: var(--danger); color: var(--danger); }
+    .btn-clear:hover { background: var(--danger); color: #fff; }
+
+    /* ── Fast Report Section ── */
+    .fast-report-section {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 12px 16px;
+    }
+    .fast-report-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 10px;
+    }
+    .fast-report-controls-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .fr-label { font-size: 11px; font-weight: 600; color: var(--text-muted); white-space: nowrap; }
+    .fr-radio {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text);
+      cursor: pointer;
+    }
+    .fr-radio input[type=radio] { width: 14px; height: 14px; accent-color: var(--primary); }
+    .btn-generate-fast {
+      margin-left: auto;
+      padding: 7px 18px;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: 0.2s;
+      white-space: nowrap;
+      font-family: 'Inter', sans-serif;
+    }
+    .btn-generate-fast:hover { background: var(--primary-hover); }
+
+    /* ── Preview Sidebar ── */
+    .preview-sidebar {
+      flex: 1;
+      min-width: 0;
+      height: 100%;
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .preview-sidebar-header {
+      background: var(--primary);
+      color: #fff;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+    .preview-sidebar-header h4 { font-size: 12px; font-weight: 700; }
+    .btn-refresh-preview {
+      background: rgba(255,255,255,0.18);
+      border: 1px solid rgba(255,255,255,0.4);
+      color: #fff;
+      padding: 4px 10px;
+      border-radius: 5px;
+      font-size: 11px;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: 0.15s;
+    }
+    .btn-refresh-preview:hover { background: rgba(255,255,255,0.32); }
+    .preview-frame-wrap { flex: 1; background: #e8e8e8; overflow: hidden; display: flex; flex-direction: column; }
+    .preview-frame-wrap iframe { width: 100%; flex: 1; border: none; }
+    .preview-page-info { text-align: center; font-size: 11px; color: #64748b; padding: 4px 0; background: #e8e8e8; flex-shrink: 0; }
+
+    /* ── Bulk Tab ── */
+    .bulk-top-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      margin-bottom: 8px;
+      flex-shrink: 0;
+    }
+    .drop-zone-compact {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 14px;
+      border: 2px dashed var(--input-border);
+      border-radius: 8px;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-size: 12px;
+      transition: 0.2s;
+      flex: 1;
+    }
+    .drop-zone-compact:hover { border-color: var(--primary); background: rgba(31,73,125,0.04); color: var(--primary); }
+    .bulk-top-sep { width: 1px; height: 28px; background: var(--input-border); flex-shrink: 0; }
+
+    /* ── Bulk 3-col layout ── */
+    .bulk-3col {
+      display: flex;
+      gap: 0;
+      flex: 1;
+      min-height: 0;
+    }
+    .bulk-col-left, .bulk-col-center, .bulk-col-right {
+      display: flex;
+      flex-direction: column;
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      min-width: 0;
+    }
+    .bulk-col-left { border-radius: var(--radius) 0 0 var(--radius); border-right: none; flex: 0 0 250px; }
+    .bulk-col-center { border-radius: 0; border-right: 1px solid var(--panel-border); flex: 0 0 430px; }
+    .bulk-col-right { border-radius: 0 var(--radius) var(--radius) 0; border-left: none; flex: 1; min-width: 0; }
+
+    .bulk-col-header {
+      padding: 10px 14px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--primary);
+      border-bottom: 2px solid var(--accent);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      flex-shrink: 0;
+    }
+
+    /* Patient table in left column */
+    .bulk-patient-scroll { flex: 1; overflow-y: auto; }
+    .bulk-col-left table { width: 100%; border-collapse: collapse; }
+    .bulk-col-left thead th {
+      background: rgba(31,73,125,0.05);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      padding: 7px 10px;
+      text-align: left;
+      border-bottom: 1px solid var(--input-border);
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+    .bulk-col-left tbody td { padding: 7px 10px; font-size: 12px; border-bottom: 1px solid #f0f0f0; }
+    .bulk-col-left tbody tr:hover { background: #f0f4f8; cursor: pointer; }
+    .bulk-col-left tbody tr.active-row { background: #dbeafe; border-left: 3px solid var(--primary); }
+
+    .bulk-search {
+      margin: 7px 8px;
+      padding: 6px 10px;
+      border: 1px solid var(--input-border);
+      border-radius: 6px;
+      font-size: 11px;
+      width: calc(100% - 16px);
+      background: var(--input-bg);
+      flex-shrink: 0;
+      font-family: 'Inter', sans-serif;
+    }
+    .bulk-select-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      border-bottom: 1px solid #eee;
+      flex-shrink: 0;
+    }
+    .bulk-select-row button {
+      padding: 3px 9px;
+      font-size: 10px;
+      font-weight: 600;
+      border-radius: 4px;
+      cursor: pointer;
+      border: 1px solid var(--input-border);
+      background: #fff;
+      color: var(--text-muted);
+      font-family: 'Inter', sans-serif;
+      transition: 0.15s;
+    }
+    .bulk-select-row button:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+    /* Bulk editor center column */
+    .bulk-editor-scroll { flex: 1; overflow-y: auto; padding: 12px 14px; }
+    .bulk-editor-section-title {
+      font-size: 10px;
+      font-weight: 700;
+      color: var(--primary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 7px;
+    }
+    .bulk-editor-field {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 5px;
+      font-size: 11px;
+    }
+    .bulk-editor-field label {
+      width: 130px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-align: left;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+    }
+    .bulk-editor-field label::after {
+      content: ':';
+      margin-left: auto;
+      padding-left: 3px;
+      flex-shrink: 0;
+    }
+    .bulk-editor-field input, .bulk-editor-field select {
+      flex: 1;
+      padding: 4px 8px;
+      border: 1px solid var(--input-border);
+      border-radius: 4px;
+      font-size: 11px;
+      font-family: 'Inter', sans-serif;
+      background: var(--input-bg);
+      height: 28px;
+    }
+    .bulk-editor-field input:focus, .bulk-editor-field select:focus { outline: none; border-color: var(--primary); }
+    .bulk-editor-btns { margin-top: 12px; display: flex; gap: 8px; }
+
+    /* Bulk preview right column */
+    .bulk-preview-wrap { flex: 1; overflow: hidden; background: #e8e8e8; display: flex; flex-direction: column; }
+    .bulk-preview-wrap iframe { width: 100%; flex: 1; border: none; }
+    .bulk-page-info { text-align: center; font-size: 11px; color: #64748b; padding: 4px 0; background: #e8e8e8; flex-shrink: 0; }
+
+    /* Bulk bottom controls */
+    .bulk-bottom-controls {
+      padding: 9px 14px;
+      border: 1px solid var(--panel-border);
+      border-top: 2px solid var(--accent);
+      flex-shrink: 0;
+      background: var(--panel);
+      border-radius: 0 0 var(--radius) var(--radius);
+      box-shadow: var(--shadow);
+      margin-top: 4px;
+    }
+    .bulk-bottom-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .bulk-bottom-divider { width: 1px; height: 22px; background: var(--input-border); flex-shrink: 0; }
+
+    .btn-bulk-draft {
+      padding: 5px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 5px;
+      cursor: pointer;
+      border: 1.5px solid var(--primary);
+      color: var(--primary);
+      background: transparent;
+      font-family: 'Inter', sans-serif;
+      transition: 0.15s;
+    }
+    .btn-bulk-draft:hover { background: var(--primary); color: #fff; }
+    .btn-bulk-draft.muted { border-color: var(--text-muted); color: var(--text-muted); }
+    .btn-bulk-draft.muted:hover { background: var(--text-muted); color: #fff; }
+
+    .btn-gen-all {
+      padding: 6px 16px;
+      background: transparent;
+      color: var(--primary);
+      border: 2px solid var(--primary);
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: 0.2s;
+    }
+    .btn-gen-all:hover { background: var(--primary); color: #fff; }
+    .btn-gen-selected {
+      padding: 6px 16px;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+      transition: 0.2s;
+    }
+    .btn-gen-selected:hover { background: var(--primary-hover); }
+    .btn-save-changes {
+      padding: 5px 14px;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      font-family: 'Inter', sans-serif;
+    }
+    .bulk-download-links { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; }
+
+    /* ── Compare Tab ── */
+    .compare-tab-inner { padding: 0 2px; overflow-y: auto; flex: 1; }
+    .compare-info-banner {
+      background: var(--panel);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius);
+      padding: 11px 14px;
+      font-size: 12px;
+      margin-bottom: 12px;
+      color: var(--text);
+    }
+    .compare-upload-row { display: flex; gap: 14px; margin-bottom: 12px; align-items: stretch; }
+    .compare-upload-box {
+      flex: 1;
+      background: #f8fafc;
+      border: 2px dashed var(--panel-border);
+      border-radius: 10px;
+      padding: 18px 14px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      transition: border-color 0.2s;
+      gap: 8px;
+    }
+    .compare-upload-box.has-file { border-color: var(--success); background: #f0fdf4; }
+    .compare-upload-label { font-size: 13px; font-weight: 700; color: var(--text); }
+    .btn-upload-cmp {
+      background: var(--primary); color: #fff; border: none;
+      padding: 6px 16px; border-radius: 6px; font-size: 12px; font-weight: 600;
+      cursor: pointer; font-family: 'Inter', sans-serif; transition: opacity 0.2s;
+    }
+    .btn-upload-cmp:hover { opacity: 0.85; }
+    .cmp-fname { font-size: 11px; color: #065f46; font-weight: 600; min-height: 14px; }
+    .cmp-vs-badge {
+      align-self: center; flex-shrink: 0;
+      background: var(--primary); color: #fff;
+      font-size: 12px; font-weight: 800;
+      border-radius: 50%; width: 34px; height: 34px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    /* ── Compare Tab Styles ── */
+    .cmp-actions { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+    .btn-run-cmp {
+      background: var(--primary); color: #fff; border: none;
+      padding: 8px 16px; border-radius: 6px; font-weight: 700;
+      font-size: 12px; cursor: pointer; font-family: 'Inter', sans-serif;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .btn-run-cmp:hover { opacity: 0.9; }
+    .btn-run-cmp:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-cmp-dl {
+      background: #10b981; color: #fff; border: none;
+      padding: 8px 16px; border-radius: 6px; font-weight: 700; font-size: 12px;
+      cursor: pointer; font-family: 'Inter', sans-serif; display: flex; align-items: center; gap: 8px;
+    }
+    .btn-cmp-dl:hover { background: #059669; }
+    .btn-cmp-clear {
+      background: #f1f5f9; color: var(--text); border: 1px solid #ccc;
+      padding: 8px 16px; border-radius: 6px; font-weight: 600; font-size: 12px;
+      cursor: pointer; font-family: 'Inter', sans-serif; display: flex; align-items: center; gap: 8px;
+    }
+    /* difflib HTML diff table */
+    .diff-wrapper {
+      overflow-x: auto; border: 1px solid var(--panel-border);
+      border-radius: var(--radius); font-size: 11px; background: #fff;
+    }
+    .diff-wrapper table.diff { border-collapse: collapse; width: 100%; font-family: 'Courier New', monospace; font-size: 11px; }
+    .diff-wrapper table.diff td { padding: 2px 6px; vertical-align: top; white-space: pre-wrap; word-break: break-all; }
+    .diff-wrapper .diff_header { background: #e8edf2; color: #374151; text-align: right; }
+    .diff-wrapper .diff_next { display: none; }
+    .diff-wrapper .diff_add { background: #d1fae5; }
+    .diff-wrapper .diff_chg { background: #fef9c3; }
+    .diff-wrapper .diff_sub { background: #fee2e2; }
+    .cmp-summary-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 5px 14px; border-radius: 99px; font-size: 12px; font-weight: 700;
+    }
+    .cmp-summary-badge.match { background: #ecfdf5; color: #065f46; }
+    .cmp-summary-badge.diff  { background: #fef2f2; color: #991b1b; }
+    .compare-result-card { border: 1px solid var(--input-border); border-radius: 8px; margin-bottom: 12px; overflow: hidden; }
+    .compare-result-header {
+      padding: 10px 14px; background: #f8fafc;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--input-border);
+    }
+    .compare-result-header strong { font-size: 12px; }
+    .compare-match {
+      background: #ecfdf5; border-radius: 6px; padding: 10px 14px;
+      color: #065f46; font-size: 12px; display: flex; align-items: center; gap: 8px; margin-top: 8px;
+    }
+
+    /* ── Guide Tab ── */
+    .guide-wrap { padding: 0 2px; overflow-y: auto; flex: 1; }
+    .guide-container { max-width: 820px; margin: 0 auto; padding: 4px 0 16px; }
+    .guide-header-bar {
+      background: var(--primary); color: #fff;
+      padding: 22px 20px; border-radius: var(--radius);
+      margin-bottom: 14px; text-align: center;
+    }
+    .guide-header-bar h2 { font-size: 20px; font-weight: 700; }
+    .guide-header-bar p { margin-top: 4px; font-size: 12px; opacity: 0.85; }
+    .guide-card {
+      background: var(--panel); border-radius: var(--radius);
+      padding: 14px 16px; margin-bottom: 12px;
+      border-left: 4px solid var(--primary); box-shadow: var(--shadow);
+    }
+    .guide-card h3 { color: var(--primary); font-size: 13px; font-weight: 700; margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid #eee; }
+    .guide-card ul { list-style: none; padding: 0; }
+    .guide-card li { padding: 5px 0; border-bottom: 1px solid #f5f5f5; font-size: 12px; line-height: 1.5; }
+    .guide-card li:last-child { border-bottom: none; }
+    .guide-tip {
+      background: #e7f3ff; border: 1px solid #b8daff;
+      padding: 11px 14px; border-radius: 6px;
+      color: #004085; font-size: 12px; font-style: italic;
+    }
+
+    /* ── Draft Picker Modal ── */
+    .modal-overlay {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.45);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 9000;
+    }
+    .modal-box {
+      background: #fff; border-radius: 12px;
+      padding: 22px 20px; width: 400px;
+      max-height: 68vh; overflow-y: auto;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+    }
+    .modal-box-hdr {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 12px;
+    }
+    .modal-box-hdr h3 { color: var(--primary); font-size: 14px; font-weight: 700; }
+    .modal-close { cursor: pointer; font-size: 20px; color: #888; line-height: 1; background: none; border: none; }
+
+    /* ── Folder Picker Row ── */
+    .folder-pick-row {
+      display: flex; align-items: center; gap: 8px;
+    }
+    .folder-pick-display {
+      flex: 1; padding: 5px 9px; height: 30px;
+      border: 1px solid var(--input-border); border-radius: 5px;
+      font-size: 11px; font-family: 'Inter', sans-serif;
+      background: var(--input-bg); color: var(--text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      outline: none; box-sizing: border-box;
+    }
+    .folder-pick-display::placeholder { color: var(--text-muted); }
+    .btn-browse-folder {
+      padding: 5px 11px; height: 30px;
+      background: var(--primary); color: #fff;
+      border: none; border-radius: 5px;
+      font-size: 11px; font-weight: 600; cursor: pointer;
+      font-family: 'Inter', sans-serif; white-space: nowrap;
+      display: flex; align-items: center; gap: 4px; transition: 0.15s;
+    }
+    .btn-browse-folder:hover { background: var(--primary-hover); }
+
+    /* ── Report Generated Popup ── */
+    .report-popup-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 9999;
+    }
+    .report-popup-box {
+      background: #fff; border-radius: 14px;
+      padding: 36px 48px; text-align: center;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.22); min-width: 240px;
+    }
+    .report-popup-icon { font-size: 42px; margin-bottom: 10px; color: var(--success); }
+    .report-popup-title { font-size: 18px; font-weight: 700; color: var(--primary); margin-bottom: 18px; }
+    .report-popup-close {
+      padding: 8px 28px; background: var(--primary); color: #fff;
+      border: none; border-radius: 7px; font-size: 13px; font-weight: 600;
+      cursor: pointer; font-family: 'Inter', sans-serif; transition: 0.15s;
+    }
+    .report-popup-close:hover { background: var(--primary-hover); }
+
+    /* ── Toast ── */
+    #toast-container {
+      position: fixed; bottom: 22px; right: 22px;
+      display: flex; flex-direction: column; gap: 8px; z-index: 9999;
+    }
+    .toast {
+      background: #1e293b; color: #fff;
+      padding: 10px 16px; border-radius: 8px;
+      font-size: 12px; font-weight: 500;
+      animation: toastIn 0.3s ease forwards;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2); max-width: 300px;
+    }
+    .toast.error { background: #991b1b; border-left: 4px solid #ef4444; }
+    @keyframes toastIn { from { transform: translateX(110%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    @keyframes toastOut { to { transform: translateX(110%); opacity: 0; } }
+
+    /* ── Preview / Compare status text ── */
+    .preview-status-text {
+      font-size: 11px; color: var(--text-muted); font-style: italic;
+      padding: 5px 14px; flex-shrink: 0; margin: 0; line-height: 1.4;
+    }
+    .preview-status-text.ok   { color: var(--success); font-style: normal; }
+    .preview-status-text.busy { color: var(--primary); font-style: italic; }
+    .preview-status-text.err  { color: var(--danger);  font-style: italic; }
+    .cmp-status-lbl {
+      font-size: 11px; color: var(--text-muted); font-style: italic; margin-left: 8px;
+    }
+
+    /* ── Scrollbars ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--input-border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+  </style>
+</head>
+
+<body>
+  <div class="main">
+
+    <!-- ── Page Header ── -->
+    <div class="page-hdr">
+      <div class="page-hdr-left">
+        <a href="index.html" class="home-btn">&#8592; Home</a>
+        <h1>TERA Report Generator</h1>
+      </div>
+      <button class="signout-btn" onclick="teraSignOut()">&#x2192; Sign Out</button>
+    </div>
+
+    <!-- ── Tab Bar ── -->
+    <div class="tab-bar">
+      <button class="tab active" onclick="openTab('manual', this)"><i class="fas fa-file-alt"></i> Single Entry</button>
+      <button class="tab" onclick="openTab('bulk', this)"><i class="fas fa-table"></i> Bulk Upload</button>
+      <button class="tab" onclick="openTab('compare', this)"><i class="fas fa-columns"></i> Report Comparison</button>
+      <button class="tab" onclick="openTab('guide', this)"><i class="fas fa-book"></i> User Guide</button>
+    </div>
+
+    <!-- ── Workspace ── -->
+    <div class="workspace">
+      <div class="content-area">
+
+        <!-- ══════════ TAB 1: MANUAL ENTRY ══════════ -->
+        <div id="manual" class="tab-content active">
+          <div class="form-panel">
+
+            <!-- Card: Patient Information -->
+            <div class="card">
+              <h3>Patient Information</h3>
+              <div class="form-grid">
+                <div class="field">
+                  <label>Patient Name</label>
+                  <input type="text" placeholder="Full name">
+                </div>
+                <div class="field">
+                  <label>Age (Years)</label>
+                  <input type="number" placeholder="Age">
+                </div>
+                <div class="field">
+                  <label>Sample ID</label>
+                  <input type="text" placeholder="Sample ID">
+                </div>
+                <div class="field">
+                  <label>Lab No.</label>
+                  <input type="text" placeholder="Lab number">
+                </div>
+                <div class="field">
+                  <label>Biopsy No.</label>
+                  <input type="text" value="Endometrial Biopsy- 1">
+                </div>
+                <div class="field">
+                  <label>Doctor Name</label>
+                  <input type="text" placeholder="Referring doctor">
+                </div>
+                <div class="field full">
+                  <label>Center / Hospital</label>
+                  <input type="text" placeholder="Hospital or IVF center">
+                </div>
+              </div>
+            </div>
+
+            <!-- Card: Cycle & Timing -->
+            <div class="card">
+              <h3>Cycle &amp; Timing</h3>
+              <div class="form-grid">
+                <div class="field full">
+                  <label>Cycle Type</label>
+                  <select>
+                    <option>HRT</option>
+                    <option>Modified Natural Cycle</option>
+                    <option>Natural Cycle</option>
+                    <option>Natural</option>
+                    <option>Stimulated</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label>P+ Day (Biopsy)</label>
+                  <input type="text" value="5">
+                </div>
+                <div class="field">
+                  <label>P4/hCG Date &amp; Time</label>
+                  <input type="text" placeholder="YYYY-MM-DD HH:MM">
+                </div>
+                <div class="field">
+                  <label>Biopsy Date &amp; Time</label>
+                  <input type="text" placeholder="YYYY-MM-DD HH:MM">
+                </div>
+                <div class="field">
+                  <label>P+ Hours</label>
+                  <input type="text" placeholder="Hours since injection">
+                </div>
+              </div>
+            </div>
+
+            <!-- Card: Results -->
+            <div class="card">
+              <h3>Results</h3>
+              <div class="form-grid">
+                <div class="field full">
+                  <label>TERA Result</label>
+                  <select>
+                    <option>Receptive</option>
+                    <option>Pre-receptive</option>
+                    <option>Post-receptive</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label>Time for Report</label>
+                  <input type="text" placeholder="e.g. 144 + 2">
+                </div>
+                <div class="field">
+                  <label>Date Received</label>
+                  <input type="text" placeholder="DD-MM-YYYY">
+                </div>
+                <div class="field">
+                  <label>Report Date</label>
+                  <input type="text" placeholder="DD-MM-YYYY">
+                </div>
+              </div>
+            </div>
+
+            <!-- Action Bar -->
+            <div class="manual-action-bar">
+              <button class="btn-action btn-draft" onclick="saveDraft()">Save Draft</button>
+              <button class="btn-action btn-draft" onclick="openDraftPicker()">Load Draft</button>
+              <button class="btn-action btn-clear" onclick="clearManualForm()">Clear Form</button>
+            </div>
+
+            <!-- Generate Report -->
+            <div class="fast-report-section">
+              <div class="fast-report-title">&#9889; Generate Report</div>
+              <div class="fast-report-controls-row" style="margin-bottom:8px;">
+                <span class="fr-label">Export Path:</span>
+                <div class="folder-pick-row" style="flex:1;">
+                  <input type="text" class="folder-pick-display placeholder" id="manualExportDisplay" placeholder="No folder selected — click Browse or type a path" value="">
+                  <button class="btn-browse-folder" onclick="selectOutputFolder('manualExportDisplay')">&#128193; Browse</button>
+                </div>
+              </div>
+              <div class="fast-report-controls-row">
+                <span class="fr-label">Branding:</span>
+                <label class="fr-radio">
+                  <input type="radio" name="manualLogoOption" value="without_logo"> Without Logo
+                </label>
+                <label class="fr-radio">
+                  <input type="radio" name="manualLogoOption" value="with_logo" checked> With Logo
+                </label>
+                <span class="fr-label" style="margin-left:12px">QR Code:</span>
+                <label class="fr-radio">
+                  <input type="radio" name="manualQrOption" id="qr-manual-without" value="without_qr" checked> Without QR
+                </label>
+                <label class="fr-radio">
+                  <input type="radio" name="manualQrOption" id="qr-manual-with" value="with_qr"> With QR
+                </label>
+                <button class="btn-generate-fast" onclick="downloadReport()">&#9654; Generate Report</button>
+              </div>
+            </div>
+
+          </div><!-- /form-panel -->
+        </div><!-- /manual -->
+
+        <!-- ══════════ TAB 2: BULK UPLOAD ══════════ -->
+        <div id="bulk" class="tab-content">
+
+          <!-- Top bar: Excel upload + Export folder -->
+          <div class="bulk-top-bar">
+            <label class="drop-zone-compact" for="excelFile" style="flex:1.4;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0;">
+                <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
+              </svg>
+              <span id="excelFileLabel">Click to browse or drag Excel file (.xlsx / .xls)</span>
+              <input type="file" id="excelFile" accept=".xlsx,.xls" style="display:none;"
+                onchange="uploadExcel(); document.getElementById('excelFileLabel').textContent = this.files[0] ? this.files[0].name : 'Click to browse or drag Excel file (.xlsx / .xls)';">
+            </label>
+            <div class="bulk-top-sep"></div>
+            <span class="fr-label" style="white-space:nowrap;">Export Folder:</span>
+            <div class="folder-pick-row" style="flex:1;">
+              <input type="text" class="folder-pick-display placeholder" id="bulkExportDisplay" placeholder="No folder selected — click Browse or type a path" value="">
+              <button class="btn-browse-folder" onclick="selectOutputFolder('bulkExportDisplay')">&#128193; Browse</button>
+            </div>
+          </div>
+
+          <!-- 3-column editor -->
+          <div class="bulk-3col">
+
+            <!-- LEFT: Patient List -->
+            <div class="bulk-col-left">
+              <div class="bulk-col-header">Patients</div>
+              <input class="bulk-search" id="patientSearch" type="text"
+                placeholder="Search patient name..." oninput="searchPatients()">
+              <div class="bulk-select-row">
+                <input type="checkbox" id="selectAllCheck"
+                  style="width:14px;height:14px;accent-color:var(--primary);cursor:pointer;"
+                  onchange="document.getElementById('selectAllCheck').checked ? selectAll() : deselectAll()">
+                <button onclick="selectAll()">Select All</button>
+                <button onclick="deselectAll()">Deselect All</button>
+              </div>
+              <div class="bulk-patient-scroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th style="width:26px;text-align:center;"></th>
+                      <th style="width:30px;">#</th>
+                      <th>Patient Name</th>
+                    </tr>
+                  </thead>
+                  <tbody id="patientTableBody"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- CENTER: Patient Editor -->
+            <div class="bulk-col-center">
+              <div class="bulk-col-header">Patient Editor</div>
+              <div class="bulk-editor-scroll">
+
+                <div class="bulk-editor-section-title">Patient Details</div>
+                <div class="bulk-editor-field"><label>Patient Name</label><input type="text" id="edit_patient_name"></div>
+                <div class="bulk-editor-field"><label>Age (Years)</label><input type="number" id="edit_age"></div>
+                <div class="bulk-editor-field"><label>Sample ID</label><input type="text" id="edit_sample_id"></div>
+                <div class="bulk-editor-field"><label>Lab No.</label><input type="text" id="edit_lab_no"></div>
+                <div class="bulk-editor-field"><label>Biopsy No.</label><input type="text" id="edit_biopsy_no"></div>
+                <div class="bulk-editor-field"><label>Doctor Name</label><input type="text" id="edit_doctor_name"></div>
+                <div class="bulk-editor-field"><label>Center / Hospital</label><input type="text" id="edit_center"></div>
+
+                <div class="bulk-editor-section-title" style="margin-top:10px;">Cycle &amp; Timing</div>
+                <div class="bulk-editor-field"><label>Cycle Type</label>
+                  <select id="edit_cycle_type">
+                    <option>HRT</option>
+                    <option>Modified Natural Cycle</option>
+                    <option>Natural Cycle</option>
+                    <option>Natural</option>
+                    <option>Stimulated</option>
+                  </select>
+                </div>
+                <div class="bulk-editor-field"><label>P+ Day (Biopsy)</label><input type="text" id="edit_pday"></div>
+                <div class="bulk-editor-field"><label>P4/hCG Date &amp; Time</label><input type="text" id="edit_p4_date"></div>
+                <div class="bulk-editor-field"><label>Biopsy Date &amp; Time</label><input type="text" id="edit_biopsy_date"></div>
+                <div class="bulk-editor-field"><label>P+ Hours</label><input type="text" id="edit_phours"></div>
+
+                <div class="bulk-editor-section-title" style="margin-top:10px;">Results</div>
+                <div class="bulk-editor-field"><label>TERA Result</label>
+                  <select id="edit_result">
+                    <option>Receptive</option>
+                    <option>Pre-receptive</option>
+                    <option>Post-receptive</option>
+                  </select>
+                </div>
+                <div class="bulk-editor-field"><label>Time for Report</label><input type="text" id="edit_time_report"></div>
+                <div class="bulk-editor-field"><label>Date Received</label><input type="text" id="edit_date_received"></div>
+                <div class="bulk-editor-field"><label>Report Date</label><input type="text" id="edit_report_date"></div>
+
+                <div class="bulk-editor-btns">
+                  <button class="btn-save-changes" onclick="saveChanges()">Save Changes</button>
+                  <button class="btn-bulk-draft muted" onclick="saveBulkDraft()">Save as Draft</button>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- RIGHT: Live Preview -->
+            <div class="bulk-col-right">
+              <div class="bulk-col-header">
+                <span>Live Preview</span>
+                <button class="btn-refresh-preview"
+                  style="font-size:10px;padding:3px 8px;background:rgba(31,73,125,0.1);color:var(--primary);border:1px solid var(--primary);"
+                  onclick="if(selectedPatientIndex!==null&&patients[selectedPatientIndex])updateBulkPreview(patients[selectedPatientIndex])">
+                  Refresh
+                </button>
+              </div>
+              <p id="bulkPreviewStatus" class="preview-status-text">Select a row to preview</p>
+              <div class="bulk-preview-wrap">
+                <iframe id="bulkPreviewFrame"></iframe>
+                <div class="bulk-page-info" id="bulkPageInfo"></div>
+              </div>
+            </div>
+
+          </div><!-- /bulk-3col -->
+
+          <!-- Bottom Controls Bar -->
+          <div class="bulk-bottom-controls">
+            <div class="bulk-bottom-row">
+              <button class="btn-bulk-draft" onclick="saveAllBulkDraft()">Save Draft</button>
+              <button class="btn-bulk-draft muted" onclick="loadBulkDraft()">Load Draft</button>
+              <div class="bulk-bottom-divider"></div>
+              <span class="fr-label">Branding:</span>
+              <label class="fr-radio">
+                <input type="radio" name="bulkLogoOption" value="without_logo"> Without Logo
+              </label>
+              <label class="fr-radio">
+                <input type="radio" name="bulkLogoOption" value="with_logo" checked> With Logo
+              </label>
+              <div class="bulk-bottom-divider"></div>
+              <span class="fr-label">QR Code:</span>
+              <label class="fr-radio">
+                <input type="radio" name="bulkQrOption" value="without_qr" checked> Without QR
+              </label>
+              <label class="fr-radio">
+                <input type="radio" name="bulkQrOption" value="with_qr"> With QR
+              </label>
+              <div class="bulk-bottom-divider"></div>
+              <button class="btn-gen-all" onclick="generateAllReports()">Generate All</button>
+              <button class="btn-gen-selected" onclick="generateSelected(getSelectedRows())">Generate Selected</button>
+            </div>
+            <div id="bulkDownloadLinks" class="bulk-download-links"></div>
+          </div>
+
+        </div><!-- /bulk -->
+
+        <!-- ══════════ TAB 3: REPORT COMPARISON ══════════ -->
+        <div id="compare" class="tab-content">
+          <div class="compare-tab-inner">
+
+            <div class="compare-upload-row">
+              <div class="compare-upload-box" id="cmpBoxManual">
+                <input type="file" id="cmpFileManual" accept=".pdf,.docx" style="display:none"
+                  onchange="cmpFileSelected('manual',this)">
+                <i class="fas fa-file-alt" style="font-size:32px;color:var(--primary);"></i>
+                <div class="compare-upload-label">Manual Report</div>
+                <button class="btn-upload-cmp" onclick="document.getElementById('cmpFileManual').click()">
+                  <i class="fas fa-upload"></i> Choose File
+                </button>
+                <div id="cmpManualName" class="cmp-fname"></div>
+              </div>
+              <div class="cmp-vs-badge">VS</div>
+              <div class="compare-upload-box" id="cmpBoxAuto">
+                <input type="file" id="cmpFileAuto" accept=".pdf,.docx" style="display:none"
+                  onchange="cmpFileSelected('auto',this)">
+                <i class="fas fa-cogs" style="font-size:32px;color:var(--primary);"></i>
+                <div class="compare-upload-label">Automated Report</div>
+                <button class="btn-upload-cmp" onclick="document.getElementById('cmpFileAuto').click()">
+                  <i class="fas fa-upload"></i> Choose File
+                </button>
+                <div id="cmpAutoName" class="cmp-fname"></div>
+              </div>
+            </div>
+
+            <div class="cmp-actions" style="margin-top:16px;">
+              <button id="cmpBtn" class="btn-run-cmp" onclick="runComparison()" disabled>
+                <i class="fas fa-balance-scale"></i> Compare Reports
+              </button>
+              <button class="btn-cmp-clear" onclick="clearComparison()">
+                <i class="fas fa-times"></i> Clear
+              </button>
+              <button id="cmpDownloadBtn" class="btn-cmp-dl" onclick="downloadComparison()" style="display:none;">
+                <i class="fas fa-download"></i> Download HTML
+              </button>
+            </div>
+
+            <div id="cmpResults" style="margin-top:4px;"></div>
+
+          </div>
+        </div><!-- /compare -->
+
+        <!-- ══════════ TAB 4: USER GUIDE ══════════ -->
+        <div id="guide" class="tab-content">
+          <div class="guide-wrap">
+            <div class="guide-container">
+
+              <div class="guide-header-bar">
+                <h2>TERA Report Generator &mdash; User Guide</h2>
+                <p>Transcriptome based Endometrial Receptivity Assessment</p>
+              </div>
+
+              <div class="guide-card">
+                <h3>1. Manual Entry</h3>
+                <ul>
+                  <li>Fill in the form fields. The live preview updates automatically after a short pause.</li>
+                  <li>Click <b>Refresh Preview</b> to immediately render all report pages.</li>
+                  <li><b>TERA Result:</b> choose Receptive, Pre-receptive, or Post-receptive.</li>
+                  <li><b>Biopsy Date &amp; Time:</b> enter YYYY-MM-DD HH:MM:SS or DD-MM-YYYY HH:MM.</li>
+                  <li><b>P+ Hours:</b> numeric hours since P4/hCG injection.</li>
+                  <li><b>Time for Report:</b> blastocyst hours + margin (example: 144 + 2).</li>
+                  <li><b>Save Draft / Load Draft:</b> stores the form as JSON for later reuse.</li>
+                  <li>Set the branding option and click <b>Generate Report</b>.</li>
+                </ul>
+              </div>
+
+              <div class="guide-card">
+                <h3>2. Bulk Upload</h3>
+                <ul>
+                  <li>Click the upload zone to load a .xls or .xlsx automation report.</li>
+                  <li>All rows appear in the left patient list.</li>
+                  <li>Select a row to edit it in the center editor panel.</li>
+                  <li>The live preview updates in the right panel when you select a patient.</li>
+                  <li>Use <b>Generate Selected</b> or <b>Generate All</b> to export.</li>
+                  <li><b>Save Draft</b> stores edited rows as JSON.</li>
+                </ul>
+              </div>
+
+              <div class="guide-card">
+                <h3>3. Report Comparison</h3>
+                <ul>
+                  <li>Select two PDFs — <b>auto-generated</b> (left) and <b>reference / manual</b> (right).</li>
+                  <li>Click <b>Compare PDFs</b> to render both pages side by side.</li>
+                  <li>Use <b>Prev Page / Next Page</b> to navigate through all 3 report pages.</li>
+                  <li>The <b>Auto Diff Summary</b> panel highlights every text-level discrepancy automatically.</li>
+                  <li>Click <b>Export Diff as HTML</b> to save the diff report.</li>
+                </ul>
+              </div>
+
+              <div class="guide-card">
+                <h3>4. Result Types &amp; Key Fields</h3>
+                <ul>
+                  <li><b>Receptive:</b> endometrium is within the window of implantation.</li>
+                  <li><b>Pre-receptive:</b> biopsy too early; window not yet open.</li>
+                  <li><b>Post-receptive:</b> biopsy after the window; second biopsy strongly recommended.</li>
+                  <li><b>Time for Report</b> e.g. <code>144 + 2</code>: Blastocyst (Day 5/6) = P+144 &plusmn; 2 hrs; Cleavage (Day 3) = P+96 &plusmn; 2 hrs (blastocyst &minus; 48).</li>
+                  <li><b>Biopsy Date &amp; Time:</b> enter as <code>YYYY-MM-DD HH:MM:SS</code> or <code>DD-MM-YYYY HH:MM</code>.</li>
+                  <li><b>P+ Hours:</b> numeric hours since P4/hCG injection (e.g. <code>120</code>).</li>
+                </ul>
+              </div>
+
+              <div class="guide-tip">
+                Tip: Draft files are JSON and can be edited before loading. Save Draft stores your work locally and on the server.
+              </div>
+
+            </div>
+          </div>
+        </div><!-- /guide -->
+
+      </div><!-- /content-area -->
+
+      <!-- Preview Sidebar (Manual tab only) -->
+      <div class="preview-sidebar" id="previewSidebar">
+        <div class="preview-sidebar-header">
+          <h4>Live PDF Preview</h4>
+          <button class="btn-refresh-preview" onclick="refreshPreview()">Refresh Preview</button>
+        </div>
+        <p id="previewStatus" class="preview-status-text">Fill in patient details and click Refresh Preview</p>
+        <div class="preview-frame-wrap">
+          <iframe id="previewFrame" scrolling="yes"></iframe>
+          <div class="preview-page-info" id="previewPageInfo"></div>
+        </div>
+      </div>
+
+    </div><!-- /workspace -->
+  </div><!-- /main -->
+
+  <!-- Draft Picker Modal -->
+  <div id="draftPickerOverlay" style="display:none;" class="modal-overlay"
+    onclick="if(event.target===this)closeDraftPicker()">
+    <div class="modal-box">
+      <div class="modal-box-hdr">
+        <h3>Select a Draft</h3>
+        <button class="modal-close" onclick="closeDraftPicker()">&times;</button>
+      </div>
+      <input type="text" id="draftSearch" oninput="filterDrafts()" placeholder="Search by patient name..."
+        style="width:100%;padding:7px 10px;border:1px solid var(--input-border);border-radius:6px;font-size:12px;margin-bottom:10px;font-family:'Inter',sans-serif;outline:none;">
+      <div id="draftList" style="display:flex;flex-direction:column;gap:6px;"></div>
+      <div id="draftEmpty" style="color:#888;font-size:12px;text-align:center;display:none;padding:14px 0;">No drafts found.</div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toast-container"></div>
+
+  <!---- Scripts ---->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+  <script>
+    const _h = window.location.hostname;
+    const API = (_h === "127.0.0.1" || _h === "localhost")
+        ? "http://127.0.0.1:8000"          // local dev
+        : (_h === ""
+            ? "https://tera-report-automation.onrender.com"  // opened as file://
+            : "");                          // hosted by IT server → relative paths
+
+    async function teraSignOut() {
+      const _sb = supabase.createClient(
+        "https://wriaonorqjhmofwrhqlp.supabase.co",
+        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyaWFvbm9ycWpobW9md3JocWxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3NDM4MDAsImV4cCI6MjA4OTMxOTgwMH0.t6sS4orzoQmaVpEo84I0E2Ds3jDjDHNnfE4ZYPaPrfc"
+      );
+      await _sb.auth.signOut();
+      localStorage.removeItem('tera_role');
+      localStorage.removeItem('tera_user_name');
+      window.location.href = '/';
+    }
+
+    function showToast(message, type = "success") {
+        let container = document.getElementById("toast-container");
+        if (!container) {
+            container = document.createElement("div");
+            container.id = "toast-container";
+            document.body.appendChild(container);
+        }
+        const toast = document.createElement("div");
+        toast.className = `toast ${type}`;
+        toast.textContent = message;
+        container.appendChild(toast);
+        void toast.offsetWidth;
+        setTimeout(() => {
+            toast.style.animation = "toastOut 0.3s ease forwards";
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+
+    function collectManualData() {
+        const inputs = document.querySelectorAll("#manual .form-grid input");
+        const selects = document.querySelectorAll("#manual .form-grid select");
+        return {
+            "Patient Name": inputs[0] ? inputs[0].value : "",
+            "Age": inputs[1] ? inputs[1].value : "",
+            "Sample ID": inputs[2] ? inputs[2].value : "",
+            "Lab No.": inputs[3] ? inputs[3].value : "",
+            "Biopsy No.": inputs[4] ? inputs[4].value : "",
+            "Doctor Name": inputs[5] ? inputs[5].value : "",
+            "Center name": inputs[6] ? inputs[6].value : "",
+            "Cycle Type": selects[0] ? selects[0].value : "",
+            "Biopsy": inputs[7] ? inputs[7].value : "",
+            "P4 /hCG injection  date time": inputs[8] ? inputs[8].value : "",
+            "Biopsy time in hrs": inputs[9] ? inputs[9].value : "",
+            "Biopsy time in hrs.1": inputs[10] ? inputs[10].value : "",
+            "TERA result": selects[1] ? selects[1].value : "",
+            "Time for report": inputs[11] ? inputs[11].value : "",
+            "Date of Received": inputs[12] ? inputs[12].value : "",
+            "Report Date": inputs[13] ? inputs[13].value : ""
+        };
+    }
+
+    function fillManualForm(data) {
+        const inputs = document.querySelectorAll("#manual .form-grid input");
+        const selects = document.querySelectorAll("#manual .form-grid select");
+        if (inputs[0]) inputs[0].value = data["Patient Name"] || "";
+        if (inputs[1]) inputs[1].value = data["Age"] || "";
+        if (inputs[2]) inputs[2].value = data["Sample ID"] || "";
+        if (inputs[3]) inputs[3].value = data["Lab No."] || "";
+        if (inputs[4]) inputs[4].value = data["Biopsy No."] || "";
+        if (inputs[5]) inputs[5].value = data["Doctor Name"] || "";
+        if (inputs[6]) inputs[6].value = data["Center name"] || "";
+        if (selects[0]) selects[0].value = data["Cycle Type"] || "HRT";
+        if (inputs[7]) inputs[7].value = data["Biopsy"] || "";
+        if (inputs[8]) inputs[8].value = data["P4 /hCG injection  date time"] || "";
+        if (inputs[9]) inputs[9].value = data["Biopsy time in hrs"] || "";
+        if (inputs[10]) inputs[10].value = data["Biopsy time in hrs.1"] || "";
+        if (selects[1]) selects[1].value = data["TERA result"] || "Receptive";
+        if (inputs[11]) inputs[11].value = data["Time for report"] || "";
+        if (inputs[12]) inputs[12].value = data["Date of Received"] || "";
+        if (inputs[13]) inputs[13].value = data["Report Date"] || "";
+    }
+
+    function clearManualForm() {
+        const inputs  = document.querySelectorAll("#manual .form-grid input");
+        const selects = document.querySelectorAll("#manual .form-grid select");
+        inputs.forEach(i => i.value = "");
+        selects.forEach(s => s.selectedIndex = 0);
+        // Restore defaults that match the desktop application
+        if (inputs[4]) inputs[4].value = "Endometrial Biopsy- 1";
+        if (inputs[7]) inputs[7].value = "5";
+    }
+
+    let patients = [];
+
+    function openTab(tabId, element) {
+        document.querySelectorAll(".tab-content").forEach(t => t.classList.remove("active"));
+        document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
+        document.getElementById(tabId).classList.add("active");
+        element.classList.add("active");
+        // Show preview sidebar only on Manual tab
+        const sidebar = document.getElementById("previewSidebar");
+        if (sidebar) sidebar.style.display = (tabId === "manual") ? "" : "none";
+    }
+
+    function showReportGeneratedPopup() {
+        const overlay = document.createElement('div');
+        overlay.className = 'report-popup-overlay';
+        overlay.innerHTML = `<div class="report-popup-box">
+            <div class="report-popup-icon">&#10003;</div>
+            <div class="report-popup-title">Report Generated</div>
+            <button class="report-popup-close" onclick="this.closest('.report-popup-overlay').remove()">OK</button>
+        </div>`;
+        overlay.onclick = e => { if (e.target === overlay) overlay.remove(); };
+        document.body.appendChild(overlay);
+    }
+
+    async function downloadReport() {
+        const data = collectManualData();
+        if (!data["Patient Name"] || !data["Patient Name"].trim()) {
+            showToast("Patient Name is required.", "error");
+            const nameInput = document.querySelector("#manual .form-grid input");
+            if (nameInput) {
+                nameInput.focus();
+                nameInput.style.borderColor = "var(--danger)";
+                nameInput.style.boxShadow   = "0 0 0 3px rgba(239,68,68,0.15)";
+                nameInput.addEventListener("input", function clear() {
+                    nameInput.style.borderColor = "";
+                    nameInput.style.boxShadow   = "";
+                    nameInput.removeEventListener("input", clear);
+                });
+            }
+            return;
+        }
+        const logoOption = document.querySelector('input[name="manualLogoOption"]:checked')?.value || "with_logo";
+        const qrOption = document.querySelector('input[name="manualQrOption"]:checked')?.value || "without_qr";
+        data["logo_option"] = logoOption;
+        data["qr_option"] = qrOption;
+        try {
+            const res = await fetch(API + "/generate", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+            if (result.error) { showToast("Error: " + result.error, "error"); return; }
+            if (_dirHandles["manualExportDisplay"] && result.file_url) {
+                const fileUrl = result.file_url.startsWith("/") ? API + result.file_url : result.file_url;
+                const blob = await fetch(fileUrl).then(r => r.blob());
+                const filename = result.file_url.split("/").pop();
+                await saveFileToDir("manualExportDisplay", blob, filename);
+            }
+            showReportGeneratedPopup();
+        } catch (err) {
+            showToast("Error: " + err.message, "error");
+        }
+    }
+  </script>
+
+  <script>
+    let selectedPatientIndex = null;
+
+    function _readEditorIntoPatient() {
+        if (selectedPatientIndex === null || selectedPatientIndex < 0) return null;
+        const p = patients[selectedPatientIndex];
+        p["Patient Name"] = document.getElementById("edit_patient_name").value;
+        p["Age"] = document.getElementById("edit_age").value;
+        p["Sample ID"] = document.getElementById("edit_sample_id").value;
+        p["Lab No."] = document.getElementById("edit_lab_no").value;
+        p["Biopsy No."] = document.getElementById("edit_biopsy_no").value;
+        p["Doctor Name"] = document.getElementById("edit_doctor_name").value;
+        p["Center name"] = document.getElementById("edit_center").value;
+        p["Cycle Type"] = document.getElementById("edit_cycle_type").value;
+        p["Biopsy"] = document.getElementById("edit_pday").value;
+        p["P4 /hCG injection  date time"] = document.getElementById("edit_p4_date").value;
+        p["Biopsy time in hrs"] = document.getElementById("edit_biopsy_date").value;
+        p["Biopsy time in hrs.1"] = document.getElementById("edit_phours").value;
+        p["TERA result"] = document.getElementById("edit_result").value;
+        p["Time for report"] = document.getElementById("edit_time_report").value;
+        p["Date of Received"] = document.getElementById("edit_date_received").value;
+        p["Report Date"] = document.getElementById("edit_report_date").value;
+        return p;
+    }
+
+    function saveChanges() {
+        const p = _readEditorIntoPatient();
+        if (!p) return;
+        // Re-render list and re-highlight active row
+        renderPatientTable(patients);
+        const activeRow = document.querySelector(`#patientTableBody tr[data-index="${selectedPatientIndex}"]`);
+        if (activeRow) activeRow.classList.add("active-row");
+        updateBulkPreview(p);
+        showToast("Changes saved.");
+    }
+  </script>
+
+  <script>
+    let _manualPreviewCtrl = null;
+
+    function _setPreviewStatus(id, msg, state) {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = msg;
+        el.className = "preview-status-text" + (state ? " " + state : "");
+    }
+
+    const _pdfjs = window['pdfjs-dist/build/pdf'];
+    if (_pdfjs) _pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    async function _updatePageInfo(elId, pdfUrl) {
+        try {
+            const lib = window['pdfjs-dist/build/pdf'];
+            if (!lib) return;
+            const doc = await lib.getDocument(pdfUrl).promise;
+            const el = document.getElementById(elId);
+            if (el) el.textContent = `${doc.numPages} page${doc.numPages !== 1 ? "s" : ""}`;
+        } catch (_) {}
+    }
+
+    async function refreshPreview() {
+        if (_manualPreviewCtrl) _manualPreviewCtrl.abort();
+        _manualPreviewCtrl = new AbortController();
+        const signal = _manualPreviewCtrl.signal;
+        const data = collectManualData();
+        const logoOption = document.querySelector('input[name="manualLogoOption"]:checked')?.value || "with_logo";
+        const qrOption = document.querySelector('input[name="manualQrOption"]:checked')?.value || "without_qr";
+        data["logo_option"] = logoOption;
+        data["qr_option"] = qrOption;
+        _setPreviewStatus("previewStatus", "Generating preview…", "busy");
+        try {
+            const res = await fetch(API + "/preview", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(data),
+                signal
+            });
+            if (signal.aborted) return;
+            const result = await res.json();
+            const pdfUrl = API + result.preview_url + "?t=" + Date.now();
+            const frame = document.getElementById("previewFrame");
+            frame.src = pdfUrl + "#toolbar=0&navpanes=0&scrollbar=0&zoom=page-width";
+            const ts = new Date().toLocaleTimeString("en-GB", {hour:"2-digit",minute:"2-digit",second:"2-digit"});
+            _setPreviewStatus("previewStatus", "Preview updated " + ts, "ok");
+            const pi = document.getElementById("previewPageInfo");
+            if (pi) pi.textContent = "Page 1 of 3 (live preview)";
+        } catch (err) {
+            if (err.name !== "AbortError") {
+                _setPreviewStatus("previewStatus", "Preview error — check connection.", "err");
+                console.error("Preview error:", err);
+            }
+        }
+    }
+  </script>
+
+  <script>
+    async function generateSelected(rows) {
+        if (!rows || rows.length === 0) { showToast("No patients selected.", "error"); return; }
+        const logoOption = document.querySelector('input[name="bulkLogoOption"]:checked')?.value || "with_logo";
+        const qrOption = document.querySelector('input[name="bulkQrOption"]:checked')?.value || "without_qr";
+        const rowsWithLogo = rows.map(r => ({ ...r, logo_option: logoOption, qr_option: qrOption }));
+        try {
+            const res = await fetch(API + "/generate-bulk", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(rowsWithLogo)
+            });
+            const result = await res.json();
+            if (result.errors?.length) showDownloadLinks(result.generated, result.errors);
+            await _saveBulkToDir(result.generated);
+            const _singleUrl = result.generated?.length === 1 ? result.generated[0].file_url : null;
+            showReportGeneratedPopup();
+        } catch (err) {
+            showToast("Error: " + err.message, "error");
+        }
+    }
+  </script>
+
+  <script>
+    function buildDraftKey(data) {
+        const patient = (data["Patient Name"] || "Unknown").replace(/[^a-zA-Z0-9 ]/g, "").trim().replace(/ /g, "_");
+        const biopsyRaw = data["Biopsy No."] || data["Biopsy No"] || "1";
+        const match = String(biopsyRaw).match(/(\d+)/);
+        const n = match ? parseInt(match[1]) : 1;
+        const suffix = {1:"st",2:"nd",3:"rd"}[n < 20 ? n : n % 10] || "th";
+        return `${patient}_${n}${suffix}_biopsy_TERA_report_draft`;
+    }
+
+    let allDrafts = [];
+
+    function openDraftPicker() {
+        const overlay = document.getElementById("draftPickerOverlay");
+        overlay.style.display = "flex";
+        document.getElementById("draftSearch").value = "";
+        allDrafts = Object.keys(localStorage)
+            .filter(k => k.endsWith("_TERA_report_draft"))
+            .map(k => ({ key: k, label: k.replace(/_TERA_report_draft$/, "").replace(/_/g, " ") }));
+        renderDraftList(allDrafts);
+    }
+
+    function closeDraftPicker() {
+        document.getElementById("draftPickerOverlay").style.display = "none";
+    }
+
+    function filterDrafts() {
+        const q = document.getElementById("draftSearch").value.toLowerCase();
+        renderDraftList(allDrafts.filter(d => d.label.toLowerCase().includes(q)));
+    }
+
+    function renderDraftList(drafts) {
+        const list = document.getElementById("draftList");
+        const empty = document.getElementById("draftEmpty");
+        list.innerHTML = "";
+        if (drafts.length === 0) { empty.style.display = "block"; return; }
+        empty.style.display = "none";
+        drafts.forEach(d => {
+            const btn = document.createElement("button");
+            btn.textContent = d.label;
+            btn.style.cssText = "text-align:left;padding:9px 12px;border:1.5px solid #ddd;border-radius:7px;background:#f9f9f9;cursor:pointer;font-size:12px;width:100%;transition:0.15s;font-family:'Inter',sans-serif;";
+            btn.onmouseover = () => btn.style.background = "#e8f0fb";
+            btn.onmouseout  = () => btn.style.background = "#f9f9f9";
+            btn.onclick = () => selectDraft(d.key);
+            list.appendChild(btn);
+        });
+    }
+
+    function selectDraft(key) {
+        const raw = localStorage.getItem(key);
+        if (!raw) { showToast("Draft not found.", "error"); return; }
+        fillManualForm(JSON.parse(raw));
+        showToast("Draft loaded!");
+        closeDraftPicker();
+    }
+
+    function saveDraft() {
+        const data = collectManualData();
+        const key = buildDraftKey(data);
+        localStorage.setItem(key, JSON.stringify(data));
+        showToast("Draft saved: " + key);
+    }
+
+    function loadDraft() {
+        const data = collectManualData();
+        const key = buildDraftKey(data);
+        const local = localStorage.getItem(key);
+        if (local) { fillManualForm(JSON.parse(local)); showToast("Draft loaded!"); }
+        else showToast("No draft found.", "error");
+    }
+  </script>
+
+  <script>
+    function saveBulkDraft() {
+        if (selectedPatientIndex === null || selectedPatientIndex < 0) {
+            showToast("No patient selected.", "error"); return;
+        }
+        const row = patients[selectedPatientIndex];
+        const key = buildDraftKey(row);
+        localStorage.setItem(key, JSON.stringify(row));
+        showToast("Draft saved: " + key);
+    }
+
+    function saveAllBulkDraft() {
+        if (!patients.length) { showToast("No patients loaded.", "error"); return; }
+        localStorage.setItem("tera_bulk_draft", JSON.stringify(patients));
+        showToast(patients.length + " patients saved to draft.");
+    }
+
+    function loadBulkDraft() {
+        const local = localStorage.getItem("tera_bulk_draft");
+        if (local) {
+            patients = JSON.parse(local);
+            renderPatientTable(patients);
+            showToast(patients.length + " patients restored from draft.");
+        } else {
+            showToast("No bulk draft found.", "error");
+        }
+    }
+
+    async function generateAllReports() {
+        const logoOption = document.querySelector('input[name="bulkLogoOption"]:checked')?.value || "with_logo";
+        const qrOption = document.querySelector('input[name="bulkQrOption"]:checked')?.value || "without_qr";
+        const rows = patients.map(r => ({ ...r, logo_option: logoOption, qr_option: qrOption }));
+        try {
+            const res = await fetch(API + "/generate-bulk", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(rows)
+            });
+            const result = await res.json();
+            if (result.errors?.length) showDownloadLinks(result.generated, result.errors);
+            await _saveBulkToDir(result.generated);
+            const _singleUrl = result.generated?.length === 1 ? result.generated[0].file_url : null;
+            showReportGeneratedPopup();
+        } catch (err) {
+            showToast("Error: " + err.message, "error");
+        }
+    }
+
+    async function _saveBulkToDir(generated) {
+        if (!_dirHandles["bulkExportDisplay"] || !generated?.length) return;
+        for (const f of generated) {
+            if (!f.file_url) continue;
+            try {
+                const fileUrl = f.file_url.startsWith("/") ? API + f.file_url : f.file_url;
+                const blob = await fetch(fileUrl).then(r => r.blob());
+                await saveFileToDir("bulkExportDisplay", blob, f.file_name || f.file_url.split("/").pop());
+            } catch (e) { console.warn("Save to dir failed for", f.file_name, e); }
+        }
+    }
+
+    function showDownloadLinks(files, errors) {
+        const box = document.getElementById("bulkDownloadLinks");
+        box.innerHTML = "";
+        if (!files || files.length === 0) {
+            if (errors && errors.length > 0)
+                box.innerHTML = `<span style="color:red;font-size:12px;">All reports failed. Check server logs.</span>`;
+            return;
+        }
+        files.forEach(f => {
+            const a = document.createElement("a");
+            a.href = f.file_url; a.download = f.file_name; a.textContent = f.file_name;
+            a.style.cssText = "padding:5px 11px;background:var(--primary);color:#fff;border-radius:6px;text-decoration:none;font-size:11px;font-weight:600;";
+            box.appendChild(a);
+        });
+        if (errors && errors.length > 0) {
+            errors.forEach(e => {
+                const msg = document.createElement("div");
+                msg.style.cssText = "color:red;font-size:11px;margin-top:4px;";
+                msg.textContent = `✗ ${e.patient}: ${e.error}`;
+                box.appendChild(msg);
+            });
+        }
+    }
+  </script>
+
+  <script>
+    function uploadExcel() {
+        const fileInput = document.getElementById("excelFile");
+        if (!fileInput.files.length) return;
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const wb   = XLSX.read(data, { type: "array", cellDates: true });
+                const ws   = wb.Sheets[wb.SheetNames[0]];
+                // Parse as array-of-objects using the first row as headers
+                const raw  = XLSX.utils.sheet_to_json(ws, { defval: "" });
+                if (!raw.length) { showToast("No data rows found in Excel file.", "error"); return; }
+
+                // Normalise: trim all keys and stringify all values
+                patients = raw.map(row => {
+                    const out = {};
+                    Object.keys(row).forEach(k => {
+                        const v = row[k];
+                        // Convert Date objects from cellDates:true to readable string
+                        let val = (v instanceof Date)
+                            ? v.toLocaleDateString("en-GB") + " " + v.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
+                            : String(v ?? "").trim();
+                        if (val === "NaN" || val === "undefined") val = "";
+                        out[k.trim()] = val;
+                    });
+                    return out;
+                });
+
+                renderPatientTable(patients);
+                showToast(patients.length + " patient(s) loaded.");
+            } catch(err) {
+                showToast("Parse error: " + err.message, "error");
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    function searchPatients() {
+        const query = document.getElementById("patientSearch").value.toLowerCase();
+        const filtered = patients.filter(p =>
+            (p["Patient Name"] || "").toLowerCase().includes(query) ||
+            (p["Sample ID"] || "").toLowerCase().includes(query) ||
+            (p["Lab No."] || "").toLowerCase().includes(query) ||
+            (p["Doctor Name"] || "").toLowerCase().includes(query)
+        );
+        renderPatientTable(filtered);
+    }
+  </script>
+
+  <script>
+    function renderPatientTable(data) {
+        const tbody = document.getElementById("patientTableBody");
+        tbody.innerHTML = "";
+        data.forEach((row, displayIdx) => {
+            // Resolve original index so filtered views still target the right patient
+            const origIdx = patients.indexOf(row);
+            const idx = origIdx >= 0 ? origIdx : displayIdx;
+            const tr = document.createElement("tr");
+            tr.dataset.index = idx;
+            tr.innerHTML = `
+<td style="text-align:center;"><input type="checkbox" class="row-check" data-index="${idx}" style="accent-color:var(--primary);" onclick="event.stopPropagation()"></td>
+<td style="color:var(--text-muted);">${displayIdx + 1}</td>
+<td>${row["Patient Name"] || "Unknown"}</td>`;
+            tr.onclick = () => loadPatient(idx);
+            tbody.appendChild(tr);
+        });
+    }
+
+    function selectAll() {
+        document.querySelectorAll(".row-check").forEach(cb => cb.checked = true);
+    }
+
+    function deselectAll() {
+        document.querySelectorAll(".row-check").forEach(cb => cb.checked = false);
+        const master = document.getElementById("selectAllCheck");
+        if (master) master.checked = false;
+    }
+
+    function getSelectedRows() {
+        const checked = document.querySelectorAll(".row-check:checked");
+        return Array.from(checked).map(cb => patients[parseInt(cb.dataset.index)]);
+    }
+
+    function loadPatient(index) {
+        selectedPatientIndex = index;
+        const p = patients[index];
+        // Highlight active row
+        document.querySelectorAll("#patientTableBody tr").forEach(r => r.classList.remove("active-row"));
+        const activeRow = document.querySelector(`#patientTableBody tr[data-index="${index}"]`);
+        if (activeRow) activeRow.classList.add("active-row");
+
+        document.getElementById("edit_patient_name").value = p["Patient Name"] || "";
+        document.getElementById("edit_age").value = p["Age"] || "";
+        document.getElementById("edit_sample_id").value = p["Sample ID"] || "";
+        document.getElementById("edit_lab_no").value = p["Lab No."] || "";
+        document.getElementById("edit_biopsy_no").value = p["Biopsy No."] || "";
+        document.getElementById("edit_doctor_name").value = p["Doctor Name"] || "";
+        document.getElementById("edit_center").value = p["Center name"] || "";
+        document.getElementById("edit_cycle_type").value = p["Cycle Type"] || "HRT";
+        document.getElementById("edit_pday").value = p["Biopsy"] || "";
+        document.getElementById("edit_p4_date").value = p["P4 /hCG injection  date time"] || "";
+        document.getElementById("edit_biopsy_date").value = p["Biopsy time in hrs"] || "";
+        document.getElementById("edit_phours").value = p["Biopsy time in hrs.1"] || "";
+        document.getElementById("edit_result").value = p["TERA result"] || "Receptive";
+        document.getElementById("edit_time_report").value = p["Time for report"] || "";
+        document.getElementById("edit_date_received").value = p["Date of Received"] || "";
+        document.getElementById("edit_report_date").value = p["Report Date"] || "";
+
+        updateBulkPreview(p);
+    }
+
+    let _bulkPreviewCtrl = null;
+
+    async function updateBulkPreview(data) {
+        if (_bulkPreviewCtrl) _bulkPreviewCtrl.abort();
+        _bulkPreviewCtrl = new AbortController();
+        const signal = _bulkPreviewCtrl.signal;
+        _setPreviewStatus("bulkPreviewStatus", "Generating preview…", "busy");
+        try {
+            const logoOption = document.querySelector('input[name="bulkLogoOption"]:checked')?.value || "with_logo";
+            const qrOption   = document.querySelector('input[name="bulkQrOption"]:checked')?.value || "without_qr";
+            const bodyData = { ...data, logo_option: logoOption, qr_option: qrOption };
+            const res = await fetch(API + "/preview", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(bodyData),
+                signal
+            });
+            if (signal.aborted) return;
+            const result = await res.json();
+            const pdfUrl = API + result.preview_url + "?t=" + Date.now();
+            const frame = document.getElementById("bulkPreviewFrame");
+            frame.src = pdfUrl + "#toolbar=0&navpanes=0&scrollbar=0&zoom=page-width";
+            const ts = new Date().toLocaleTimeString("en-GB", {hour:"2-digit",minute:"2-digit",second:"2-digit"});
+            _setPreviewStatus("bulkPreviewStatus", "Preview updated " + ts, "ok");
+            const bpi = document.getElementById("bulkPageInfo");
+            if (bpi) bpi.textContent = "Page 1 of 3 (live preview)";
+        } catch (err) {
+            if (err.name !== "AbortError") {
+                _setPreviewStatus("bulkPreviewStatus", "Preview error — check connection.", "err");
+                console.error("Bulk preview error:", err);
+            }
+        }
+    }
+  </script>
+
+  <script>
+    // ── Report Comparison ──
+    const _cmpFiles = { manual: null, auto: null };
+    let _lastCmpData = null;
+
+    function esc(s) { return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+
+    function cmpFileSelected(side, input) {
+      const file = input.files[0];
+      if (!file) return;
+      _cmpFiles[side] = file;
+      const nameEl = document.getElementById(side === 'manual' ? 'cmpManualName' : 'cmpAutoName');
+      const boxEl  = document.getElementById(side === 'manual' ? 'cmpBoxManual' : 'cmpBoxAuto');
+      if (nameEl) nameEl.textContent = file.name;
+      if (boxEl)  boxEl.classList.add('has-file');
+      document.getElementById('cmpBtn').disabled = !(_cmpFiles.manual && _cmpFiles.auto);
+      if (_cmpFiles.manual && _cmpFiles.auto) runComparison();
+    }
+
+    function clearComparison() {
+      _cmpFiles.manual = null; _cmpFiles.auto = null; _lastCmpData = null;
+      ['cmpFileManual','cmpFileAuto'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+      ['cmpManualName','cmpAutoName'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = ''; });
+      [['cmpBoxManual','compare-upload-box'],['cmpBoxAuto','compare-upload-box']].forEach(([id]) => { const el = document.getElementById(id); if (el) el.classList.remove('has-file'); });
+      document.getElementById('cmpBtn').disabled = true;
+      document.getElementById('cmpDownloadBtn').style.display = 'none';
+      document.getElementById('cmpResults').innerHTML = '';
+    }
+
+    async function runComparison() {
+      if (!_cmpFiles.manual || !_cmpFiles.auto) { showToast("Select both files first", "error"); return; }
+      const resultEl = document.getElementById('cmpResults');
+      resultEl.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text-muted);font-size:12px;"><i class="fas fa-spinner fa-spin"></i> Analysing differences…</div>';
+      const fd = new FormData();
+      fd.append('manual', _cmpFiles.manual);
+      fd.append('automated', _cmpFiles.auto);
+      try {
+        const res  = await fetch(API + '/tera/compare', { method: 'POST', body: fd });
+        const data = await res.json();
+        if (!res.ok || data.html_diff === undefined) {
+          const msg = data.detail || data.error || `Server returned ${res.status}`;
+          resultEl.innerHTML = `<div style="color:#dc2626;padding:12px;font-size:12px;"><i class="fas fa-exclamation-circle"></i> Comparison error: ${esc(msg)}</div>`;
+          return;
+        }
+        data.manual_file = data.manual_file || _cmpFiles.manual.name;
+        data.auto_file   = data.auto_file   || _cmpFiles.auto.name;
+        _lastCmpData = data;
+        renderComparisonResult(data);
+        document.getElementById('cmpDownloadBtn').style.display = '';
+      } catch (err) {
+        resultEl.innerHTML = `<div style="color:#dc2626;padding:12px;font-size:12px;"><i class="fas fa-exclamation-circle"></i> Comparison error: ${esc(err.message)}</div>`;
+      }
+    }
+
+    function renderComparisonResult(data) {
+      const el = document.getElementById('cmpResults');
+      const count = data.total_changes ?? 0;
+      const isMatch = data.match || count === 0;
+      const badge = isMatch
+        ? `<span class="cmp-summary-badge match"><i class="fas fa-check-circle"></i> Reports Match</span>`
+        : `<span class="cmp-summary-badge diff"><i class="fas fa-exclamation-triangle"></i> ${count} Difference${count !== 1 ? 's' : ''} Found</span>`;
+      const filesRow = `
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+          <div style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:8px;padding:10px;">
+            <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Manual Report</div>
+            <div style="font-size:11px;word-break:break-all;">${esc(data.manual_file || '-')}</div>
+          </div>
+          <div style="background:#f8fafc;border:1px dashed #cbd5e1;border-radius:8px;padding:10px;">
+            <div style="font-size:10px;font-weight:700;color:var(--text-muted);text-transform:uppercase;margin-bottom:4px;">Automated Report</div>
+            <div style="font-size:11px;word-break:break-all;">${esc(data.auto_file || '-')}</div>
+          </div>
+        </div>`;
+      const diffBlock = data.html_diff
+        ? `<div class="diff-wrapper">${data.html_diff}</div>`
+        : `<div class="compare-match"><i class="fas fa-check-circle"></i> All content matches — no differences found.</div>`;
+      el.innerHTML = `
+        <div class="compare-result-card">
+          <div class="compare-result-header">
+            <strong>Comparison Result</strong>${badge}
+          </div>
+          <div style="padding:12px 14px;">${filesRow}${diffBlock}</div>
+        </div>`;
+    }
+
+    function downloadComparison() {
+      if (!_lastCmpData) { showToast('No comparison to download', 'info'); return; }
+      const d = _lastCmpData;
+      const ts = new Date().toLocaleString();
+      const statusText = d.match ? 'MATCH' : `${d.total_changes} DIFFERENCE(S)`;
+      const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
+<title>TERA Report Comparison — ${esc(d.manual_file)} vs ${esc(d.auto_file)}</title>
+<style>
+  body { font-family: Segoe UI, Arial, sans-serif; margin: 0; padding: 20px; background: #f8fafc; color: #1e293b; }
+  h1 { font-size: 18px; color: #1F497D; margin-bottom: 4px; }
+  .meta { font-size: 12px; color: #64748b; margin-bottom: 20px; }
+  .badge-match { background:#ecfdf5;color:#065f46;padding:4px 14px;border-radius:99px;font-weight:700;font-size:12px; }
+  .badge-diff  { background:#fef2f2;color:#991b1b;padding:4px 14px;border-radius:99px;font-weight:700;font-size:12px; }
+  table.diff { border-collapse: collapse; width: 100%; font-family: 'Courier New', monospace; font-size: 11px; }
+  table.diff td { padding: 3px 8px; vertical-align: top; white-space: pre-wrap; word-break: break-all; }
+  .diff_header { background: #e8edf2; text-align: right; }
+  .diff_next { display: none; }
+  .diff_add { background: #d1fae5; }
+  .diff_chg { background: #fef9c3; }
+  .diff_sub { background: #fee2e2; }
+</style></head><body>
+<h1>TERA Report Comparison</h1>
+<div class="meta"><strong>Manual:</strong> ${esc(d.manual_file)} &nbsp;|&nbsp; <strong>Automated:</strong> ${esc(d.auto_file)} &nbsp;|&nbsp; <strong>Generated:</strong> ${ts}</div>
+<p><span class="${d.match ? 'badge-match' : 'badge-diff'}">${statusText}</span></p>
+${d.html_diff || '<p>No differences found.</p>'}
+</body></html>`;
+      const blob = new Blob([html], { type: 'text/html' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `tera_comparison_${Date.now()}.html`;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      showToast('Comparison exported as HTML', 'success');
+    }
+
+    function triggerPreview() {
+        clearTimeout(window.previewTimer);
+        window.previewTimer = setTimeout(() => refreshPreview(), 700);
+    }
+
+    // ── Folder picker (File System Access API — same as PGTA) ──
+    const _dirHandles = {};
+
+    async function selectOutputFolder(inputId) {
+        if (!window.showDirectoryPicker) {
+            const inp = document.getElementById(inputId);
+            if (inp) { inp.removeAttribute("readonly"); inp.placeholder = "Type folder path (e.g. C:\\Reports)"; inp.focus(); }
+            showToast("Folder picker needs Chrome/Edge. Type a path directly.", "info");
+            return;
+        }
+        try {
+            const dirHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+            _dirHandles[inputId] = dirHandle;
+            const inp = document.getElementById(inputId);
+            if (inp) { inp.value = dirHandle.name; inp.classList.remove("placeholder"); }
+            showToast("Folder selected: " + dirHandle.name, "success");
+        } catch (err) {
+            if (err.name !== "AbortError") {
+                const inp = document.getElementById(inputId);
+                if (inp) { inp.removeAttribute("readonly"); inp.placeholder = "Type folder path manually"; }
+                showToast("Could not open folder picker — type a path in the box.", "info");
+            }
+        }
+    }
+
+    async function saveFileToDir(inputId, blob, filename) {
+        const dirHandle = _dirHandles[inputId];
+        if (!dirHandle) return false;
+        try {
+            const fileHandle = await dirHandle.getFileHandle(filename, { create: true });
+            const writable = await fileHandle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+            return true;
+        } catch (err) {
+            console.warn("Could not write to selected folder:", err);
+            return false;
+        }
+    }
+
+    document.addEventListener("DOMContentLoaded", function () {
+        // Manual tab — auto-refresh preview on any field change
+        document.querySelectorAll(".form-grid input, .form-grid select").forEach(field => {
+            field.addEventListener("input", triggerPreview);
+            field.addEventListener("change", triggerPreview);
+        });
+
+        // Bulk tab — auto-refresh preview when editor fields change (debounced, silent)
+        document.querySelectorAll(".bulk-editor-scroll input, .bulk-editor-scroll select").forEach(field => {
+            const handler = () => {
+                if (selectedPatientIndex === null) return;
+                clearTimeout(window.bulkPreviewTimer);
+                window.bulkPreviewTimer = setTimeout(() => {
+                    const p = _readEditorIntoPatient();
+                    if (p) updateBulkPreview(p);
+                }, 700);
+            };
+            field.addEventListener("input", handler);
+            field.addEventListener("change", handler);
+        });
+
+    });
+  </script>
+</body>
+</html>
