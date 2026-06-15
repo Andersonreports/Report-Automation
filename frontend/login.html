@@ -27,25 +27,23 @@
       box-shadow: 0 24px 64px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.05);
       padding: 40px 36px;
       width: 100%;
-      max-width: 380px;
+      max-width: 480px;
     }
 
     .brand {
       display: flex;
       align-items: center;
-      gap: 10px;
+      justify-content: center;
       margin-bottom: 28px;
     }
-    .brand-icon {
-      width: 38px; height: 38px;
-      background: #4F46E5;
-      border-radius: 10px;
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
+    .brand-name {
+      font-size: 20px;
+      font-weight: 700;
+      color: #111827;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      text-align: center;
     }
-    .brand-icon i { font-size: 16px; color: #fff; }
-    .brand-name { font-size: 16px; font-weight: 700; color: #111827; letter-spacing: -0.2px; }
-    .brand-sub { font-size: 11px; color: #9CA3AF; font-weight: 500; }
 
     h1 {
       font-size: 22px;
@@ -141,11 +139,7 @@
 
   <div class="login-card">
     <div class="brand">
-      <div class="brand-icon"><i class="fas fa-dna"></i></div>
-      <div>
-        <div class="brand-name">Anderson</div>
-        <div class="brand-sub">Clinical Genetics</div>
-      </div>
+      <div class="brand-name">Anderson Clinical Genetics</div>
     </div>
 
     <h1>Sign in</h1>
