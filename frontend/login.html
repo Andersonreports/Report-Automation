@@ -11,7 +11,7 @@
 
     body {
       font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-      background: #F4F5F7;
+      background: #d0def9;
       color: #111827;
       min-height: 100vh;
       display: flex;
@@ -52,12 +52,7 @@
       font-weight: 800;
       color: #111827;
       letter-spacing: -0.5px;
-      margin-bottom: 6px;
-    }
-    .subtitle {
-      font-size: 13px;
-      color: #6B7280;
-      line-height: 1.6;
+      text-align: center;
       margin-bottom: 28px;
     }
 
@@ -154,7 +149,6 @@
     </div>
 
     <h1>Sign in</h1>
-    <p class="subtitle">Enter your credentials to access the Report Automation workspace.</p>
 
     <div class="error-msg" id="errorMsg">
       <i class="fas fa-circle-exclamation"></i>
@@ -206,7 +200,8 @@
         return;
       }
 
-      window.location.href = '/';
+      localStorage.setItem('arc_authenticated', 'true');
+      window.location.href = '/index.html';
     });
   </script>
 </body>
