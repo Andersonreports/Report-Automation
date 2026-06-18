@@ -152,7 +152,7 @@ class NIPTDocxGenerator:
         pndt._p.get_or_add_pPr().append(shading_elm)
         
         self._add_section_header("Test Indication")
-        self.doc.add_paragraph(data.get('indication', 'To screen for chromosomal aneuploidies'))
+        self.doc.add_paragraph(data.get('indication') or 'To screen for chromosomal aneuploidies')
         
         self._add_section_header("Test Performed")
         self.doc.add_paragraph("NIPS for 23 pairs of chromosomes (including sex chromosomal aneuploidies)")

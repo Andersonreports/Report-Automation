@@ -147,6 +147,18 @@ DIV_X0, DIV_X1 = 72.0, 540.0
 def _img(b64: str) -> ImageReader:
     return ImageReader(io.BytesIO(base64.b64decode(b64)))
 
+def _img_white_to_alpha(b64: str, threshold: int = 235) -> ImageReader:
+    """Decode an image and make near-white pixels transparent."""
+    from PIL import Image as PILImage
+    img = PILImage.open(io.BytesIO(base64.b64decode(b64))).convert("RGBA")
+    pixels = img.getdata()
+    new_pixels = [
+        (r, g, b, 0) if r >= threshold and g >= threshold and b >= threshold else (r, g, b, a)
+        for (r, g, b, a) in pixels
+    ]
+    img.putdata(new_pixels)
+    return ImageReader(img)
+
 def _divider(c, rl_y, lw=0.48):
     c.setStrokeColor(GRAY_DIV)
     c.setLineWidth(lw)
@@ -392,8 +404,12 @@ class KaryotypeReportGenerator:
         c.setFillColor(DARK_BLUE)
         c.drawCentredString(W / 2, title_y, "Peripheral Blood Karyotyping")
 
+        # ── Patient table background (drawn FIRST so stamp + text render on top) ─
+        c.setFillColor(FIELD_BG)
+        c.rect(LX, _rl(120.0) - 5 * 29.5, RX - LX, 5 * 29.5, fill=1, stroke=0)
+
         # ── Stamp image (drawn FIRST so table text renders on top) ───────────
-        c.drawImage(_img(_assets.STAMP),
+        c.drawImage(_img_white_to_alpha(_assets.STAMP),
                     STAMP_X, STAMP_Y, STAMP_W, STAMP_H, mask="auto")
 
         # ── Patient info table ────────────────────────────────────────────────

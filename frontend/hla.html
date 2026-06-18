@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HLA Typing Report Generator</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+  <script src="/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --primary: #1F497D;
+      --primary-hover: #163a63;
+      --accent: #F9BE8F;
+      --success: #10b981;
+      --danger: #ef4444;
+      --bg: #f0f4f8;
+      --panel: rgba(255, 255, 255, 0.88);
+      --panel-border: rgba(255, 255, 255, 0.6);
+      --text: #1e293b;
+      --text-muted: #64748b;
+      --input-bg: #fff;
+      --input-border: #d1d5db;
+      --shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      --radius: 10px;
+      --patient-bg: #F1F1F7;
+      --summary-header: #F9BE8F;
+      --grey-box: #F2F2F2;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      font-size: 13px;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      overflow: hidden;
+      opacity: 0;
+      transition: opacity 0.4s;
+    }
+
+    body.loaded { opacity: 1; }
+
+    .main {
+      height: 100vh;
+      padding: 14px 24px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Page Header ── */
+    .page-hdr {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .page-hdr-left { display: flex; align-items: center; gap: 14px; }
+
+    .page-hdr-left h1 {
+      font-size: 20px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #1F497D, #4F81BD);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .page-hdr-left p { color: var(--text-muted); font-size: 11px; margin-top: 2px; }
+
+    .home-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      background: var(--primary);
+      color: #fff;
+      border-radius: 7px;
+      font-size: 12px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    .home-btn:hover { background: var(--primary-hover); }
+
+    .hdr-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+    .hdr-select-group { display: flex; align-items: center; gap: 6px; }
+    .hdr-select-group label { font-size: 11px; font-weight: 600; color: var(--text-muted); }
+    .hdr-select-group select {
+      padding: 6px 10px; border-radius: 6px; border: 1px solid var(--input-border);
+      font-size: 12px; background: #fff; min-width: 160px;
+    }
+
+    /* ── Tabs ── */
+    .tab-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+
+    .tab {
+      padding: 9px 22px;
+      background: rgba(255, 255, 255, 0.75);
+      border: 1px solid var(--panel-border);
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      color: var(--text-muted);
+      transition: 0.2s;
+    }
+    .tab:hover { color: var(--text); }
+    .tab.active { background: var(--primary); color: #fff; border-color: var(--primary); font-weight: 600; }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--panel);
+      backdrop-filter: blur(12px);
+      border: 1px solid var(--panel-border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 16px 18px;
+      margin-bottom: 14px;
+    }
+
+    .card h3 {
+      font-size: 13px; font-weight: 700; color: var(--primary); margin-bottom: 12px;
+      display: flex; align-items: center; gap: 6px; padding-bottom: 8px;
+      border-bottom: 2px solid var(--accent);
+    }
+
+    .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; }
+    .field-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
+    .field-grid .full { grid-column: 1/-1; }
+
+    .field { display: flex; flex-direction: column; gap: 4px; }
+    .field label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
+    .field label .req { color: var(--danger); }
+
+    .field input, .field textarea, .field select {
+      background: var(--input-bg); border: 1px solid var(--input-border); border-radius: 6px;
+      padding: 7px 10px; font-size: 12px; color: var(--text); font-family: 'Inter', sans-serif;
+      transition: border-color 0.15s; width: 100%;
+    }
+    .field textarea { resize: vertical; min-height: 48px; }
+    .field input:focus, .field textarea:focus, .field select:focus {
+      outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(31,73,125,0.08);
+    }
+
+    .checkbox-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+    .checkbox-item { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--text); }
+    .checkbox-item input { width: 16px; height: 16px; }
+
+    /* ── HLA allele grid ── */
+    .allele-grid { display: flex; flex-direction: column; gap: 6px; }
+    .allele-row { display: grid; grid-template-columns: 90px 1fr 1fr; gap: 8px; align-items: center; }
+    .allele-row .locus-lbl { font-size: 12px; font-weight: 700; color: var(--primary); }
+    .allele-row input { padding: 6px 9px; font-size: 12px; border: 1px solid var(--input-border); border-radius: 6px; }
+
+    /* ── Donor panels ── */
+    .donor-block { border: 1px solid var(--accent); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; background: #fff8f0; }
+    .donor-block-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .donor-block-hdr h4 { font-size: 12px; color: var(--primary); font-weight: 700; }
+
+    /* ── Buttons ── */
+    .btn-sm {
+      padding: 7px 16px; border-radius: 6px; font-size: 11.5px; font-weight: 600;
+      cursor: pointer; border: 1.5px solid; transition: 0.2s; display: inline-flex; align-items: center; gap: 5px;
+    }
+    .btn-outline { background: transparent; border-color: var(--primary); color: var(--primary); }
+    .btn-outline:hover { background: var(--primary); color: #fff; }
+    .btn-danger-outline { background: transparent; border-color: var(--danger); color: var(--danger); }
+    .btn-danger-outline:hover { background: var(--danger); color: #fff; }
+    .btn-primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-success { background: var(--success); color: #fff; border-color: var(--success); }
+
+    .draft-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* ── Layout: form + preview split ── */
+    .split-layout { display: flex; gap: 16px; flex: 1; min-height: 0; }
+    .form-col { flex: 1.1; overflow-y: auto; padding-right: 4px; min-width: 0; }
+    .preview-col {
+      flex: 0.9; display: flex; flex-direction: column; min-width: 0;
+      background: var(--panel); border: 1px solid var(--panel-border); border-radius: var(--radius);
+      box-shadow: var(--shadow); overflow: hidden;
+    }
+    .preview-hdr {
+      padding: 10px 16px; background: var(--primary); color: #fff; font-size: 12px; font-weight: 700;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    .preview-body { flex: 1; overflow: hidden; padding: 0; display: flex; flex-direction: column; }
+    .preview-body .preview-placeholder { padding: 40px 16px; margin: auto; }
+    .preview-body img { max-width: 100%; box-shadow: 0 1px 6px rgba(0,0,0,0.18); border-radius: 2px; }
+    .preview-placeholder { color: var(--text-muted); font-size: 12px; text-align: center; padding: 40px 16px; }
+
+    .gen-bar {
+      display: flex; align-items: center; gap: 10px; padding: 10px 0; flex-wrap: wrap;
+    }
+    .gen-bar .path-label {
+      flex: 1; min-width: 160px; padding: 7px 10px; border: 1px solid var(--input-border);
+      background: #fff; border-radius: 6px; font-size: 11px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+
+    /* ── Bulk tab ── */
+    .bulk-topbar { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+    .dropzone {
+      border: 2px dashed var(--input-border); border-radius: 8px; padding: 14px; text-align: center;
+      font-size: 12px; color: var(--text-muted); cursor: pointer; transition: 0.15s; flex: 1; min-width: 220px;
+    }
+    .dropzone:hover, .dropzone.dragover { border-color: var(--primary); background: rgba(31,73,125,0.04); }
+
+    .bulk-3col { display: flex; gap: 12px; flex: 1; min-height: 0; }
+    .bulk-list-col { width: 230px; display: flex; flex-direction: column; }
+    .bulk-edit-col { flex: 1; overflow-y: auto; min-width: 0; }
+    .bulk-preview-col { width: 320px; display: flex; flex-direction: column; }
+
+    .search-box { padding: 7px 10px; border: 1px solid var(--input-border); border-radius: 6px; font-size: 12px; margin-bottom: 8px; width: 100%; }
+    .case-list { flex: 1; overflow-y: auto; border: 1px solid var(--panel-border); border-radius: 8px; background: #fff; }
+    .case-item {
+      padding: 8px 10px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 11.5px; display: flex; align-items: center; gap: 6px;
+    }
+    .case-item:hover { background: #f4f6fb; }
+    .case-item.selected { background: rgba(31,73,125,0.10); border-left: 3px solid var(--primary); }
+    .case-item .ci-name { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .case-item .ci-type { font-size: 9.5px; color: var(--text-muted); background: var(--grey-box); padding: 1px 6px; border-radius: 8px; }
+
+    .select-row { display: flex; gap: 6px; margin-bottom: 8px; }
+    .select-row .btn-sm { flex: 1; justify-content: center; padding: 5px; font-size: 10.5px; }
+
+    /* ── Settings table ── */
+    table.sig-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    table.sig-table th { background: var(--primary); color: #fff; padding: 7px 10px; text-align: left; }
+    table.sig-table td { padding: 6px 10px; border-bottom: 1px solid #eee; }
+    table.sig-table tr:nth-child(even) td { background: #f9f9fb; }
+    table.sig-table input { width: 100%; border: 1px solid transparent; padding: 3px 5px; border-radius: 4px; font-size: 12px; background: transparent; }
+    table.sig-table input:focus { border-color: var(--input-border); background: #fff; }
+
+    .sig-count-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 16px; }
+    .sig-count-item { display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; gap: 8px; }
+    .sig-count-item input { width: 50px; padding: 4px 6px; text-align: center; border: 1px solid var(--input-border); border-radius: 4px; }
+
+    /* ── User guide ── */
+    .guide-content { font-size: 12.5px; line-height: 1.65; }
+    .guide-content h3 { color: var(--primary); border-bottom: 1px solid #eee; padding: 10px 0 6px; margin-top: 12px; }
+    .guide-content .tip { background: #e7f3ff; border: 1px solid #b8daff; border-radius: 6px; padding: 10px 14px; margin: 8px 0; font-style: italic; }
+    .guide-content table { border-collapse: collapse; width: 100%; margin: 8px 0; }
+    .guide-content th { background: var(--primary); color: #fff; padding: 6px 10px; font-size: 11.5px; }
+    .guide-content td { padding: 5px 10px; border: 1px solid #ddd; font-size: 11.5px; }
+    .guide-content tr:nth-child(even) td { background: #f9f9f9; }
+    .guide-content code { background: #f1f5f9; padding: 1px 5px; border-radius: 3px; }
+    .guide-hdr { background: var(--primary); color: #fff; padding: 18px 22px; border-radius: 8px; margin-bottom: 14px; }
+    .guide-hdr h1 { font-size: 19px; }
+    .guide-hdr p { opacity: 0.85; font-size: 12px; margin-top: 4px; }
+
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; background: var(--text); color: #fff; padding: 10px 18px;
+      border-radius: 8px; font-size: 12px; box-shadow: 0 4px 16px rgba(0,0,0,0.25); z-index: 999; opacity: 0;
+      transform: translateY(8px); transition: 0.25s;
+    }
+    .toast.show { opacity: 1; transform: translateY(0); }
+    .toast.error { background: var(--danger); }
+    .toast.success { background: var(--success); }
+
+    .progress-wrap { width: 100%; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; margin: 6px 0; }
+    .progress-bar { height: 100%; background: var(--primary); width: 0%; transition: width 0.2s; }
+
+    .hidden { display: none !important; }
+
+    .photo-upload-box {
+      width: 100px; height: 120px; border: 2px dashed var(--input-border); border-radius: 8px;
+      display: flex; align-items: center; justify-content: center; cursor: pointer; overflow: hidden;
+      background: #fafafa; font-size: 10px; color: var(--text-muted); text-align: center;
+    }
+    .photo-upload-box img { width: 100%; height: 100%; object-fit: cover; }
+  </style>
+</head>
+
+<body>
+  <div class="main">
+    <!-- ── Header ── -->
+    <div class="page-hdr">
+      <div class="page-hdr-left">
+        <a href="/index.html" class="home-btn"><i class="fas fa-home"></i> Home</a>
+        <div>
+          <h1>HLA Typing Report Generator</h1>
+          <p>Human Leukocyte Antigen typing &amp; crossmatch reports — Anderson Diagnostic Services</p>
+        </div>
+      </div>
+      <div class="hdr-right">
+        <div class="hdr-select-group">
+          <label>Template:</label>
+          <select id="templateSelect"></select>
+        </div>
+        <div class="hdr-select-group">
+          <label>Logo:</label>
+          <select id="logoSelect">
+            <option value="true">With Logo</option>
+            <option value="false">Without Logo</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Tabs ── -->
+    <div class="tab-bar">
+      <div class="tab active" data-tab="manual"><i class="fas fa-edit"></i> Manual Entry</div>
+      <div class="tab" data-tab="bulk"><i class="fas fa-layer-group"></i> Bulk Upload</div>
+      <div class="tab" data-tab="settings"><i class="fas fa-cog"></i> Settings</div>
+      <div class="tab" data-tab="guide"><i class="fas fa-info-circle"></i> User Guide</div>
+    </div>
+
+    <!-- ══════════════ TAB 1: MANUAL ENTRY ══════════════ -->
+    <div class="tab-content active" id="tab-manual">
+      <div class="split-layout">
+        <div class="form-col" id="manualFormCol">
+          <!-- Filled dynamically by JS based on template -->
+        </div>
+        <div class="preview-col">
+          <div class="preview-hdr">
+            <span><i class="fas fa-eye"></i> Live Preview</span>
+            <span id="manualPreviewStatus" style="font-weight:400; opacity:0.85;"></span>
+          </div>
+          <div class="preview-body" id="manualPreviewBody">
+            <div class="preview-placeholder">Fill in patient details to see a live preview.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ TAB 2: BULK UPLOAD ══════════════ -->
+    <div class="tab-content" id="tab-bulk">
+      <div class="bulk-topbar">
+        <div class="dropzone" id="bulkDropzone">
+          <i class="fas fa-file-excel"></i> Drag &amp; drop Excel file here, or click to browse
+          <input type="file" id="bulkFileInput" accept=".xlsx,.xls" class="hidden">
+        </div>
+        <div class="checkbox-item"><input type="checkbox" id="bulkNablChk" checked> NABL-Accredited</div>
+        <button class="btn-sm btn-primary" id="bulkParseBtn"><i class="fas fa-cogs"></i> Load &amp; Parse Excel</button>
+      </div>
+      <div class="gen-bar">
+        <span class="path-label" id="bulkOutputLabel">Output: backend/reports-hla (default)</span>
+        <input type="text" id="bulkOutputInput" placeholder="Custom output folder path (optional)" style="flex:1; padding:7px 10px; border:1px solid var(--input-border); border-radius:6px; font-size:11px;">
+        <div class="checkbox-item"><input type="checkbox" id="bulkLogoChk" checked> With Logo</div>
+        <div class="checkbox-item"><input type="checkbox" id="bulkStampChk"> Signature Stamp</div>
+        <button class="btn-sm btn-outline" id="bulkGenSelectedBtn"><i class="fas fa-file-pdf"></i> Generate Selected</button>
+        <button class="btn-sm btn-primary" id="bulkGenAllBtn"><i class="fas fa-file-pdf"></i> Generate All</button>
+      </div>
+      <div class="progress-wrap hidden" id="bulkProgressWrap"><div class="progress-bar" id="bulkProgressBar"></div></div>
+      <div class="bulk-3col">
+        <div class="bulk-list-col">
+          <input type="text" class="search-box" id="bulkSearchBox" placeholder="Search patients...">
+          <div class="select-row">
+            <button class="btn-sm btn-outline" id="bulkSelectAllBtn">Select All</button>
+            <button class="btn-sm btn-outline" id="bulkDeselectAllBtn">Deselect All</button>
+          </div>
+          <div class="case-list" id="bulkCaseList">
+            <div class="preview-placeholder" style="padding:20px;">No cases loaded yet.</div>
+          </div>
+        </div>
+        <div class="bulk-edit-col" id="bulkEditCol">
+          <div class="preview-placeholder">Select a case from the list to edit it here.</div>
+        </div>
+        <div class="bulk-preview-col">
+          <div class="preview-col" style="flex:1;">
+            <div class="preview-hdr"><span><i class="fas fa-eye"></i> Case Preview</span></div>
+            <div class="preview-body" id="bulkPreviewBody">
+              <div class="preview-placeholder">Select a case to preview.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════ TAB 3: SETTINGS ══════════════ -->
+    <div class="tab-content" id="tab-settings">
+      <div class="card">
+        <h3><i class="fas fa-sliders-h"></i> Report Options</h3>
+        <div class="checkbox-row">
+          <div class="checkbox-item"><input type="checkbox" id="settLogoChk" checked> Include hospital logo (WITH LOGO variant)</div>
+          <div class="checkbox-item"><input type="checkbox" id="settNablChk" checked> NABL accreditation stamp</div>
+          <div class="checkbox-item"><input type="checkbox" id="settStampChk"> Signature rubber stamp</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3><i class="fas fa-list-ol"></i> Signatory Count Defaults (per template)</h3>
+        <div class="sig-count-grid" id="sigCountGrid"></div>
+      </div>
+
+      <div class="card">
+        <h3><i class="fas fa-signature"></i> Signatories (order = report display order)</h3>
+        <table class="sig-table" id="sigTable">
+          <thead><tr><th>Name</th><th>Title / Role</th><th style="width:120px;">Actions</th></tr></thead>
+          <tbody id="sigTableBody"></tbody>
+        </table>
+        <div style="margin-top:10px; display:flex; gap:8px;">
+          <button class="btn-sm btn-outline" id="sigAddBtn"><i class="fas fa-plus"></i> Add</button>
+          <button class="btn-sm btn-danger-outline" id="sigResetBtn"><i class="fas fa-undo"></i> Reset Defaults</button>
+        </div>
+      </div>
+
+      <button class="btn-sm btn-primary" id="sigSaveBtn" style="width:fit-content;"><i class="fas fa-save"></i> Save Settings</button>
+    </div>
+
+    <!-- ══════════════ TAB 4: USER GUIDE ══════════════ -->
+    <div class="tab-content" id="tab-guide">
+      <div class="card guide-content" style="overflow-y:auto;">
+        <div class="guide-hdr">
+          <h1>HLA Typing Report Generator</h1>
+          <p>Automated HLA NGS typing report generation — Anderson Diagnostic Services</p>
+        </div>
+
+        <h3>Quick Start — Bulk Upload</h3>
+        <ol style="margin-left:18px;">
+          <li>Go to <b>Bulk Upload</b> tab</li>
+          <li>Browse and select your Excel file (HLA typing, Luminex, CDC, DSA, Flow or PRA)</li>
+          <li>Tick <b>NABL-Accredited</b> for MINISEQ files; untick for SURFSEQ</li>
+          <li>Click <b>Load &amp; Parse Excel</b> — the report type is auto-detected from the file name and sheet contents</li>
+          <li>Select a case from the list to review and edit it in the editor</li>
+          <li>Select output folder and click <b>Generate All Reports</b> or <b>Generate Selected</b></li>
+        </ol>
+
+        <h3>Excel File Sheets</h3>
+        <table>
+          <tr><th>Sheet</th><th>Purpose</th></tr>
+          <tr><td><code>patient-donor detail</code></td><td>Patient &amp; donor metadata (HLA typing files)</td></tr>
+          <tr><td><code>result data</code></td><td>HLA allele results (HLA typing files)</td></tr>
+        </table>
+        <div class="tip">MINISEQ → enable NABL stamp. SURFSEQ → disable NABL stamp.
+          Crossmatch, Luminex and PRA templates use their own sheet layouts — the parser locates the right sheet by its column headers.</div>
+
+        <h3>Report Types</h3>
+        <table>
+          <tr><th>Template</th><th>How it's created / detected</th><th>Pages</th></tr>
+          <tr><td>With CL <i>(Single HLA)</i></td><td>Bulk: HLA typing file with no donor rows</td><td>1–2</td></tr>
+          <tr><td>RPL</td><td>Bulk: Diagnosis = RPL, or wife/husband relationship</td><td>3</td></tr>
+          <tr><td>HLA Typing High Resolution <i>(Transplant Donor)</i></td><td>Bulk: donor present, non-RPL</td><td>2+</td></tr>
+          <tr><td>HLA Typing (Luminex)</td><td>Bulk: file name contains <code>LUMINEX</code>, or sheet headed <code>SampleName</code></td><td>2+</td></tr>
+          <tr><td>CDC Crossmatch</td><td>Bulk: file name has <code>CDC</code></td><td>2</td></tr>
+          <tr><td>DSA Crossmatch</td><td>Bulk: file name has <code>DSA</code></td><td>2</td></tr>
+          <tr><td>Flow Crossmatch</td><td>Bulk: file name has <code>FLOW</code></td><td>2</td></tr>
+          <tr><td>PRA Class I / II</td><td>Bulk: file name contains <code>PRA</code>, or Manual Entry</td><td>2</td></tr>
+          <tr><td>KIR Genotyping</td><td>Bulk: file name contains <code>KIR</code>, or Manual Entry</td><td>1–2</td></tr>
+        </table>
+
+        <h3>Manual Entry</h3>
+        <p>Choose the <b>Template</b> at the top — the form adapts to the selected report type. For HLA typing,
+          fill the Patient Information form and enter alleles in the <b>HLA Results</b> section (one row per locus);
+          enable Donor Information for transplant or RPL cases.</p>
+
+        <h3>Signatures</h3>
+        <ul style="margin-left:18px;">
+          <li>Each report template has its own signature count (default: Single HLA 3, all others 2)</li>
+          <li>Configure per-template counts and signatory names in the <b>Settings</b> tab</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+
+  <script src="/hla.js"></script>
+</body>
+</html>

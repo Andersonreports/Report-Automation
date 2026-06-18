@@ -671,21 +671,20 @@ class PGTAReportTemplate:
             # Map raw result (e.g., MCA) to pretty summary text using classification engine
             info = clf.classify_embryo(raw_result)
             res_sum = info["summary_text"]
-            
-            # Application of Red/Blue color logic based on classification
-            if info["is_mosaic"]:
-                res_color = colors.blue
-                interp = info["classification"].replace("_", " ").title()
-            elif info["is_abnormal"]:
-                res_color = colors.red
-                interp = "NA"
-            else:
-                res_color = colors.black
-                interp = "NA"
+
+            # Interpretation: respect the user-edited interpretation field
+            # (falls back to the classification-derived value if not set),
+            # matching the per-embryo detail page behaviour.
+            interp_text = self._clean(embryo.get('interpretation'), '')
+            if not interp_text:
+                interp_text = info["classification"].replace("_", " ").title() if info["is_mosaic"] else "NA"
+            interp = "NA" if interp_text.upper() == "EUPLOID" else interp_text
+
+            res_color = self._get_result_color(raw_result, interp_text)
 
             # MTcopy: NA for non-euploid
             raw_mt = self._clean(embryo.get('mtcopy'), 'NA')
-            mtcopy = raw_mt if not info["is_abnormal"] and not info["is_mosaic"] else "NA"
+            mtcopy = raw_mt if interp_text.upper() == "EUPLOID" else "NA"
 
             # Extract short embryo ID: if format is "PATIENTNAME-ID_REST", extract just "ID"
             full_id = self._clean(embryo.get('embryo_id'))
@@ -740,10 +739,13 @@ class PGTAReportTemplate:
         elements.append(Paragraph(self.METHODOLOGY_TEXT, self.styles['PGTABodyText']))
         elements.append(Spacer(1, 12))
 
-        # Mosaicism section
-        elements.append(self._create_section_header("Conditions for reporting mosaicism"))
-        elements.append(Spacer(1, 8))
-        elements.append(Paragraph(self.MOSAICISM_TEXT, self.styles['PGTABodyText']))
+        # Mosaicism section — keep heading + intro paragraph together so the
+        # heading doesn't get orphaned at the bottom of the previous page
+        elements.append(KeepTogether([
+            self._create_section_header("Conditions for reporting mosaicism"),
+            Spacer(1, 8),
+            Paragraph(self.MOSAICISM_TEXT, self.styles['PGTABodyText']),
+        ]))
         elements.append(Spacer(1, 6))
         for bullet in self.MOSAICISM_BULLETS:
             elements.append(Paragraph(f"• {bullet}", self.styles['PGTABulletText']))

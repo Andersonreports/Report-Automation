@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Verify OTP — Anderson Clinical Genetics</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" crossorigin="anonymous" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+      background: #d0def9;
+      color: #111827;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .login-card {
+      background: #fff;
+      border: 1px solid #E5E7EB;
+      border-radius: 20px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.08), 0 4px 12px rgba(0,0,0,0.05);
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 480px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 28px;
+    }
+    .brand-name {
+      font-size: 20px;
+      font-weight: 700;
+      color: #111827;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 800;
+      color: #111827;
+      letter-spacing: -0.5px;
+      text-align: center;
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: #6B7280;
+      line-height: 1.6;
+      text-align: center;
+      margin-bottom: 28px;
+    }
+
+    .otp-row {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      margin-bottom: 22px;
+    }
+    .otp-input {
+      width: 48px;
+      height: 56px;
+      text-align: center;
+      font-size: 22px;
+      font-weight: 700;
+      font-family: inherit;
+      color: #111827;
+      border: 1px solid #D1D5DB;
+      border-radius: 10px;
+      background: #F9FAFB;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .otp-input:focus {
+      border-color: #4F46E5;
+      box-shadow: 0 0 0 3px rgba(79,70,229,0.12);
+      background: #fff;
+    }
+
+    button.submit {
+      width: 100%;
+      padding: 12px 14px;
+      border: none;
+      border-radius: 10px;
+      background: #4F46E5;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      font-family: inherit;
+      cursor: pointer;
+      transition: background 0.15s;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      margin-bottom: 18px;
+    }
+    button.submit:hover { background: #4338CA; }
+
+    .resend-row {
+      text-align: center;
+      font-size: 12.5px;
+      color: #6B7280;
+    }
+    .resend-row a {
+      color: #4F46E5;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    .resend-row a:hover { text-decoration: underline; }
+
+    .error-msg {
+      display: none;
+      background: #FEF2F2;
+      border: 1px solid #FECACA;
+      color: #B91C1C;
+      font-size: 12.5px;
+      font-weight: 500;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 18px;
+      align-items: center;
+      gap: 8px;
+    }
+    .error-msg.show { display: flex; }
+  </style>
+</head>
+<body>
+
+  <div class="login-card">
+    <div class="brand">
+      <div class="brand-name">Anderson Clinical Genetics</div>
+    </div>
+
+    <h1>Verify OTP</h1>
+    <p class="subtitle">Enter the 6-digit code sent to your registered device.</p>
+
+    <div class="error-msg" id="errorMsg">
+      <i class="fas fa-circle-exclamation"></i>
+      <span id="errorText">Invalid OTP. Please try again.</span>
+    </div>
+
+    <form id="otpForm">
+      <div class="otp-row">
+        <input type="text" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]*" required />
+        <input type="text" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]*" required />
+        <input type="text" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]*" required />
+        <input type="text" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]*" required />
+        <input type="text" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]*" required />
+        <input type="text" class="otp-input" maxlength="1" inputmode="numeric" pattern="[0-9]*" required />
+      </div>
+
+      <button type="submit" class="submit" id="submitBtn">
+        <i class="fas fa-shield-halved"></i>
+        Verify &amp; Continue
+      </button>
+
+      <div class="resend-row">
+        Didn't receive a code? <a id="resendLink">Resend OTP</a>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    // TODO (IT): wire this form up to the real OTP send/verify backend.
+    if (sessionStorage.getItem('arc_otp_pending') !== 'true') {
+      window.location.replace('/login.html');
+    }
+
+    const form     = document.getElementById('otpForm');
+    const errorBox = document.getElementById('errorMsg');
+    const inputs    = Array.from(document.querySelectorAll('.otp-input'));
+
+    inputs.forEach((input, idx) => {
+      input.addEventListener('input', () => {
+        input.value = input.value.replace(/[^0-9]/g, '');
+        if (input.value && idx < inputs.length - 1) {
+          inputs[idx + 1].focus();
+        }
+      });
+      input.addEventListener('keydown', (e) => {
+        if (e.key === 'Backspace' && !input.value && idx > 0) {
+          inputs[idx - 1].focus();
+        }
+      });
+      input.addEventListener('paste', (e) => {
+        const digits = (e.clipboardData.getData('text') || '').replace(/[^0-9]/g, '').split('');
+        if (!digits.length) return;
+        e.preventDefault();
+        digits.slice(0, inputs.length).forEach((d, i) => { inputs[i].value = d; });
+        inputs[Math.min(digits.length, inputs.length) - 1].focus();
+      });
+    });
+
+    document.getElementById('resendLink').addEventListener('click', () => {
+      // Placeholder only — trigger a real OTP resend here.
+      inputs.forEach(i => i.value = '');
+      inputs[0].focus();
+    });
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      errorBox.classList.remove('show');
+
+      const code = inputs.map(i => i.value).join('');
+      if (code.length !== 6) {
+        errorBox.classList.add('show');
+        return;
+      }
+
+      // Placeholder only — replace with a real OTP verification request.
+      sessionStorage.removeItem('arc_otp_pending');
+      localStorage.setItem('arc_authenticated', 'true');
+      window.location.href = '/index.html';
+    });
+  </script>
+</body>
+</html>

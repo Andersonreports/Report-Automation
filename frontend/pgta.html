@@ -216,39 +216,6 @@
       background: var(--primary-hover);
     }
 
-    /* ── Template Selector ── */
-    .template-select-group {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .template-select-group label {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--text-muted);
-      white-space: nowrap;
-    }
-
-    .template-select-group select {
-      padding: 7px 32px 7px 12px;
-      border: 2px solid var(--primary);
-      border-radius: 8px;
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--primary);
-      background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%231F497D' d='M1 1l5 5 5-5'/%3E%3C/svg%3E") no-repeat right 10px center;
-      -webkit-appearance: none;
-      appearance: none;
-      cursor: pointer;
-      min-width: 110px;
-    }
-
-    .template-select-group select:focus {
-      outline: none;
-      box-shadow: 0 0 0 3px rgba(31, 73, 125, 0.12);
-    }
-
     /* ── TRF Verification ── */
     .trf-card {
       margin-top: 0;
@@ -417,7 +384,7 @@
     .tab-bar {
       display: flex;
       gap: 8px;
-      margin-bottom: 12px;
+      flex-wrap: wrap;
     }
 
     .tab {
@@ -2021,6 +1988,24 @@
       background: #059669;
     }
 
+    .btn-clear-cmp {
+      background: #f1f5f9;
+      color: #475569;
+      border: 1px solid #cbd5e1;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-clear-cmp:hover {
+      background: #e2e8f0;
+    }
+
     .cmp-results-area {
       flex: 1;
       background: #f0f8ff;
@@ -2348,6 +2333,43 @@
       margin-top: 4px;
     }
 
+    .bulk-bottom-controls.collapsed {
+      display: none;
+    }
+
+    .bulk-bottom-toggle {
+      position: fixed;
+      right: 24px;
+      bottom: 24px;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      box-shadow: var(--shadow);
+      cursor: pointer;
+      font-size: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      transition: transform 0.2s ease, background 0.15s ease;
+    }
+
+    .bulk-bottom-toggle:hover {
+      background: var(--primary-dark, var(--primary));
+      opacity: 0.92;
+    }
+
+    .bulk-bottom-toggle i {
+      transition: transform 0.2s ease;
+    }
+
+    .bulk-bottom-toggle.collapsed i {
+      transform: rotate(180deg);
+    }
+
     .bulk-bottom-row {
       display: flex;
       align-items: center;
@@ -2658,16 +2680,29 @@
       background: rgba(255, 255, 255, 0.32);
     }
 
-    .preview-canvas-wrap {
+    .preview-status-text {
+      font-size: 11px;
+      color: var(--text-muted);
+      padding: 6px 14px;
+      flex-shrink: 0;
+    }
+
+    .preview-status-text.busy { color: var(--primary); }
+    .preview-status-text.ok { color: #16a34a; }
+    .preview-status-text.err { color: #ef4444; }
+
+    .preview-frame-wrap {
       flex: 1;
-      overflow-y: auto;
       background: #e8e8e8;
+      overflow: hidden;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      padding: 8px;
-      min-height: 400px;
-      gap: 4px;
+    }
+
+    .preview-frame-wrap iframe {
+      width: 100%;
+      flex: 1;
+      border: none;
     }
 
     .preview-page-canvas {
@@ -2702,35 +2737,6 @@
 
     .preview-placeholder span {
       font-size: 11px;
-    }
-
-    .preview-nav {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 14px;
-      border-top: 1px solid var(--input-border);
-      background: #f8fafc;
-      flex-shrink: 0;
-    }
-
-    .preview-nav-btn {
-      width: 26px;
-      height: 26px;
-      background: var(--primary);
-      color: #fff;
-      border: none;
-      border-radius: 4px;
-      cursor: pointer;
-      font-size: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .preview-nav-btn:disabled {
-      background: #94a3b8;
-      cursor: not-allowed;
     }
 
     /* ── Compare Tab ── */
@@ -2876,22 +2882,15 @@
         <a href="index.html" class="home-btn">&#8592; Home</a>
         <h1>PGT-A Report Generator</h1>
       </div>
-      <div class="template-select-group">
-        <label>Select Template:</label>
-        <select id="templateSelect" onchange="handleTemplateChange(this.value)">
-          <option value="pgta">PGT-A</option>
-        </select>
+      <div class="tab-bar">
+        <button class="tab active" data-tab="manual" onclick="switchTab('manual')"> Manual
+          Entry</button>
+        <button class="tab" data-tab="bulk" onclick="switchTab('bulk')"> Bulk Upload</button>
+        <button class="tab" data-tab="compare" onclick="switchTab('compare')"> Report
+          Comparison</button>
+        <button class="tab" data-tab="guide" onclick="switchTab('guide')"> User
+          Guide</button>
       </div>
-    </div>
-
-    <div class="tab-bar">
-      <button class="tab active" data-tab="manual" onclick="switchTab('manual')"> Manual
-        Entry</button>
-      <button class="tab" data-tab="bulk" onclick="switchTab('bulk')"> Bulk Upload</button>
-      <button class="tab" data-tab="compare" onclick="switchTab('compare')"> Report
-        Comparison</button>
-      <button class="tab" data-tab="guide" onclick="switchTab('guide')"> User
-        Guide</button>
     </div>
 
     <div class="workspace">
@@ -3139,7 +3138,7 @@
             </div><!-- /bulk-3col -->
 
             <!-- Options & Actions bar (below 3-column layout for maximum patient list visibility) -->
-            <div class="bulk-bottom-controls">
+            <div class="bulk-bottom-controls" id="bulkBottomControls">
               <div class="bulk-bottom-row">
                 <!-- Draft Buttons -->
                 <div class="bulk-draft-btns" style="margin-bottom:0;flex-shrink:0;">
@@ -3193,6 +3192,11 @@
               </div>
               <div class="result-box hidden" id="bulkResult" style="margin-top:6px;"></div>
             </div>
+
+            <!-- Floating toggle for the actions bar above -->
+            <button type="button" class="bulk-bottom-toggle" id="bulkBottomToggle" onclick="toggleBulkBottomBar()" title="Hide actions bar">
+              <i class="fas fa-chevron-down"></i>
+            </button>
 
           </div>
 
@@ -3263,7 +3267,7 @@
               <button id="cmpBtn" class="btn-run-cmp" onclick="runComparison()" disabled>
                 <i class="fas fa-balance-scale"></i> Compare Reports
               </button>
-              <button class="btn-dir" onclick="clearComparison()" style="background:#f1f5f9;">
+              <button class="btn-clear-cmp" onclick="clearComparison()">
                 <i class="fas fa-times"></i> Clear
               </button>
               <button id="cmpDownloadBtn" class="btn-view-dash" onclick="downloadComparison()" style="display:none;">
@@ -3431,16 +3435,9 @@
           <button class="btn-refresh-preview" onclick="triggerPreview()">
             Refresh</button>
         </div>
-        <div class="preview-canvas-wrap" id="previewCanvasWrap">
-          <div class="preview-placeholder" id="previewPlaceholder">
-            <span>Preview will appear here</span>
-            <span style="font-size:10px;color:#cbd5e1;">Fill form and click Refresh</span>
-          </div>
-        </div>
-        <div class="preview-nav">
-          <button class="preview-nav-btn" id="previewPrevBtn" onclick="prevPreviewPage()" disabled></button>
-          <span id="previewPageInfo" style="font-size:11px;color:var(--text-muted);flex:1;text-align:center;"></span>
-          <button class="preview-nav-btn" id="previewNextBtn" onclick="nextPreviewPage()" disabled></button>
+        <p id="previewStatus" class="preview-status-text">Fill form and click Refresh</p>
+        <div class="preview-frame-wrap">
+          <iframe id="previewFrame" scrolling="yes"></iframe>
         </div>
       </div>
 
@@ -3940,96 +3937,48 @@
     const pdfjs = window['pdfjs-dist/build/pdf'];
     if (pdfjs) pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
-    let previewPdfState = { doc: null, currentPage: 1, totalPages: 0, rendering: false };
-
     function schedulePreview() {
       if (state.previewTimer) clearTimeout(state.previewTimer);
       state.previewTimer = setTimeout(generatePreview, 800);
     }
     function triggerPreview() { generatePreview(); }
 
+    function _setPreviewStatus(id, msg, statusClass) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.textContent = msg;
+      el.className = "preview-status-text" + (statusClass ? " " + statusClass : "");
+    }
+
+    let _manualPreviewCtrl = null;
     async function generatePreview() {
+      if (_manualPreviewCtrl) _manualPreviewCtrl.abort();
+      _manualPreviewCtrl = new AbortController();
+      const signal = _manualPreviewCtrl.signal;
       const refreshBtn = document.querySelector(".btn-refresh-preview");
       if (refreshBtn) { refreshBtn.disabled = true; refreshBtn.innerHTML = `<span class="spinner"></span>`; }
-      setPreviewPlaceholder("Generating preview...", true);
+      _setPreviewStatus("previewStatus", "Generating preview…", "busy");
       const opts = getOptions();
       try {
         const res = await fetch(`${BASE}/pgta/preview`, {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ patient_data: getPatientData(), embryos_data: getEmbryosData(), show_logo: opts.show_logo, show_grid: opts.show_grid })
+          body: JSON.stringify({ patient_data: getPatientData(), embryos_data: getEmbryosData(), show_logo: opts.show_logo, show_grid: opts.show_grid }),
+          signal
         });
+        if (signal.aborted) return;
         const data = await res.json(); if (data.error) throw new Error(data.error);
-        await loadPdfToPreview(`${BASE}${data.preview_url}?t=${Date.now()}`);
+        const pdfUrl = `${BASE}${data.preview_url}?t=${Date.now()}`;
+        const frame = document.getElementById("previewFrame");
+        frame.src = pdfUrl + "#toolbar=0&navpanes=0&zoom=page-width";
+        const ts = new Date().toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+        _setPreviewStatus("previewStatus", "Preview updated " + ts, "ok");
       } catch (err) {
-        setPreviewPlaceholder("Preview error: " + err.message, false, true);
+        if (err.name !== "AbortError") {
+          _setPreviewStatus("previewStatus", "Preview error: " + err.message, "err");
+        }
       } finally {
         if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.innerHTML = ` Refresh`; }
       }
-    }
-
-    // Monotonic token so overlapping manual refreshes don't shuffle pages.
-    let _manualRenderToken = 0;
-    async function loadPdfToPreview(url) {
-      const myToken = ++_manualRenderToken;
-      const lib = window['pdfjs-dist/build/pdf'];
-      if (!lib) { setPreviewPlaceholder("PDF.js not loaded", false, true); return; }
-      const loadingTask = lib.getDocument(url);
-      const doc = await loadingTask.promise;
-      if (myToken !== _manualRenderToken) return; // superseded by a newer refresh
-      previewPdfState.doc = doc;
-      previewPdfState.totalPages = doc.numPages;
-      previewPdfState.currentPage = 1;
-      await renderAllPreviewPages(myToken);
-    }
-
-    async function renderAllPreviewPages(myToken) {
-      if (!previewPdfState.doc) return;
-      // If no token was passed (legacy callers), treat this render as current.
-      if (myToken === undefined) myToken = _manualRenderToken;
-      const wrap = document.getElementById("previewCanvasWrap");
-      const ph = document.getElementById("previewPlaceholder");
-      if (ph) ph.style.display = "none";
-      // Clear old canvases
-      wrap.querySelectorAll("canvas, .preview-page-label").forEach(c => c.remove());
-      const containerW = (wrap ? wrap.offsetWidth : 360) - 16;
-      for (let num = 1; num <= previewPdfState.totalPages; num++) {
-        const page = await previewPdfState.doc.getPage(num);
-        if (myToken !== _manualRenderToken) return;
-        const vp = page.getViewport({ scale: 1 });
-        const scale = Math.max(0.5, containerW / vp.width);
-        const scaledVp = page.getViewport({ scale });
-        const canvas = document.createElement("canvas");
-        canvas.className = "preview-page-canvas";
-        canvas.width = scaledVp.width; canvas.height = scaledVp.height;
-        wrap.appendChild(canvas);
-        await page.render({ canvasContext: canvas.getContext("2d"), viewport: scaledVp }).promise;
-        if (myToken !== _manualRenderToken) { canvas.remove(); return; }
-      }
-      updatePreviewNav();
-    }
-
-    function updatePreviewNav() {
-      const info = document.getElementById("previewPageInfo");
-      if (info) info.textContent = previewPdfState.totalPages > 0 ? `${previewPdfState.totalPages} page${previewPdfState.totalPages > 1 ? "s" : ""}` : "";
-      const prev = document.getElementById("previewPrevBtn");
-      const next = document.getElementById("previewNextBtn");
-      if (prev) prev.disabled = true;
-      if (next) next.disabled = true;
-    }
-    function prevPreviewPage() { const w = document.getElementById("previewCanvasWrap"); if (w) w.scrollBy(0, -300); }
-    function nextPreviewPage() { const w = document.getElementById("previewCanvasWrap"); if (w) w.scrollBy(0, 300); }
-
-    function setPreviewPlaceholder(msg, loading, error) {
-      // Cancel any in-flight render and clear stale canvases AND page labels.
-      _manualRenderToken++;
-      const wrap = document.getElementById("previewCanvasWrap");
-      if (wrap) wrap.querySelectorAll("canvas, .preview-page-label").forEach(c => c.remove());
-      const ph = document.getElementById("previewPlaceholder");
-      if (!ph) return;
-      ph.style.display = "flex";
-      const icon = error ? "fas fa-exclamation-triangle" : (loading ? "fas fa-spinner fa-spin" : "fas fa-file-pdf");
-      const color = error ? "#ef4444" : "#94a3b8";
-      ph.innerHTML = `<i class="${icon}" style="font-size:32px;color:${color};"></i><span style="font-size:11px;color:${color};text-align:center;">${msg}</span>`;
     }
 
     // ═══════════════════════════════════════════════
@@ -4225,17 +4174,6 @@
       a.click();
       URL.revokeObjectURL(url);
       showToast('Data saved as JSON file', 'success');
-    }
-
-    // ═══════════════════════════════════════════════
-    // TEMPLATE SELECTOR
-    // ═══════════════════════════════════════════════
-    function handleTemplateChange(val) {
-      // Currently only PGT-A is supported; placeholder for future templates
-      if (val !== "pgta") {
-        showToast("Only PGT-A template is currently available.", "info");
-        document.getElementById("templateSelect").value = "pgta";
-      }
     }
 
     // ═══════════════════════════════════════════════
@@ -5669,6 +5607,15 @@
       if (document.getElementById("bulkFmtDocx").checked) formats.push("docx");
       const outputDir = document.getElementById("bulkOutputDir").value.trim();
       return { showLogo, showGrid, formats, outputDir };
+    }
+
+    // ── Collapse/expand the bulk actions bar ──
+    function toggleBulkBottomBar() {
+      const panel = document.getElementById('bulkBottomControls');
+      const btn = document.getElementById('bulkBottomToggle');
+      const collapsed = panel.classList.toggle('collapsed');
+      btn.classList.toggle('collapsed', collapsed);
+      btn.title = collapsed ? 'Show actions bar' : 'Hide actions bar';
     }
 
     // ── Generate Selected bulk reports (checked patients only) ──

@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NIPT Report Generator</title>
+  <title>NIPS Report Generator</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
   <!-- SheetJS – try local copy first, fall back to CDN -->
@@ -227,8 +227,7 @@
     .tab-bar {
       display: flex;
       gap: 8px;
-      margin-bottom: 8px;
-      flex-shrink: 0;
+      flex-wrap: wrap;
     }
 
     .tab {
@@ -340,21 +339,6 @@
 
     .field-grid .full {
       grid-column: 1/-1;
-    }
-
-    /* ── DOB row with type selector ── */
-    .dob-row {
-      display: flex;
-      gap: 6px;
-    }
-
-    .dob-row select {
-      flex: 0 0 auto;
-      min-width: 130px;
-    }
-
-    .dob-row input {
-      flex: 1;
     }
 
     /* ── Z-Score Grid ── */
@@ -554,12 +538,14 @@
     #tab-manual .form-scroll {
       overflow-y: auto;
       padding-right: 4px;
+      min-height: 0;
     }
 
     #tab-manual .preview-panel {
       display: flex;
       flex-direction: column;
       gap: 8px;
+      min-height: 0;
     }
 
     /* ── PDF Preview ── */
@@ -657,19 +643,6 @@
       overflow: hidden;
     }
 
-    .batch-top-bar {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 8px 14px;
-      background: var(--panel);
-      border: 1px solid var(--panel-border);
-      border-radius: var(--radius);
-      box-shadow: var(--shadow);
-      margin-bottom: 8px;
-      flex-shrink: 0;
-    }
-
     .drop-zone-compact {
       display: flex;
       align-items: center;
@@ -682,6 +655,12 @@
       font-size: 12px;
       transition: 0.2s;
       flex: 1;
+    }
+
+    .export-bar .drop-zone-compact {
+      flex: 0 1 320px;
+      min-width: 200px;
+      white-space: nowrap;
     }
 
     .drop-zone-compact:hover,
@@ -1385,15 +1364,35 @@
       <div class="page-hdr-left">
         <a href="/" class="home-btn">&#8592; Home</a>
         <div>
-          <h1><i class="fas fa-baby" style="font-size:17px;margin-right:6px;-webkit-text-fill-color:#1F497D;"></i>NIPT
+          <h1><i class="fas fa-baby" style="font-size:17px;margin-right:6px;-webkit-text-fill-color:#1F497D;"></i>NIPS
             Report Generator</h1>
-          <p>Non-Invasive Prenatal Screening (NIPS) — Manual Entry &amp; Batch Upload</p>
+          <p>Non-Invasive Prenatal Screening </p>
         </div>
+      </div>
+      <div class="tab-bar">
+        <button class="tab active" onclick="switchTab('manual',this)"><i class="fas fa-edit"
+            style="margin-right:5px;"></i>Manual Entry</button>
+        <button class="tab" onclick="switchTab('batch',this)"><i class="fas fa-list" style="margin-right:5px;"></i>Batch
+          Upload</button>
+        <button class="tab" onclick="switchTab('compare',this)"><i class="fas fa-sync-alt"
+            style="margin-right:5px;"></i>Report Comparison</button>
+        <button class="tab" onclick="switchTab('guide',this)"><i class="fas fa-info-circle"
+            style="margin-right:5px;"></i>User Guide</button>
       </div>
     </div>
 
     <!-- ── Export Settings Bar ── -->
     <div class="export-bar">
+      <!-- Excel file picker (Batch Upload tab only) -->
+      <div class="drop-zone-compact" id="batchDropZoneWrap" style="display:none;" onclick="document.getElementById('batchFileInput').click()"
+        ondragover="event.preventDefault();this.classList.add('drag-over')"
+        ondragleave="this.classList.remove('drag-over')" ondrop="handleBatchDrop(event)">
+        <i class="fas fa-file-excel" style="color:#16a34a;font-size:16px;flex-shrink:0;"></i>
+        <span id="batchFileName">Click or drag Excel file (.xlsx) here…</span>
+      </div>
+      <input type="file" id="batchFileInput" class="hidden" accept=".xlsx,.xls"
+        onchange="handleBatchFile(this.files[0])">
+      <div class="export-sep" id="batchDropZoneSep" style="display:none;"></div>
       <label class="ex-title"><i class="fas fa-cog" style="margin-right:4px;"></i>Export Settings</label>
       <label class="format-check"><input type="checkbox" id="cbPdf" checked> PDF</label>
       <label class="format-check"><input type="checkbox" id="cbDocx" checked> DOCX</label>
@@ -1413,18 +1412,6 @@
       </span>
     </div>
 
-    <!-- ── Tab Bar ── -->
-    <div class="tab-bar">
-      <button class="tab active" onclick="switchTab('manual',this)"><i class="fas fa-edit"
-          style="margin-right:5px;"></i>Manual Entry</button>
-      <button class="tab" onclick="switchTab('batch',this)"><i class="fas fa-list" style="margin-right:5px;"></i>Batch
-        Upload</button>
-      <button class="tab" onclick="switchTab('compare',this)"><i class="fas fa-sync-alt"
-          style="margin-right:5px;"></i>Report Comparison</button>
-      <button class="tab" onclick="switchTab('guide',this)"><i class="fas fa-info-circle"
-          style="margin-right:5px;"></i>User Guide</button>
-    </div>
-
     <!-- ════════════════════════════════════════════════════ -->
     <!-- TAB 1 – MANUAL ENTRY                                -->
     <!-- ════════════════════════════════════════════════════ -->
@@ -1436,21 +1423,14 @@
           <div class="card" style="margin-bottom:10px;">
             <h3><i class="fas fa-user-injured"></i> Patient Information</h3>
             <div class="field-grid">
-              <!-- DOB row with type selector -->
-              <div class="field full">
-                <label>Date of Birth / Age</label>
-                <div class="dob-row">
-                  <select id="m_dob_type" onchange="schedulePreview()">
-                    <option value="Date of Birth">Date of Birth</option>
-                    <option value="Age">Age</option>
-                  </select>
-                  <input type="text" id="m_dob" placeholder="e.g. 01/01/1990 or 30 Years" oninput="schedulePreview()">
-                </div>
-              </div>
               <div class="field"><label>Patient Name</label><input type="text" id="m_name" oninput="schedulePreview()">
               </div>
               <div class="field"><label>PIN / MRN</label><input type="text" id="m_pin" oninput="schedulePreview()">
               </div>
+              <div class="field"><label>Date of Birth</label><input type="text" id="m_dob" placeholder="dd/mm/yyyy"
+                  oninput="schedulePreview()"></div>
+              <div class="field"><label>Age</label><input type="text" id="m_age" placeholder="e.g. 30 Years"
+                  oninput="schedulePreview()"></div>
               <div class="field"><label>Gestational Age</label><input type="text" id="m_ga" placeholder="e.g. 12 weeks"
                   oninput="schedulePreview()"></div>
               <div class="field"><label>Sample ID</label><input type="text" id="m_sample_id"
@@ -1552,24 +1532,13 @@
     <!-- TAB 2 – BATCH UPLOAD                                -->
     <!-- ════════════════════════════════════════════════════ -->
     <div id="tab-batch" class="tab-content">
-      <!-- Top bar: file picker + output folder -->
-      <div class="batch-top-bar">
-        <div class="drop-zone-compact" id="batchDropZone" onclick="document.getElementById('batchFileInput').click()"
-          ondragover="event.preventDefault();this.classList.add('drag-over')"
-          ondragleave="this.classList.remove('drag-over')" ondrop="handleBatchDrop(event)">
-          <i class="fas fa-file-excel" style="color:#16a34a;font-size:16px;flex-shrink:0;"></i>
-          <span id="batchFileName">Click or drag Excel file (.xlsx) here…</span>
-        </div>
-        <input type="file" id="batchFileInput" class="hidden" accept=".xlsx,.xls"
-          onchange="handleBatchFile(this.files[0])">
-        <!-- Output folder — hidden from UI, input kept in DOM so JS references stay valid -->
-        <div style="display:none;align-items:center;gap:6px;flex-shrink:0;">
-          <label style="font-size:11px;font-weight:600;color:var(--text-muted);white-space:nowrap;">Output:</label>
-          <input type="text" id="batchOutFolder" placeholder="Type or paste path…"
-            style="padding:5px 9px;border:1px solid var(--input-border);border-radius:5px;font-size:11px;width:220px;"
-            oninput="syncOutFolder(this.value)">
-          <button class="btn-folder-sm" onclick="browseOutFolder(true)"><i class="fas fa-folder-open"></i></button>
-        </div>
+      <!-- Output folder — hidden from UI, input kept in DOM so JS references stay valid -->
+      <div style="display:none;align-items:center;gap:6px;flex-shrink:0;">
+        <label style="font-size:11px;font-weight:600;color:var(--text-muted);white-space:nowrap;">Output:</label>
+        <input type="text" id="batchOutFolder" placeholder="Type or paste path…"
+          style="padding:5px 9px;border:1px solid var(--input-border);border-radius:5px;font-size:11px;width:220px;"
+          oninput="syncOutFolder(this.value)">
+        <button class="btn-folder-sm" onclick="browseOutFolder(true)"><i class="fas fa-folder-open"></i></button>
       </div>
 
       <!-- Three-panel layout: patient list | editor | preview -->
@@ -1707,7 +1676,7 @@
       <div class="guide-container">
 
         <div class="guide-header-bar">
-          <h2>NIPT Report Generator &mdash; User Guide</h2>
+          <h2>NIPS Report Generator &mdash; User Guide</h2>
           <p>Non-Invasive Prenatal Testing</p>
         </div>
 
@@ -1927,6 +1896,10 @@
       document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById('tab-' + name).classList.add('active');
+      // Show the Excel file picker in the export bar only for Batch Upload
+      const showDrop = name === 'batch';
+      document.getElementById('batchDropZoneWrap').style.display = showDrop ? 'flex' : 'none';
+      document.getElementById('batchDropZoneSep').style.display = showDrop ? 'block' : 'none';
     }
 
     // ══════════════════════════════════════════════════════════════
@@ -2041,7 +2014,7 @@
         name: document.getElementById('m_name').value,
         pin: document.getElementById('m_pin').value,
         dob: document.getElementById('m_dob').value,
-        dob_type: document.getElementById('m_dob_type').value,
+        age: document.getElementById('m_age').value,
         ga: document.getElementById('m_ga').value,
         sample_id: document.getElementById('m_sample_id').value,
         collection_date: document.getElementById('m_collection_date').value,
@@ -2185,12 +2158,18 @@
     // ══════════════════════════════════════════════════════════════
     function saveDraftManual() {
       const { p, z } = collectManual();
-      const json = JSON.stringify({ patient_details: p, z_scores: z }, null, 2);
+      const payload = { patient_details: p, z_scores: z };
+      const json = JSON.stringify(payload, null, 2);
       const blob = new Blob([json], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = `Draft_${(p.name || 'Patient').replace(/\s+/g, '_')}_NIPT.json`;
       a.click();
+      fetch(`${BASE}/nipt/draft/save`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: json
+      }).then(r => r.json()).then(res => {
+        if (res.status === 'saved') showToast(`Draft saved to drafts/NIPT/${res.filename}`, 'success');
+      }).catch(e => console.warn('[NIPS] draft save failed:', e));
     }
     function loadDraftManual() {
       document.getElementById('draftLoadInput').value = '';
@@ -2203,10 +2182,9 @@
         try {
           const d = JSON.parse(e.target.result);
           const p = d.patient_details || {}; const z = d.z_scores || {};
-          const fields = ['name', 'pin', 'dob', 'ga', 'sample_id', 'collection_date', 'received_date',
+          const fields = ['name', 'pin', 'dob', 'age', 'ga', 'sample_id', 'collection_date', 'received_date',
             'preg_status', 'preg_type', 'clinician', 'clinician_qual', 'hospital', 'specimen', 'indication'];
           fields.forEach(k => { const el = document.getElementById('m_' + k); if (el) el.value = p[k] || ''; });
-          if (p.dob_type) document.getElementById('m_dob_type').value = p.dob_type;
           if (z.fetal_fraction !== undefined) document.getElementById('m_ff').value = z.fetal_fraction;
           for (let i = 1; i <= 22; i++) {
             const el = document.getElementById(`m_chr${i}`);
@@ -2219,10 +2197,9 @@
       reader.readAsText(file);
     }
     function clearManualForm() {
-      const fields = ['name', 'pin', 'dob', 'ga', 'sample_id', 'collection_date', 'received_date',
+      const fields = ['name', 'pin', 'dob', 'age', 'ga', 'sample_id', 'collection_date', 'received_date',
         'preg_status', 'preg_type', 'clinician', 'clinician_qual', 'hospital', 'specimen', 'indication'];
       fields.forEach(k => { const el = document.getElementById('m_' + k); if (el) el.value = ''; });
-      document.getElementById('m_dob_type').value = 'Date of Birth';
       document.getElementById('m_ff').value = '0.0';
       for (let i = 1; i <= 22; i++) {
         const el = document.getElementById(`m_chr${i}`); if (el) el.value = '0.00';
@@ -2316,7 +2293,7 @@
     // ══════════════════════════════════════════════════════════════
     function handleBatchDrop(e) {
       e.preventDefault();
-      document.getElementById('batchDropZone').classList.remove('drag-over');
+      document.getElementById('batchDropZoneWrap').classList.remove('drag-over');
       const file = e.dataTransfer.files[0];
       if (file) handleBatchFile(file);
     }
@@ -2434,8 +2411,8 @@
               const p = {
                 name: _titleCaseWords(_cleanStr(row['Patient Name'] ?? row['Sample Name'] ?? '')),
                 pin: _cleanStr(row['PIN'] ?? row['Sample Name'] ?? ''),
-                dob: _cleanStr(row['Date of birth/Age'] ?? row['DOB'] ?? row['Age'] ?? ''),
-                dob_type: 'Date of Birth',
+                dob: _cleanStr(row['Date of Birth'] ?? row['DOB'] ?? row['Date of birth/Age'] ?? ''),
+                age: _cleanStr(row['Age'] ?? ''),
                 ga: _cleanStr(row['Gestational Age'] ?? row['GA'] ?? ''),
                 sample_id: _normId(_cleanStr(row['Sample ID'] ?? row['Sample Name'] ?? '')),
                 collection_date: _cleanStr(row['Collection date'] ?? row['Collection Date'] ?? row['Col Date'] ?? ''),
@@ -2499,18 +2476,10 @@
     <div class="card" style="margin-bottom:10px;">
       <h3><i class="fas fa-user-injured"></i> Patient Information — ${p.name || ''}</h3>
       <div class="field-grid">
-        <div class="field full">
-          <label>Date of Birth / Age</label>
-          <div class="dob-row">
-            <select id="be_dob_type" onchange="scheduleBatchPreview()">
-              <option value="Date of Birth" ${(p.dob_type || 'Date of Birth') === 'Date of Birth' ? 'selected' : ''}>Date of Birth</option>
-              <option value="Age" ${p.dob_type === 'Age' ? 'selected' : ''}>Age</option>
-            </select>
-            <input type="text" id="be_dob" value="${esc(p.dob)}" oninput="scheduleBatchPreview()">
-          </div>
-        </div>
         <div class="field"><label>Patient Name</label><input type="text" id="be_name" value="${esc(p.name)}" oninput="scheduleBatchPreview()"></div>
         <div class="field"><label>PIN / MRN</label><input type="text" id="be_pin" value="${esc(p.pin)}" oninput="scheduleBatchPreview()"></div>
+        <div class="field"><label>Date of Birth</label><input type="text" id="be_dob" placeholder="dd/mm/yyyy" value="${esc(p.dob)}" oninput="scheduleBatchPreview()"></div>
+        <div class="field"><label>Age</label><input type="text" id="be_age" placeholder="e.g. 30 Years" value="${esc(p.age)}" oninput="scheduleBatchPreview()"></div>
         <div class="field"><label>Gestational Age</label><input type="text" id="be_ga" value="${esc(p.ga)}" oninput="scheduleBatchPreview()"></div>
         <div class="field"><label>Sample ID</label><input type="text" id="be_sample_id" value="${esc(p.sample_id)}" oninput="scheduleBatchPreview()"></div>
         <div class="field"><label>Collection Date</label><input type="text" id="be_collection_date" value="${esc(p.collection_date)}" oninput="scheduleBatchPreview()"></div>
@@ -2568,7 +2537,7 @@
       const get = id => { const el = document.getElementById(id); return el ? el.value : ''; };
       const p = {
         name: get('be_name'), pin: get('be_pin'), dob: get('be_dob'),
-        dob_type: get('be_dob_type'), ga: get('be_ga'), sample_id: get('be_sample_id'),
+        age: get('be_age'), ga: get('be_ga'), sample_id: get('be_sample_id'),
         collection_date: get('be_collection_date'), received_date: get('be_received_date'),
         preg_status: get('be_preg_status'), preg_type: get('be_preg_type'),
         clinician: get('be_clinician'), clinician_qual: get('be_clinician_qual'),
@@ -2738,12 +2707,18 @@
       delete patInfo.ff; delete patInfo.fetal_fraction;
       for (let i = 1; i <= 22; i++) delete patInfo[`chr${i}`];
       delete patInfo.chrX;
-      const json = JSON.stringify({ patient_details: patInfo, z_scores: z }, null, 2);
+      const payload = { patient_details: patInfo, z_scores: z };
+      const json = JSON.stringify(payload, null, 2);
       const blob = new Blob([json], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = `Draft_${(pat.name || 'Patient').replace(/\s+/g, '_')}_NIPT.json`;
       a.click();
+      fetch(`${BASE}/nipt/draft/save`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: json
+      }).then(r => r.json()).then(res => {
+        if (res.status === 'saved') showToast(`Draft saved to drafts/NIPT/${res.filename}`, 'success');
+      }).catch(e => console.warn('[NIPS] draft save failed:', e));
     }
     function saveBulkDraft() {
       if (currentBatchIdx >= 0) saveBatchEditor(currentBatchIdx);
@@ -2754,6 +2729,12 @@
       a.href = URL.createObjectURL(blob);
       a.download = 'BulkDraft_NIPT.json';
       a.click();
+      const payload = JSON.stringify({ patient_details: { name: 'BulkDraft' }, patients: batchPatients, _type: 'nipt_bulk_draft' }, null, 2);
+      fetch(`${BASE}/nipt/draft/save`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload
+      }).then(r => r.json()).then(res => {
+        if (res.status === 'saved') showToast(`Draft saved to drafts/NIPT/${res.filename}`, 'success');
+      }).catch(e => console.warn('[NIPS] draft save failed:', e));
     }
     function loadBulkDraft() {
       document.getElementById('bulkDraftLoadInput').value = '';
@@ -2804,6 +2785,8 @@
       const box = document.getElementById(boxId);
       if (lbl) lbl.textContent = file.name;
       if (box) box.classList.add('has-file');
+      // Auto-run once both files have been selected
+      if (cmpFiles.manual && cmpFiles.auto) runComparison();
     }
 
     function renderCmpResult(data) {
@@ -2844,7 +2827,7 @@
       const ts = new Date().toLocaleString();
       const statusText = d.match ? 'MATCH' : `${d.total_changes} DIFFERENCE(S)`;
       const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8">
-<title>NIPT Report Comparison — ${_esc(d.manual_file)} vs ${_esc(d.auto_file)}</title>
+<title>NIPS Report Comparison — ${_esc(d.manual_file)} vs ${_esc(d.auto_file)}</title>
 <style>
   body { font-family: Segoe UI, Arial, sans-serif; margin: 0; padding: 20px; background: #f8fafc; color: #1e293b; }
   h1 { font-size: 18px; color: #1F497D; margin-bottom: 4px; }
@@ -2859,7 +2842,7 @@
   .diff_chg { background: #fef9c3; }
   .diff_sub { background: #fee2e2; }
 </style></head><body>
-<h1>NIPT Report Comparison</h1>
+<h1>NIPS Report Comparison</h1>
 <div class="meta"><strong>Manual:</strong> ${_esc(d.manual_file)} &nbsp;|&nbsp; <strong>Automated:</strong> ${_esc(d.auto_file)} &nbsp;|&nbsp; <strong>Generated:</strong> ${ts}</div>
 <p><span class="${d.match ? 'badge-match' : 'badge-diff'}">${statusText}</span></p>
 ${d.html_diff || '<p>No differences found.</p>'}

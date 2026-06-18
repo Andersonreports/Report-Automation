@@ -85,6 +85,14 @@ except Exception as _nipt_err:
     _nipt_ok = False
     print(f"[NIPT] generators not loaded: {_nipt_err}")
 
+# ── HLA Typing report router ───────────────────────────────────────────────────
+try:
+    from hla_api import router as hla_router
+    _hla_ok = True
+except Exception as _hla_err:
+    _hla_ok = False
+    print(f"[HLA] router not loaded: {_hla_err}")
+
 # ── MySQL database ─────────────────────────────────────────────────────────────
 _mysql_enabled = False
 upload_pdf = upload_pgta_file = save_report = None
@@ -136,8 +144,19 @@ def _serve(filename: str):
     raise HTTPException(404, f"{filename} not found")
 
 
-@app.api_route("/",         methods=["GET", "HEAD"])
-@app.api_route("/index.html", methods=["GET", "HEAD"])
+@app.api_route("/",          methods=["GET", "HEAD"])
+@app.api_route("/login.html", methods=["GET", "HEAD"])
+@app.api_route("/login",      methods=["GET", "HEAD"])
+def login_page(): return _serve("login.html")
+
+
+@app.get("/otp.html")
+@app.get("/otp")
+def otp_page(): return _serve("otp.html")
+
+
+@app.get("/index.html")
+@app.get("/home")
 def root(): return _serve("index.html")
 
 
@@ -251,7 +270,7 @@ async def preview_report(data: dict):
     gen.filepath = filepath
     gen.filename = file_id
     loop = asyncio.get_event_loop()
-    await loop.run_in_executor(None, lambda: gen.generate(pages=1))
+    await loop.run_in_executor(None, lambda: gen.generate(pages=3))
     return {"preview_url": f"/preview-file/{file_id}"}
 
 
@@ -267,12 +286,8 @@ def preview_file(filename: str):
 async def generate_report(data: dict):
     try:
         with_logo = data.get("logo_option", "without_logo") == "with_logo"
-        with_qr = data.get("qr_option",   "without_qr") == "with_qr"
         file_name = _build_tera_filename(data, with_logo)
-        qr_url = (os.getenv("APP_BASE_URL", "").rstrip("/") +
-                  "/reports/" + file_name.rsplit("/", 1)[-1]) if with_qr else ""
-        gen = TERAReportGenerator(
-            data, REPORT_DIR, with_logo=with_logo, with_qr=with_qr, qr_url=qr_url)
+        gen = TERAReportGenerator(data, REPORT_DIR, with_logo=with_logo)
         pdf_path = gen.generate()
         if not pdf_path or not os.path.exists(pdf_path):
             return {"error": "PDF not generated"}
@@ -291,12 +306,8 @@ async def generate_bulk(request: Request):
         patient_name = row.get("Patient Name", "Unknown")
         try:
             with_logo = row.get("logo_option", "without_logo") == "with_logo"
-            with_qr = row.get("qr_option",   "without_qr") == "with_qr"
             file_name = _build_tera_filename(row, with_logo)
-            qr_url = (os.getenv("APP_BASE_URL", "").rstrip(
-                "/") + "/reports/" + file_name.rsplit("/", 1)[-1]) if with_qr else ""
-            gen = TERAReportGenerator(
-                row, REPORT_DIR, with_logo=with_logo, with_qr=with_qr, qr_url=qr_url)
+            gen = TERAReportGenerator(row, REPORT_DIR, with_logo=with_logo)
             pdf_path = gen.generate()
             file_url = upload_pdf(
                 pdf_path, file_name) if upload_pdf else f"/reports/{os.path.basename(pdf_path)}"
@@ -1153,8 +1164,8 @@ async def nipt_parse_excel(file: UploadFile = File(...)):
             p = {
                 "name":            _title_case_words(_s(row.get("Patient Name", row.get("Sample Name", "")))),
                 "pin":             _s(row.get("PIN", row.get("Sample Name", ""))),
-                "dob":             _s(row.get("Date of birth/Age", row.get("Age", ""))),
-                "dob_type":        "Date of Birth",
+                "dob":             _s(row.get("Date of Birth", row.get("DOB", row.get("Date of birth/Age", "")))),
+                "age":             _s(row.get("Age", "")),
                 "ga":              _s(row.get("Gestational Age", "")),
                 "sample_id":       _s(row.get("Sample ID", row.get("Sample Name", ""))),
                 "collection_date": _s(row.get("Collection date", row.get("Col Date", ""))),
@@ -1330,3 +1341,24 @@ try:
     print("[KARYOTYPE] routes loaded")
 except Exception as _karyo_err:
     print(f"[KARYOTYPE] routes not loaded: {_karyo_err}")
+
+# ── HLA Typing report routes (web port of desktop HLA Report Generator) ────────
+if _hla_ok:
+    app.include_router(hla_router)
+    _hla_fonts_dir = os.path.join(BASE_DIR, "assets", "hla", "fonts")
+    if os.path.isdir(_hla_fonts_dir):
+        app.mount("/hla-fonts", StaticFiles(directory=_hla_fonts_dir), name="hla-fonts")
+    print("[HLA] routes loaded")
+
+
+@app.get("/hla")
+@app.get("/hla.html")
+def hla_page(): return _serve("hla.html")
+
+
+@app.get("/hla.js")
+def hla_js():
+    p = os.path.join(FRONTEND_DIR, "hla.js")
+    if os.path.exists(p):
+        return FileResponse(p, media_type="application/javascript")
+    raise HTTPException(404, "hla.js not found")

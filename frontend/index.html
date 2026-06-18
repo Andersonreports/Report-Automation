@@ -511,18 +511,17 @@
           </div>
         </a>
 
-        <!-- HLA Typing – coming soon -->
-        <div class="module-card cs"
-             style="--accent:#D97706; --accent-bg:#FFFBEB;"
-             onclick="showComingSoon('HLA Typing','Human Leukocyte Antigen Typing','fa-fingerprint')">
-          <span class="cs-tag">Coming Soon</span>
+        <!-- HLA Typing -->
+        <a class="module-card" href="hla.html"
+           style="--accent:#D97706; --accent-bg:#FFFBEB;">
           <div class="module-icon"><i class="fas fa-fingerprint"></i></div>
           <div class="module-name">HLA Typing</div>
           <div class="module-desc">Human Leukocyte Antigen Report</div>
           <div class="module-footer">
-            <div class="module-arrow"><i class="fas fa-clock"></i></div>
+            <span class="module-link-text">Open tool</span>
+            <div class="module-arrow"><i class="fas fa-arrow-right"></i></div>
           </div>
-        </div>
+        </a>
 
       </div>
     </div>
@@ -540,6 +539,9 @@
   </div>
 
   <script>
+    if (localStorage.getItem('arc_authenticated') !== 'true') {
+      window.location.replace('/login.html');
+    }
     document.body.classList.add('loaded');
 
     function showComingSoon(title, sub, icon) {

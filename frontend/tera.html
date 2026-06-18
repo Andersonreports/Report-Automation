@@ -314,7 +314,6 @@
     .btn-refresh-preview:hover { background: rgba(255,255,255,0.32); }
     .preview-frame-wrap { flex: 1; background: #e8e8e8; overflow: hidden; display: flex; flex-direction: column; }
     .preview-frame-wrap iframe { width: 100%; flex: 1; border: none; }
-    .preview-page-info { text-align: center; font-size: 11px; color: #64748b; padding: 4px 0; background: #e8e8e8; flex-shrink: 0; }
 
     /* ── Bulk Tab ── */
     .bulk-top-bar {
@@ -478,7 +477,6 @@
     /* Bulk preview right column */
     .bulk-preview-wrap { flex: 1; overflow: hidden; background: #e8e8e8; display: flex; flex-direction: column; }
     .bulk-preview-wrap iframe { width: 100%; flex: 1; border: none; }
-    .bulk-page-info { text-align: center; font-size: 11px; color: #64748b; padding: 4px 0; background: #e8e8e8; flex-shrink: 0; }
 
     /* Bulk bottom controls */
     .bulk-bottom-controls {
@@ -913,13 +911,6 @@
                 <label class="fr-radio">
                   <input type="radio" name="manualLogoOption" value="with_logo" checked> With Logo
                 </label>
-                <span class="fr-label" style="margin-left:12px">QR Code:</span>
-                <label class="fr-radio">
-                  <input type="radio" name="manualQrOption" id="qr-manual-without" value="without_qr" checked> Without QR
-                </label>
-                <label class="fr-radio">
-                  <input type="radio" name="manualQrOption" id="qr-manual-with" value="with_qr"> With QR
-                </label>
                 <button class="btn-generate-fast" onclick="downloadReport()">&#9654; Generate Report</button>
               </div>
             </div>
@@ -1039,7 +1030,6 @@
               <p id="bulkPreviewStatus" class="preview-status-text">Select a row to preview</p>
               <div class="bulk-preview-wrap">
                 <iframe id="bulkPreviewFrame"></iframe>
-                <div class="bulk-page-info" id="bulkPageInfo"></div>
               </div>
             </div>
 
@@ -1057,14 +1047,6 @@
               </label>
               <label class="fr-radio">
                 <input type="radio" name="bulkLogoOption" value="with_logo" checked> With Logo
-              </label>
-              <div class="bulk-bottom-divider"></div>
-              <span class="fr-label">QR Code:</span>
-              <label class="fr-radio">
-                <input type="radio" name="bulkQrOption" value="without_qr" checked> Without QR
-              </label>
-              <label class="fr-radio">
-                <input type="radio" name="bulkQrOption" value="with_qr"> With QR
               </label>
               <div class="bulk-bottom-divider"></div>
               <button class="btn-gen-all" onclick="generateAllReports()">Generate All</button>
@@ -1198,7 +1180,6 @@
         <p id="previewStatus" class="preview-status-text">Fill in patient details and click Refresh Preview</p>
         <div class="preview-frame-wrap">
           <iframe id="previewFrame" scrolling="yes"></iframe>
-          <div class="preview-page-info" id="previewPageInfo"></div>
         </div>
       </div>
 
@@ -1224,7 +1205,6 @@
   <div id="toast-container"></div>
 
   <!---- Scripts ---->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
   <script>
     const _h = window.location.hostname;
@@ -1359,9 +1339,7 @@
             return;
         }
         const logoOption = document.querySelector('input[name="manualLogoOption"]:checked')?.value || "with_logo";
-        const qrOption = document.querySelector('input[name="manualQrOption"]:checked')?.value || "without_qr";
         data["logo_option"] = logoOption;
-        data["qr_option"] = qrOption;
         try {
             const res = await fetch(API + "/generate", {
                 method: "POST",
@@ -1430,28 +1408,13 @@
         el.className = "preview-status-text" + (state ? " " + state : "");
     }
 
-    const _pdfjs = window['pdfjs-dist/build/pdf'];
-    if (_pdfjs) _pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
-    async function _updatePageInfo(elId, pdfUrl) {
-        try {
-            const lib = window['pdfjs-dist/build/pdf'];
-            if (!lib) return;
-            const doc = await lib.getDocument(pdfUrl).promise;
-            const el = document.getElementById(elId);
-            if (el) el.textContent = `${doc.numPages} page${doc.numPages !== 1 ? "s" : ""}`;
-        } catch (_) {}
-    }
-
     async function refreshPreview() {
         if (_manualPreviewCtrl) _manualPreviewCtrl.abort();
         _manualPreviewCtrl = new AbortController();
         const signal = _manualPreviewCtrl.signal;
         const data = collectManualData();
         const logoOption = document.querySelector('input[name="manualLogoOption"]:checked')?.value || "with_logo";
-        const qrOption = document.querySelector('input[name="manualQrOption"]:checked')?.value || "without_qr";
         data["logo_option"] = logoOption;
-        data["qr_option"] = qrOption;
         _setPreviewStatus("previewStatus", "Generating preview…", "busy");
         try {
             const res = await fetch(API + "/preview", {
@@ -1464,11 +1427,9 @@
             const result = await res.json();
             const pdfUrl = API + result.preview_url + "?t=" + Date.now();
             const frame = document.getElementById("previewFrame");
-            frame.src = pdfUrl + "#toolbar=0&navpanes=0&scrollbar=0&zoom=page-width";
+            frame.src = pdfUrl + "#toolbar=0&navpanes=0&zoom=page-width";
             const ts = new Date().toLocaleTimeString("en-GB", {hour:"2-digit",minute:"2-digit",second:"2-digit"});
             _setPreviewStatus("previewStatus", "Preview updated " + ts, "ok");
-            const pi = document.getElementById("previewPageInfo");
-            if (pi) pi.textContent = "Page 1 of 3 (live preview)";
         } catch (err) {
             if (err.name !== "AbortError") {
                 _setPreviewStatus("previewStatus", "Preview error — check connection.", "err");
@@ -1482,8 +1443,7 @@
     async function generateSelected(rows) {
         if (!rows || rows.length === 0) { showToast("No patients selected.", "error"); return; }
         const logoOption = document.querySelector('input[name="bulkLogoOption"]:checked')?.value || "with_logo";
-        const qrOption = document.querySelector('input[name="bulkQrOption"]:checked')?.value || "without_qr";
-        const rowsWithLogo = rows.map(r => ({ ...r, logo_option: logoOption, qr_option: qrOption }));
+        const rowsWithLogo = rows.map(r => ({ ...r, logo_option: logoOption }));
         try {
             const res = await fetch(API + "/generate-bulk", {
                 method: "POST",
@@ -1603,8 +1563,7 @@
 
     async function generateAllReports() {
         const logoOption = document.querySelector('input[name="bulkLogoOption"]:checked')?.value || "with_logo";
-        const qrOption = document.querySelector('input[name="bulkQrOption"]:checked')?.value || "without_qr";
-        const rows = patients.map(r => ({ ...r, logo_option: logoOption, qr_option: qrOption }));
+        const rows = patients.map(r => ({ ...r, logo_option: logoOption }));
         try {
             const res = await fetch(API + "/generate-bulk", {
                 method: "POST",
@@ -1780,8 +1739,7 @@
         _setPreviewStatus("bulkPreviewStatus", "Generating preview…", "busy");
         try {
             const logoOption = document.querySelector('input[name="bulkLogoOption"]:checked')?.value || "with_logo";
-            const qrOption   = document.querySelector('input[name="bulkQrOption"]:checked')?.value || "without_qr";
-            const bodyData = { ...data, logo_option: logoOption, qr_option: qrOption };
+            const bodyData = { ...data, logo_option: logoOption };
             const res = await fetch(API + "/preview", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -1792,11 +1750,9 @@
             const result = await res.json();
             const pdfUrl = API + result.preview_url + "?t=" + Date.now();
             const frame = document.getElementById("bulkPreviewFrame");
-            frame.src = pdfUrl + "#toolbar=0&navpanes=0&scrollbar=0&zoom=page-width";
+            frame.src = pdfUrl + "#toolbar=0&navpanes=0&zoom=page-width";
             const ts = new Date().toLocaleTimeString("en-GB", {hour:"2-digit",minute:"2-digit",second:"2-digit"});
             _setPreviewStatus("bulkPreviewStatus", "Preview updated " + ts, "ok");
-            const bpi = document.getElementById("bulkPageInfo");
-            if (bpi) bpi.textContent = "Page 1 of 3 (live preview)";
         } catch (err) {
             if (err.name !== "AbortError") {
                 _setPreviewStatus("bulkPreviewStatus", "Preview error — check connection.", "err");

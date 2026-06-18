@@ -40,12 +40,6 @@ DATA COLUMNS (from TERA automation report Excel):
 import os, io, re, base64, sys
 from datetime import datetime
 
-try:
-    import qrcode
-    _QR_AVAILABLE = True
-except ImportError:
-    _QR_AVAILABLE = False
-
 
 def _resource_path(relative: str) -> str:
     """Resolve path to a bundled resource.
@@ -370,13 +364,10 @@ def _justified_block(c, text, x, y, max_w, font, size, leading):
 # ─── Main class ───────────────────────────────────────────────────────────────
 class TERAReportGenerator:
 
-    def __init__(self, data_row: dict, output_dir: str, with_logo: bool = False,
-                 with_qr: bool = False, qr_url: str = ""):
+    def __init__(self, data_row: dict, output_dir: str, with_logo: bool = False):
         self.d         = data_row
         self.out       = output_dir
         self.with_logo = with_logo
-        self.with_qr   = with_qr
-        self.qr_url    = qr_url
 
         # Classify result type from 'TERA result' column
         raw = str(self.d.get("TERA result",
@@ -400,8 +391,7 @@ class TERAReportGenerator:
         bno_raw = self._s(self.d.get("Biopsy No.", self.d.get("Biopsy", "1")))
         bno = self._biopsy_ordinal(bno_raw)
         logo_tag = "with logo" if self.with_logo else "without logo"
-        qr_tag   = "_with_qr" if self.with_qr else ""
-        self.filename = f"{name}_{bno}_TERA_report_{logo_tag}{qr_tag}.pdf"
+        self.filename = f"{name}_{bno}_TERA_report_{logo_tag}.pdf"
         self.filepath = os.path.join(self.out, self.filename)
 
     # ── Public ────────────────────────────────────────────────────────────────
@@ -464,44 +454,6 @@ class TERAReportGenerator:
         c.drawCentredString(W / 2, y, text)
         c.restoreState()
 
-    def _draw_qr(self, c):
-        """Draw QR code in the bottom-right corner of the page when with_qr=True."""
-        if not self.with_qr or not _QR_AVAILABLE or not self.qr_url:
-            return
-        c.saveState()
-        try:
-            qr = qrcode.QRCode(
-                version=None,
-                error_correction=qrcode.constants.ERROR_CORRECT_M,
-                box_size=10,
-                border=2,
-            )
-            qr.add_data(self.qr_url)
-            qr.make(fit=True)
-            qr_img = qr.make_image(fill_color="black", back_color="white")
-            buf = io.BytesIO()
-            qr_img.save(buf, format="PNG")
-            buf.seek(0)
-
-            QR_SIZE = 36          # points – compact, above footer
-            QR_X    = FTR_X       # left-aligned with footer bar
-            QR_Y    = FTR_Y + FTR_H + 8  # just above footer
-
-            # White background box so QR is legible over any content
-            c.setFillColor(white)
-            c.rect(QR_X - 3, QR_Y - 3, QR_SIZE + 6, QR_SIZE + 6, fill=1, stroke=0)
-
-            c.drawImage(ImageReader(buf), QR_X, QR_Y,
-                        width=QR_SIZE, height=QR_SIZE, mask="auto")
-
-            # "Scan to download" label below QR
-            c.setFont("Helvetica", 6)
-            c.setFillColor(HexColor("#64748b"))
-            c.drawCentredString(QR_X + QR_SIZE / 2, QR_Y + QR_SIZE + 4, "Scan to download")
-        except Exception as e:
-            print(f"[TERA] QR draw error: {e}")
-        c.restoreState()
-
     # ═══════════════════════════════════════════════════════════════════════════
     # PAGE 1 – Patient report
     # ═══════════════════════════════════════════════════════════════════════════
@@ -512,7 +464,6 @@ class TERAReportGenerator:
         self._field_table(c)
         self._status_section(c)
         self._recom_section(c)
-        self._draw_qr(c)
         self._page_number(c, 1)
 
     def _title_block(self, c):
@@ -772,7 +723,6 @@ class TERAReportGenerator:
             c.circle(92.5, y + 4, 2.5, fill=1, stroke=0)
             y = _justified_block(c, bullet, 108, y, CONTENT_W - 36, F_BODY, 11, 22)
             y -= 10
-        self._draw_qr(c)
         self._page_number(c, 2)
 
     # ═══════════════════════════════════════════════════════════════════════════
@@ -842,7 +792,6 @@ class TERAReportGenerator:
         c.drawString(72.0,  role_y, "Molecular Biologist")
         c.drawString(208.0, role_y, "Head -Scientific Operations")
         c.drawString(395.0, role_y, "Head- Clinical Genetics")
-        self._draw_qr(c)
         self._page_number(c, 3)
 
     # ═══════════════════════════════════════════════════════════════════════════

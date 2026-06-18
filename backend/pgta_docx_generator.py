@@ -328,14 +328,21 @@ class PGTADocxGenerator:
             raw = self._clean(emb.get('result_summary') or emb.get('result_description') or '')
             info = clf.classify_embryo(raw)
 
-            # Result → mapped display text; Interpretation → always "NA"
-            res_display   = info["summary_text"]
-            interp_display= "NA"
-            cell_color    = info["is_abnormal"] and "#FF0000" or "#000000"
+            # Result → mapped display text
+            res_display = info["summary_text"]
 
-            # MTcopy: "NA" unless explicitly provided
+            # Interpretation: respect the user-edited interpretation field
+            # (falls back to the classification-derived value if not set),
+            # matching the detail page behaviour.
+            interp_text = self._clean(emb.get('interpretation'), '')
+            if not interp_text:
+                interp_text = info["classification"].replace("_", " ").title() if info["is_mosaic"] else "NA"
+            interp_display = "NA" if interp_text.upper() == "EUPLOID" else interp_text
+            cell_color = self._get_result_color_hex(raw, interp_text)
+
+            # MTcopy: NA for non-euploid
             raw_mt = self._clean(emb.get('mtcopy', ''))
-            mt = raw_mt if raw_mt and raw_mt.upper() not in ('NA', 'N/A', '') else "NA"
+            mt = raw_mt if interp_text.upper() == "EUPLOID" and raw_mt and raw_mt.upper() not in ('NA', 'N/A', '') else "NA"
 
             row.cells[2].text = res_display
             row.cells[3].text = mt
@@ -523,20 +530,23 @@ class PGTADocxGenerator:
         existing_sex = self._clean(embryo_data.get('sex_chromosomes', ''))
         sex = clf.sanitize_sex_chromosomes(existing_sex, raw_result, info["classification"])
 
-        # Interpretation: always "NA"
-        interp = "NA"
+        # Interpretation: respect the user-edited interpretation field
+        # (falls back to "NA" if not set), matching the summary table.
+        interp_text = self._clean(embryo_data.get('interpretation'), '')
+        interp = "NA" if (not interp_text or interp_text.upper() == "EUPLOID") else interp_text
 
-        # MTcopy: "NA" unless explicitly provided
+        # MTcopy: NA for non-euploid
         raw_mt = self._clean(embryo_data.get('mtcopy', ''))
-        mt = raw_mt if raw_mt and raw_mt.upper() not in ('NA', 'N/A', '') else "NA"
+        mt = raw_mt if interp_text.upper() == "EUPLOID" and raw_mt and raw_mt.upper() not in ('NA', 'N/A', '') else "NA"
 
         cell_color   = "#FF0000" if info["is_abnormal"] else "#000000"
         sex_color    = cell_color if sex.upper() not in ('NORMAL', '') else "#000000"
+        interp_color = self._get_result_color_hex(raw_result, interp_text)
         details = [
             ("Result:", res, "#000000"),
             ("Autosomes:", auto, cell_color),
             ("Sex Chromosomes:", sex, sex_color),
-            ("Interpretation:", interp, cell_color),
+            ("Interpretation:", interp, interp_color),
             ("MTcopy:", mt, "#000000"),
         ]
         

@@ -315,7 +315,7 @@ class NIPTReportTemplate:
         
         story.append(self._create_section_header("Test Indication"))
         story.append(Spacer(1, 2))
-        story.append(Paragraph(data.get('indication', 'To screen for chromosomal aneuploidies'), self.styles['Value']))
+        story.append(Paragraph(data.get('indication') or 'To screen for chromosomal aneuploidies', self.styles['Value']))
         story.append(Spacer(1, 4))
         
         story.append(self._create_section_header("Test Performed"))
@@ -499,13 +499,15 @@ class NIPTReportTemplate:
             return _preg_abbr.sub(lambda mo: mo.group().upper(), text.title())
 
         # 4-Column Table for precise colon alignment
-        dob_label = data.get('dob_type', 'Date of Birth')
+        _dob = fmt_date(data.get('dob',''))
+        _age = str(data.get('age','') or '').strip()
+        dob_age_value = f"{_dob} / {_age}" if _dob and _age else (_dob or _age)
         _clin_name = data.get('clinician', '')
         _clin_qual = data.get('clinician_qual', '').strip()
         clinician_display = f"{_clin_name}, {_clin_qual}" if _clin_name and _clin_qual else _clin_name or _clin_qual
         table_data = [
             [L("Patient name"), V(data.get('name','')), L("Specimen"), V(data.get('specimen','Peripheral blood').title())],
-            [L(dob_label), V(fmt_date(data.get('dob',''))), L("PIN"), V(data.get('pin',''))],
+            [L("Date of Birth / Age"), V(dob_age_value), L("PIN"), V(data.get('pin',''))],
             [L("Gestational Age"), V(data.get('ga','')), L("Sample Number"), V(data.get('sample_id',''))],
             [L("Pregnancy Type; status"), V(f"{fmt_preg(data.get('preg_type',''))}; {fmt_preg(data.get('preg_status',''))}".strip('; ')), L("Sample collection date"), V(fmt_date(data.get('collection_date','')))],
             [L("Referring Clinician"), V(clinician_display), L("Sample received date"), V(fmt_date(data.get('received_date','')))],

@@ -120,6 +120,11 @@
     .rt-row{ display:flex; gap:8px; align-items:flex-end; margin-bottom:16px; }
     .rt-row .fld{ flex:1; margin-bottom:0; }
 
+    .folder-row{ display:flex; gap:8px; align-items:center; margin-bottom:10px; }
+    .folder-row input{ flex:1; }
+    .folder-row input[readonly]{ background:#f1f5f9; color:var(--text-muted); cursor:default; }
+    .folder-row .btn{ white-space:nowrap; }
+
     .imglist{ display:flex; flex-wrap:wrap; gap:8px; margin-top:8px; }
     .imgchip{ position:relative; width:84px; height:84px; border-radius:8px; overflow:hidden;
       border:1px solid var(--input-border); background:#f1f5f9; }
@@ -241,6 +246,26 @@
     .toast a{ color:var(--primary); font-weight:700; }
     @keyframes tin{ from{transform:translateY(12px);opacity:0;} to{transform:none;opacity:1;} }
 
+    /* Draft picker modal */
+    .modal-overlay{ position:fixed; inset:0; z-index:2000; background:rgba(15,23,42,.5);
+      display:flex; align-items:center; justify-content:center; }
+    .modal-box{ background:#fff; border-radius:var(--radius); box-shadow:0 24px 64px rgba(0,0,0,.2);
+      width:100%; max-width:420px; max-height:80vh; display:flex; flex-direction:column; overflow:hidden; }
+    .modal-box .modal-head{ padding:16px 20px; border-bottom:1px solid var(--card-border);
+      display:flex; align-items:center; justify-content:space-between; }
+    .modal-box .modal-head h3{ font-size:14px; font-weight:800; color:var(--primary); }
+    .modal-box .modal-close{ background:none; border:none; font-size:16px; color:var(--text-muted); cursor:pointer; line-height:1; }
+    .modal-box .modal-close:hover{ color:var(--danger); }
+    .modal-box .modal-body{ padding:8px; overflow-y:auto; }
+    .draft-item{ display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:8px;
+      cursor:pointer; font-size:13px; color:var(--text); transition:.15s; }
+    .draft-item:hover{ background:#f1f5f9; }
+    .draft-item i.fa-file-alt{ color:var(--primary); }
+    .draft-item .draft-name{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .draft-item .draft-del{ background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:13px; padding:4px; }
+    .draft-item .draft-del:hover{ color:var(--danger); }
+    .modal-body .empty{ padding:24px; text-align:center; color:var(--text-muted); font-size:13px; }
+
     .guide-container{ max-width:860px; margin:0 auto; }
     .guide-header-bar{ background:var(--primary); color:#fff; padding:22px 20px; border-radius:var(--radius);
       margin-bottom:14px; text-align:center; box-shadow:var(--shadow); }
@@ -319,6 +344,10 @@
 
         <div class="glass">
           <h3><i class="fas fa-cog"></i> Generate</h3>
+          <div class="folder-row">
+            <input type="text" id="m_outdir" readonly placeholder="No output folder selected — reports saved to default folder" value="">
+            <button class="btn sm" id="m_selectdir"><i class="fas fa-folder-open"></i> Select Output Folder</button>
+          </div>
           <div class="row2">
             <label class="fld"><span>Logo</span>
               <select id="m_logo"><option>With Logo</option><option>Without Logo</option></select></label>
@@ -425,6 +454,10 @@
     <!-- 3. Generate -->
     <div class="glass" style="margin-top:18px;">
       <h3><i class="fas fa-cog"></i> 3. Generate Reports</h3>
+      <div class="folder-row">
+        <input type="text" id="b_outdir" readonly placeholder="No output folder selected — reports saved to default folder" value="">
+        <button class="btn sm" id="b_selectdir"><i class="fas fa-folder-open"></i> Select Output Folder</button>
+      </div>
       <div class="bulk-genrow">
         <label class="fld" style="margin-bottom:0;max-width:200px;"><span>Logo</span>
           <select id="b_logo"><option>With Logo</option><option>Without Logo</option></select></label>
@@ -564,6 +597,17 @@
 
   <div class="toast-wrap" id="toasts"></div>
 
+  <!-- Draft picker modal -->
+  <div class="modal-overlay" id="draftModal" style="display:none;" onclick="if(event.target===this) closeDraftModal();">
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3><i class="fas fa-folder-open"></i> Load Draft</h3>
+        <button class="modal-close" onclick="closeDraftModal()"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body" id="draftModalBody"></div>
+    </div>
+  </div>
+
   <script>
   "use strict";
   // ===== Data model (verbatim from the desktop application) =====
@@ -579,6 +623,49 @@
   }
   var BULLET = "•";       // matches backend recommendation bullet
   var RSQUO  = "’";       // right single quote used in desktop templates
+
+  // ===== Output folder picker (saves generated reports to a chosen local folder) =====
+  var _dirHandles = {};
+  function selectOutputFolder(inputId, btnId){
+    if(!window.showDirectoryPicker){
+      var inp=$(inputId);
+      inp.removeAttribute("readonly");
+      inp.placeholder="Type folder path (e.g. C:\\Reports)";
+      inp.focus();
+      toast("Folder picker needs Chrome/Edge. Type a path directly in the box.","err");
+      return;
+    }
+    window.showDirectoryPicker({mode:"readwrite"}).then(function(dirHandle){
+      _dirHandles[inputId]=dirHandle;
+      $(inputId).value=dirHandle.name;
+      toast("Folder selected: "+esc(dirHandle.name),"ok");
+    }).catch(function(err){
+      if(err && err.name!=="AbortError"){
+        var inp=$(inputId);
+        inp.removeAttribute("readonly");
+        inp.placeholder="Type folder path manually";
+        toast("Could not open folder picker — type a path in the box instead.","err");
+      }
+    });
+  }
+  function saveFileToDir(inputId, blob, filename){
+    var dirHandle=_dirHandles[inputId];
+    if(!dirHandle) return Promise.resolve(false);
+    return dirHandle.getFileHandle(filename,{create:true}).then(function(fileHandle){
+      return fileHandle.createWritable();
+    }).then(function(writable){
+      return writable.write(blob).then(function(){ return writable.close(); });
+    }).then(function(){ return true; }).catch(function(err){
+      console.warn("Could not write to selected folder:", err);
+      return false;
+    });
+  }
+  function saveGeneratedToDir(inputId, url, filename){
+    if(!_dirHandles[inputId]) return Promise.resolve();
+    return fetch(apiUrl(url)).then(function(r){return r.blob();}).then(function(blob){
+      return saveFileToDir(inputId, blob, filename);
+    }).catch(function(e){ console.warn("Auto-save to folder failed:", e); });
+  }
 
   var REPORT_TEMPLATES = {
     "Normal Male": {
@@ -905,6 +992,8 @@
     e.target.value="";
   });
 
+  $("m_selectdir").addEventListener("click", function(){ selectOutputFolder("m_outdir"); });
+
   $("m_gen").addEventListener("click", function(){
     var p=m_payload();
     if(!(p.data.NAME||"").trim()){ toast("Patient Name is required.","err"); return; }
@@ -912,8 +1001,9 @@
     fetch(API+"/karyotype/generate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(p)})
       .then(function(r){return r.json();})
       .then(function(j){
-        if(j.error){ toast("Error: "+esc(j.error),"err"); }
-        else toast('Report generated: <a href="'+apiUrl(j.url)+'" target="_blank">'+esc(j.file)+'</a>',"ok");
+        if(j.error){ toast("Error: "+esc(j.error),"err"); return; }
+        toast('Report generated: <a href="'+apiUrl(j.url)+'" target="_blank">'+esc(j.file)+'</a>',"ok");
+        return saveGeneratedToDir("m_outdir", j.url, j.file);
       })
       .catch(function(e){ toast("Error: "+esc(e.message),"err"); })
       .then(function(){ btn.disabled=false; btn.innerHTML=old; });
@@ -925,14 +1015,59 @@
       .then(function(r){return r.json();})
       .then(function(j){ toast(j.saved?("Draft saved: "+esc(j.saved)):"Save failed", j.saved?"ok":"err"); });
   });
+  function closeDraftModal(){ $("draftModal").style.display="none"; }
+
+  function _draftLabel(fname){
+    // karyo_draft_<name>_YYYYMMDD_HHMMSS.json -> "<name> — DD/MM/YYYY HH:MM"
+    var m=fname.match(/^karyo_draft_(.+)_(\d{8})_(\d{6})\.json$/);
+    if(!m) return fname;
+    var name=m[1].replace(/_/g," ");
+    var d=m[2], t=m[3];
+    var dateStr=d.slice(6,8)+"/"+d.slice(4,6)+"/"+d.slice(0,4);
+    var timeStr=t.slice(0,2)+":"+t.slice(2,4);
+    return name+" — "+dateStr+" "+timeStr;
+  }
+
+  function openDraftModal(list, onPick){
+    var body=$("draftModalBody");
+    if(!list.length){
+      body.innerHTML='<div class="empty">No saved drafts.</div>';
+    } else {
+      body.innerHTML=list.map(function(fname,i){
+        return '<div class="draft-item" data-idx="'+i+'">'
+          + '<i class="fas fa-file-alt"></i>'
+          + '<span class="draft-name">'+esc(_draftLabel(fname))+'</span>'
+          + '<button class="draft-del" data-idx="'+i+'" title="Delete draft"><i class="fas fa-trash"></i></button>'
+          + '</div>';
+      }).join("");
+      Array.prototype.forEach.call(body.querySelectorAll(".draft-item"), function(el){
+        el.addEventListener("click", function(e){
+          if(e.target.closest(".draft-del")) return;
+          onPick(list[+el.dataset.idx]);
+          closeDraftModal();
+        });
+      });
+      Array.prototype.forEach.call(body.querySelectorAll(".draft-del"), function(btn){
+        btn.addEventListener("click", function(e){
+          e.stopPropagation();
+          var fname=list[+btn.dataset.idx];
+          fetch(API+"/karyotype/draft/delete/"+encodeURIComponent(fname),{method:"DELETE"})
+            .then(function(){
+              list=list.filter(function(x){return x!==fname;});
+              openDraftModal(list, onPick);
+              toast("Draft deleted.","ok");
+            });
+        });
+      });
+    }
+    $("draftModal").style.display="flex";
+  }
+
   $("m_loaddraft").addEventListener("click", function(){
     fetch(API+"/karyotype/draft/list").then(function(r){return r.json();}).then(function(j){
       var list=j.drafts||[];
-      if(!list.length){ toast("No saved drafts.","err"); return; }
-      var pick=prompt("Load which draft?\n\n"+list.map(function(d,i){return (i+1)+". "+d;}).join("\n")+"\n\nEnter number:");
-      var idx=parseInt(pick,10)-1;
-      if(isNaN(idx)||idx<0||idx>=list.length) return;
-      fetch(API+"/karyotype/draft/load/"+encodeURIComponent(list[idx])).then(function(r){return r.json();}).then(function(dr){
+      openDraftModal(list, function(fname){
+      fetch(API+"/karyotype/draft/load/"+encodeURIComponent(fname)).then(function(r){return r.json();}).then(function(dr){
         if(dr.error){ toast("Load failed","err"); return; }
         writeForm(m_inputs, dr.data||{});
         var rt=dr.report_type || detectReportType((dr.data||{}).RESULT||"");
@@ -944,6 +1079,7 @@
         });
         m_renderImgs(); m_schedule();
         toast("Draft loaded.","ok");
+      });
       });
     });
   });
@@ -1138,12 +1274,14 @@
         res.innerHTML=(j.results||[]).map(function(x){ return '<div style="font-size:12.5px;margin:3px 0;">&#10003; <a href="'+apiUrl(x.url)+'" target="_blank">'+esc(x.file)+'</a></div>'; }).join("")
           +(j.errors||[]).map(function(e){ return '<div style="font-size:12.5px;margin:3px 0;color:#ff8c7a;">&#10005; '+esc(e)+'</div>'; }).join("");
         toast(j.generated+" report(s) generated.", (j.errors&&j.errors.length)?"err":"ok");
+        return Promise.all((j.results||[]).map(function(x){ return saveGeneratedToDir("b_outdir", x.url, x.file); }));
       })
       .catch(function(e){ lbl.textContent="Error: "+e.message; toast("Error: "+esc(e.message),"err"); })
       .then(function(){ $("b_gensel").disabled=false; $("b_genall").disabled=false; setTimeout(function(){ prog.style.display="none"; },1500); });
   }
   $("b_gensel").addEventListener("click", function(){ runBulk(selectedIndices()); });
   $("b_genall").addEventListener("click", function(){ runBulk(B_rows.map(function(_,i){return i;})); });
+  $("b_selectdir").addEventListener("click", function(){ selectOutputFolder("b_outdir"); });
 
   // ===== REPORT COMPARISON (Manual vs Automated PDF, styled like the other reports) =====
   var cmpFiles = { manual:null, auto:null };
