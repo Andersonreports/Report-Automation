@@ -178,6 +178,11 @@ def pgta_page(): return _serve("pgta.html")
 @app.get("/nipt.html")
 def nipt_page(): return _serve("nipt.html")
 
+
+@app.get("/billing")
+@app.get("/billing.html")
+def billing_page(): return _serve("billing.html")
+
 # Forward /xlsx.full.min.js  so the frontend can load SheetJS via relative path
 
 
@@ -203,6 +208,14 @@ def head_logo():
     if os.path.exists(p):
         return FileResponse(p, media_type="image/jpeg")
     raise HTTPException(404, "Head_logo.jpg not found")
+
+
+@app.get("/Sign_sec.png")
+def sign_sec_png():
+    p = os.path.join(FRONTEND_DIR, "Sign_sec.png")
+    if os.path.exists(p):
+        return FileResponse(p, media_type="image/png")
+    raise HTTPException(404, "Sign_sec.png not found")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
