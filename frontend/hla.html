@@ -91,7 +91,7 @@
     }
     .home-btn:hover { background: var(--primary-hover); }
 
-    .hdr-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .hdr-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
 
     .hdr-select-group { display: flex; align-items: center; gap: 6px; }
     .hdr-select-group label { font-size: 11px; font-weight: 600; color: var(--text-muted); }
@@ -101,7 +101,7 @@
     }
 
     /* ── Tabs ── */
-    .tab-bar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+    .tab-bar { display: flex; gap: 8px; flex-wrap: wrap; }
 
     .tab {
       padding: 9px 22px;
@@ -231,7 +231,6 @@
     .case-item:hover { background: #f4f6fb; }
     .case-item.selected { background: rgba(31,73,125,0.10); border-left: 3px solid var(--primary); }
     .case-item .ci-name { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .case-item .ci-type { font-size: 9.5px; color: var(--text-muted); background: var(--grey-box); padding: 1px 6px; border-radius: 8px; }
 
     .select-row { display: flex; gap: 6px; margin-bottom: 8px; }
     .select-row .btn-sm { flex: 1; justify-content: center; padding: 5px; font-size: 10.5px; }
@@ -295,27 +294,29 @@
           <p>Human Leukocyte Antigen typing &amp; crossmatch reports — Anderson Diagnostic Services</p>
         </div>
       </div>
-      <div class="hdr-right">
-        <div class="hdr-select-group">
-          <label>Template:</label>
-          <select id="templateSelect"></select>
-        </div>
-        <div class="hdr-select-group">
-          <label>Logo:</label>
-          <select id="logoSelect">
-            <option value="true">With Logo</option>
-            <option value="false">Without Logo</option>
-          </select>
-        </div>
+      <div class="tab-bar">
+        <div class="tab active" data-tab="manual"><i class="fas fa-edit"></i> Manual Entry</div>
+        <div class="tab" data-tab="bulk"><i class="fas fa-layer-group"></i> Bulk Upload</div>
+        <div class="tab" data-tab="settings"><i class="fas fa-cog"></i> Settings</div>
+        <div class="tab" data-tab="guide"><i class="fas fa-info-circle"></i> User Guide</div>
       </div>
     </div>
 
-    <!-- ── Tabs ── -->
-    <div class="tab-bar">
-      <div class="tab active" data-tab="manual"><i class="fas fa-edit"></i> Manual Entry</div>
-      <div class="tab" data-tab="bulk"><i class="fas fa-layer-group"></i> Bulk Upload</div>
-      <div class="tab" data-tab="settings"><i class="fas fa-cog"></i> Settings</div>
-      <div class="tab" data-tab="guide"><i class="fas fa-info-circle"></i> User Guide</div>
+    <!-- ── Settings row (Template / Logo) ── -->
+    <div class="hdr-right">
+      <div class="hdr-select-group">
+        <label>Template:</label>
+        <select id="templateSelect"></select>
+      </div>
+      <div class="hdr-select-group">
+        <label>Logo:</label>
+        <select id="logoSelect">
+          <option value="true">With Logo</option>
+          <option value="false">Without Logo</option>
+        </select>
+      </div>
+      <div class="checkbox-item"><input type="checkbox" id="globalNablChk" checked> NABL-Accredited</div>
+      <div class="checkbox-item"><input type="checkbox" id="globalStampChk"> Signature Stamp</div>
     </div>
 
     <!-- ══════════════ TAB 1: MANUAL ENTRY ══════════════ -->
@@ -340,17 +341,22 @@
     <div class="tab-content" id="tab-bulk">
       <div class="bulk-topbar">
         <div class="dropzone" id="bulkDropzone">
-          <i class="fas fa-file-excel"></i> Drag &amp; drop Excel file here, or click to browse
-          <input type="file" id="bulkFileInput" accept=".xlsx,.xls" class="hidden">
+          <span id="bulkDropzoneLabel"><i class="fas fa-file-excel"></i> Drag &amp; drop Excel file here, or click to browse</span>
         </div>
-        <div class="checkbox-item"><input type="checkbox" id="bulkNablChk" checked> NABL-Accredited</div>
+        <input type="file" id="bulkFileInput" accept=".xlsx,.xls" class="hidden">
         <button class="btn-sm btn-primary" id="bulkParseBtn"><i class="fas fa-cogs"></i> Load &amp; Parse Excel</button>
+      </div>
+      <div class="bulk-topbar">
+        <span style="font-size:11.5px; font-weight:600; color:var(--text-muted);">SAB Excel (single patient):</span>
+        <select id="bulkSabKitSelect" style="padding:6px 10px; border-radius:6px; border:1px solid var(--input-border); font-size:12px;"></select>
+        <input type="file" id="bulkSabFileInput" accept=".xlsx,.xls" class="hidden">
+        <button class="btn-sm btn-outline" id="bulkSabImportBtn"><i class="fas fa-file-import"></i> Import SAB Excel</button>
+        <span id="bulkSabImportStatus" style="font-size:11px; color:var(--text-muted);"></span>
       </div>
       <div class="gen-bar">
         <span class="path-label" id="bulkOutputLabel">Output: backend/reports-hla (default)</span>
         <input type="text" id="bulkOutputInput" placeholder="Custom output folder path (optional)" style="flex:1; padding:7px 10px; border:1px solid var(--input-border); border-radius:6px; font-size:11px;">
         <div class="checkbox-item"><input type="checkbox" id="bulkLogoChk" checked> With Logo</div>
-        <div class="checkbox-item"><input type="checkbox" id="bulkStampChk"> Signature Stamp</div>
         <button class="btn-sm btn-outline" id="bulkGenSelectedBtn"><i class="fas fa-file-pdf"></i> Generate Selected</button>
         <button class="btn-sm btn-primary" id="bulkGenAllBtn"><i class="fas fa-file-pdf"></i> Generate All</button>
       </div>
@@ -468,6 +474,6 @@
 
   <div class="toast" id="toast"></div>
 
-  <script src="/hla.js"></script>
+  <script src="/hla.js?v=8"></script>
 </body>
 </html>

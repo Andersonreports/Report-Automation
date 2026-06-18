@@ -14,6 +14,8 @@ const REPORT_TEMPLATES = [
   { name: "HLA Typing High Resolution (11 Loci)", report_type: "loci11" },
   { name: "CDC", report_type: "cdc_crossmatch" },
   { name: "DSA", report_type: "dsa_crossmatch" },
+  { name: "SAB Class I", report_type: "sab_class1" },
+  { name: "SAB Class II", report_type: "sab_class2" },
   { name: "Flow", report_type: "flow_crossmatch" },
   { name: "HLA Typing (Luminex)", report_type: "luminex_typing" },
   { name: "KIR Genotyping", report_type: "kir_genotyping" },
@@ -23,6 +25,8 @@ const REPORT_TEMPLATES = [
 ];
 const TEMPLATE_TO_RTYPE = {};
 REPORT_TEMPLATES.forEach(t => TEMPLATE_TO_RTYPE[t.name] = t.report_type);
+const RTYPE_TO_TEMPLATE_NAME = {};
+REPORT_TEMPLATES.forEach(t => RTYPE_TO_TEMPLATE_NAME[t.report_type] = t.name);
 
 const HLA_LOCI = ["A", "B", "C", "DRB1", "DQB1", "DPB1", "DRB3", "DPA1", "DQA1"];
 const HLA_LOCUS_LABELS = { DRB3: "DRB3/4/5" };
@@ -30,9 +34,58 @@ const HLA_LOCUS_LABELS = { DRB3: "DRB3/4/5" };
 const DEFAULT_SIG_COUNTS = {
   single_hla: 3, rpl_couple: 2, single_rpl: 2, single_locus: 2, hla_c: 2,
   transplant_donor: 2, ngs_photo: 2, loci11: 3, cdc_crossmatch: 2, dsa_crossmatch: 2,
+  sab_class1: 2, sab_class2: 2,
   flow_crossmatch: 2, luminex_typing: 2, kir_genotyping: 2, pra_class1: 2,
   pra_class2: 2, mixed_pra: 2,
 };
+
+const SAB_KIT_NAMES = ["Immucor", "One Lambda"];
+
+function sabKitId(name) {
+  const s = String(name || "").trim().toLowerCase();
+  if (s.includes("lambda") || s.includes("kit 2") || s.includes("kit2")) return "kit2";
+  return "kit1";
+}
+
+const _AUTO_SAB_PRA_RE = /^\s*The SAB % PRA Class (?:I|II) is \d+%\.?\s*$/i;
+
+function sabPraSentence(pctText, sabClass) {
+  const m = String(pctText || "").match(/\d+/);
+  if (!m) return "";
+  const cls = String(sabClass || "").trim().toUpperCase().endsWith("II") ? "II" : "I";
+  return `The SAB % PRA Class ${cls} is ${parseInt(m[0], 10)}%.`;
+}
+
+function isAutoSabPraText(text) {
+  return _AUTO_SAB_PRA_RE.test(String(text || ""));
+}
+
+function parseSabAlleleTextLocal(text) {
+  const result = [];
+  for (const raw of String(text || "").trim().split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const m = line.match(/^(.*)[,\t]\s*([0-9]+(?:\.[0-9]+)?)\s*$/);
+    if (!m) continue;
+    const allele = m[1].trim().replace(/,+$/, "").trim();
+    if (!allele) continue;
+    const mfi = parseInt(parseFloat(m[2]), 10);
+    if (Number.isNaN(mfi)) continue;
+    result.push([allele, mfi]);
+  }
+  return result.sort((a, b) => b[1] - a[1]);
+}
+
+function applySabPraToRemarksComments(pctText, sabClass, remarksInput, commentsInput) {
+  const sentence = sabPraSentence(pctText, sabClass);
+  if (!sentence) return;
+  if (!remarksInput.value.trim() || isAutoSabPraText(remarksInput.value)) {
+    remarksInput.value = sentence;
+  }
+  if (!commentsInput.value.trim() || isAutoSabPraText(commentsInput.value)) {
+    commentsInput.value = sentence;
+  }
+}
 
 const DEFAULT_SIGNATORIES = [
   { name: "Ms. S Aruna Devi", title: "Team Lead – Transplant Immunogenetics<br/>(Reviewed By)" },
@@ -124,13 +177,26 @@ function initTemplateSelect() {
     sel.appendChild(el("option", { value: t.name }, t.name));
   });
   sel.addEventListener("change", () => {
-    state.rtype = TEMPLATE_TO_RTYPE[sel.value];
-    renderManualForm();
+    const newRtype = TEMPLATE_TO_RTYPE[sel.value];
+    const activeTab = document.querySelector(".tab.active")?.dataset.tab;
+    const bulkCase = state.bulkCases[state.bulkCurrentIndex];
+    if (activeTab === "bulk" && bulkCase) {
+      // A bulk case is selected — retarget its report type instead of the manual form.
+      bulkCase.report_type = newRtype;
+      renderBulkList();
+      renderBulkEditor(state.bulkCurrentIndex);
+      previewBulkCase(state.bulkCurrentIndex);
+    } else {
+      state.rtype = newRtype;
+      renderManualForm();
+    }
   });
   document.getElementById("logoSelect").addEventListener("change", e => {
     state.withLogo = e.target.value === "true";
     scheduleManualPreview();
   });
+  document.getElementById("globalNablChk").addEventListener("change", scheduleManualPreview);
+  document.getElementById("globalStampChk").addEventListener("change", scheduleManualPreview);
 }
 
 // ══════════════════════════════════════════════════════════════════════════
@@ -191,22 +257,6 @@ function buildHlaAlleleCard(prefix, hlaFieldsRef) {
   return card;
 }
 
-function buildOptionsCard(prefix) {
-  const card = el("div", { class: "card" }, [
-    el("h3", {}, [el("i", { class: "fas fa-sliders-h" }), " Report Settings"]),
-  ]);
-  const row = el("div", { class: "checkbox-row" }, [
-    el("div", { class: "checkbox-item" }, [
-      el("input", { type: "checkbox", id: `${prefix}_nabl`, checked: "checked", onchange: scheduleManualPreview }), " NABL-Accredited",
-    ]),
-    el("div", { class: "checkbox-item" }, [
-      el("input", { type: "checkbox", id: `${prefix}_stamp`, onchange: scheduleManualPreview }), " Signature Stamp",
-    ]),
-  ]);
-  card.appendChild(row);
-  return card;
-}
-
 function buildDonorCard(prefix, fieldsRef, hlaFieldsRef, title = "Donor Information") {
   const card = el("div", { class: "card" }, [
     el("h3", {}, [el("i", { class: "fas fa-user-friends" }), " " + title]),
@@ -257,14 +307,21 @@ function clearManualRefs() {
   manualSpecialFields = {};
 }
 
+const SPECIALIZED_RTYPES = [
+  "cdc_crossmatch", "dsa_crossmatch", "flow_crossmatch", "luminex_typing",
+  "kir_genotyping", "pra_class1", "pra_class2", "mixed_pra",
+  "sab_class1", "sab_class2",
+];
+
 function renderManualForm() {
   clearManualRefs();
   const col = document.getElementById("manualFormCol");
   col.innerHTML = "";
   const rtype = state.rtype;
 
-  col.appendChild(buildOptionsCard("man"));
-  col.appendChild(buildPatientInfoCard("man", manualFields));
+  if (!SPECIALIZED_RTYPES.includes(rtype)) {
+    col.appendChild(buildPatientInfoCard("man", manualFields));
+  }
 
   if (["single_hla", "transplant_donor", "ngs_photo", "loci11", "rpl_couple", "single_rpl"].includes(rtype)) {
     col.appendChild(buildHlaAlleleCard("man_pat", manualHlaFields));
@@ -314,6 +371,10 @@ function renderManualForm() {
 
   if (["pra_class1", "pra_class2", "mixed_pra"].includes(rtype)) {
     buildPraSection(col, rtype);
+  }
+
+  if (rtype === "sab_class1" || rtype === "sab_class2") {
+    buildSabSection(col, rtype);
   }
 
   col.appendChild(buildGenBar(generateManual));
@@ -515,6 +576,153 @@ function buildPraSection(col, rtype) {
   manualSpecialFields.pra = pra;
 }
 
+// ── SAB Class I / II section ──────────────────────────────────────────────
+function applySabImportData(sab, data) {
+  const fields = data.patient || {};
+  Object.entries(fields).forEach(([k, v]) => {
+    if (sab.patient[k] && v) sab.patient[k].value = v;
+  });
+  if (data.alleles && data.alleles.length) {
+    sab.alleleTextarea.value = data.alleles.map(([a, m]) => `${a},${m}`).join("\n");
+  }
+  if (data.chart_bytes) {
+    sab.chartBytes = data.chart_bytes;
+    sab.chartStatus.textContent = "Chart imported from Excel.";
+  }
+  if (data.sab_class) {
+    sab.classSelect.value = data.sab_class;
+  }
+  if (data.pra_pct != null) {
+    sab.praInput.value = String(data.pra_pct);
+  }
+  applySabPraToRemarksComments(sab.praInput.value, sab.classSelect.value,
+    sab.patient.remarks, sab.patient.comments);
+  scheduleManualPreview();
+}
+
+function buildSabSection(col, rtype) {
+  const sab = { patient: {} };
+  manualSpecialFields.sab = sab;
+
+  // ── Kit + Excel import ────────────────────────────────────────────────
+  const importCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-file-import" }), " Import from SAB Excel"])]);
+  const kitSelect = el("select", {}, SAB_KIT_NAMES.map(k => el("option", { value: k }, k)));
+  sab.kitSelect = kitSelect;
+  const importStatus = el("span", { style: "font-size:11px; color:var(--text-muted);" }, "");
+  const sabFileInput = el("input", { type: "file", accept: ".xlsx,.xls", class: "hidden" });
+  const importBtn = el("button", { class: "btn-sm btn-outline", type: "button", onclick: () => sabFileInput.click() },
+    [el("i", { class: "fas fa-upload" }), " Browse Excel…"]);
+  sabFileInput.addEventListener("change", async () => {
+    if (!sabFileInput.files.length) return;
+    importStatus.textContent = "Parsing…";
+    try {
+      const fd = new FormData();
+      fd.append("file", sabFileInput.files[0]);
+      fd.append("kit", sabKitId(kitSelect.value));
+      const r = await fetch("/hla/parse-sab-excel", { method: "POST", body: fd });
+      if (!r.ok) {
+        let msg = await r.text();
+        try { msg = JSON.parse(msg).detail || msg; } catch (_) { /* not JSON */ }
+        throw new Error(msg);
+      }
+      const data = await r.json();
+      applySabImportData(sab, data);
+      importStatus.textContent = "Imported: " + sabFileInput.files[0].name;
+      showToast("SAB Excel imported successfully.", "success");
+    } catch (e) {
+      importStatus.textContent = "";
+      showToast("SAB import error: " + e.message, "error");
+    }
+  });
+  importCard.appendChild(el("div", { style: "display:flex; align-items:center; gap:10px; flex-wrap:wrap;" }, [
+    el("div", { class: "field" }, [el("label", {}, "Kit"), kitSelect]),
+    importBtn, sabFileInput, importStatus,
+  ]));
+  col.appendChild(importCard);
+
+  // ── Patient Information ──────────────────────────────────────────────
+  const patCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-user" }), " Patient Information"])]);
+  const patGrid = el("div", { class: "field-grid" });
+  const SAB_PAT_FIELDS = [
+    ["patient_name", "Patient Name *", ""], ["gender_age", "Gender / Age", ""],
+    ["hospital_mr_no", "Hospital MR No", "NA"], ["specimen", "Specimen", "Serum"],
+    ["hospital_clinic", "Hospital / Clinic", ""], ["pin", "PIN", ""],
+    ["sample_number", "Sample Number", ""], ["collection_date", "Sample Collection Date (DD-MM-YYYY)", ""],
+    ["receipt_date", "Sample Receipt Date (DD-MM-YYYY)", ""], ["report_date", "Report Date (DD-MM-YYYY)", ""],
+  ];
+  SAB_PAT_FIELDS.forEach(([key, label, def]) => {
+    const input = el("input", { type: "text", value: def, oninput: scheduleManualPreview });
+    sab.patient[key] = input;
+    patGrid.appendChild(el("div", { class: "field" }, [el("label", {}, label), input]));
+  });
+  patCard.appendChild(patGrid);
+  col.appendChild(patCard);
+
+  // ── SAB Class + % PRA ────────────────────────────────────────────────
+  const classCard = el("div", { class: "card" }, [el("h3", {}, "SAB Class &amp; % PRA")]);
+  const classSelect = el("select", {}, [el("option", { value: "I" }, "I"), el("option", { value: "II" }, "II")]);
+  classSelect.value = rtype === "sab_class2" ? "II" : "I";
+  sab.classSelect = classSelect;
+  const praInput = el("input", { type: "text", placeholder: "e.g. 79  -> fills Remarks & Comments" });
+  sab.praInput = praInput;
+  classCard.appendChild(el("div", { class: "field-grid" }, [
+    el("div", { class: "field" }, [el("label", {}, "SAB Class"), classSelect]),
+    el("div", { class: "field" }, [el("label", {}, "% PRA"), praInput]),
+  ]));
+  col.appendChild(classCard);
+
+  // ── Remarks / Comments ───────────────────────────────────────────────
+  const remCard = el("div", { class: "card" }, [el("h3", {}, "Remarks / Comments")]);
+  const remarksInput = el("textarea", { oninput: scheduleManualPreview });
+  const commentsInput = el("textarea", { oninput: scheduleManualPreview });
+  sab.patient.remarks = remarksInput;
+  sab.patient.comments = commentsInput;
+  remCard.appendChild(el("div", { class: "field-grid" }, [
+    el("div", { class: "field full" }, [el("label", {}, "Remarks"), remarksInput]),
+    el("div", { class: "field full" }, [el("label", {}, "Comments"), commentsInput]),
+  ]));
+  col.appendChild(remCard);
+
+  const refreshPra = () => {
+    applySabPraToRemarksComments(praInput.value, classSelect.value, remarksInput, commentsInput);
+    scheduleManualPreview();
+  };
+  praInput.addEventListener("input", refreshPra);
+  classSelect.addEventListener("change", refreshPra);
+
+  // ── Allele Data ───────────────────────────────────────────────────────
+  const alleleCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-vial" }), " Allele Data (one per line: Allele,MFI)"])]);
+  const alleleTextarea = el("textarea", {
+    placeholder: "A*01:01,2126\nA*36:01,992\nDQA1*01:01, DQB1*05:01,1755",
+    style: "min-height:140px; font-family:'Courier New',monospace; font-size:11px;",
+    oninput: scheduleManualPreview,
+  });
+  sab.alleleTextarea = alleleTextarea;
+  alleleCard.appendChild(el("div", { class: "field full" }, [alleleTextarea]));
+  col.appendChild(alleleCard);
+
+  // ── Bead Specificity Chart ───────────────────────────────────────────
+  const chartCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-chart-bar" }), " Bead Specificity Chart"])]);
+  const chartStatus = el("span", { style: "font-size:11px; color:var(--text-muted);" }, "No chart uploaded.");
+  sab.chartStatus = chartStatus;
+  const chartFileInput = el("input", { type: "file", accept: "image/*", class: "hidden" });
+  const chartBtn = el("button", { class: "btn-sm btn-outline", type: "button", onclick: () => chartFileInput.click() },
+    [el("i", { class: "fas fa-upload" }), " Upload Chart Image"]);
+  chartFileInput.addEventListener("change", () => {
+    if (!chartFileInput.files.length) return;
+    const file = chartFileInput.files[0];
+    const reader = new FileReader();
+    reader.onload = () => {
+      sab.chartBytes = reader.result.split(",")[1];
+      chartStatus.textContent = "Uploaded: " + file.name;
+      scheduleManualPreview();
+    };
+    reader.readAsDataURL(file);
+  });
+  chartCard.appendChild(el("div", { style: "display:flex; align-items:center; gap:10px;" }, [chartBtn, chartFileInput, chartStatus]));
+  col.appendChild(chartCard);
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // MANUAL TAB — CASE COLLECTION
 // ══════════════════════════════════════════════════════════════════════════
@@ -531,8 +739,8 @@ function collectAlleles(hlaFieldsObj) {
 
 function collectManualCase() {
   const rtype = state.rtype;
-  const nabl = checked(document.getElementById("man_nabl"));
-  const stamp = checked(document.getElementById("man_stamp"));
+  const nabl = checked(document.getElementById("globalNablChk"));
+  const stamp = checked(document.getElementById("globalStampChk"));
 
   let patient, donors = [];
 
@@ -638,6 +846,27 @@ function collectManualCase() {
       c.pra_percentage = val(pra.result.pra_percentage); c.pra_result = val(pra.result.pra_result);
       c.pra_class = rtype === "pra_class2" ? "II" : "I";
     }
+    return c;
+  }
+
+  if (rtype === "sab_class1" || rtype === "sab_class2") {
+    const sab = manualSpecialFields.sab || { patient: {} };
+    patient = emptyPerson({
+      name: val(sab.patient.patient_name), gender_age: val(sab.patient.gender_age),
+      hospital_mr_no: val(sab.patient.hospital_mr_no) || "NA", specimen: val(sab.patient.specimen) || "Serum",
+      hospital_clinic: val(sab.patient.hospital_clinic), pin: val(sab.patient.pin),
+      sample_number: val(sab.patient.sample_number), collection_date: val(sab.patient.collection_date),
+      receipt_date: val(sab.patient.receipt_date), report_date: val(sab.patient.report_date),
+      remarks: val(sab.patient.remarks),
+    });
+    patient.comments = val(sab.patient.comments);
+    const c = {
+      report_type: rtype, nabl, with_logo: state.withLogo, signature_stamp: stamp,
+      patient, donors: [], rpl_reference: {},
+      sab_alleles: parseSabAlleleTextLocal(sab.alleleTextarea ? sab.alleleTextarea.value : ""),
+      sab_chart_bytes: sab.chartBytes || null,
+      sab_class: sab.classSelect ? sab.classSelect.value : (rtype === "sab_class2" ? "II" : "I"),
+    };
     return c;
   }
 
@@ -796,7 +1025,10 @@ function initBulkTab() {
   fi.addEventListener("change", updateDzLabel);
 
   function updateDzLabel() {
-    if (fi.files.length) dz.innerHTML = `<i class="fas fa-file-excel"></i> ${fi.files[0].name}`;
+    if (fi.files.length) {
+      document.getElementById("bulkDropzoneLabel").innerHTML =
+        `<i class="fas fa-file-excel"></i> ${fi.files[0].name}`;
+    }
   }
 
   document.getElementById("bulkParseBtn").addEventListener("click", parseBulkExcel);
@@ -811,19 +1043,81 @@ function initBulkTab() {
   });
   document.getElementById("bulkGenAllBtn").addEventListener("click", () => generateBulk(false));
   document.getElementById("bulkGenSelectedBtn").addEventListener("click", () => generateBulk(true));
+
+  const sabKitSelect = document.getElementById("bulkSabKitSelect");
+  SAB_KIT_NAMES.forEach(k => sabKitSelect.appendChild(el("option", { value: k }, k)));
+  const sabFileInput = document.getElementById("bulkSabFileInput");
+  document.getElementById("bulkSabImportBtn").addEventListener("click", () => sabFileInput.click());
+  sabFileInput.addEventListener("change", () => importBulkSabExcel(sabFileInput, sabKitSelect));
+}
+
+async function importBulkSabExcel(sabFileInput, sabKitSelect) {
+  if (!sabFileInput.files.length) return;
+  const statusEl = document.getElementById("bulkSabImportStatus");
+  statusEl.textContent = "Parsing…";
+  try {
+    const fd = new FormData();
+    fd.append("file", sabFileInput.files[0]);
+    fd.append("kit", sabKitId(sabKitSelect.value));
+    const r = await fetch("/hla/parse-sab-excel", { method: "POST", body: fd });
+    if (!r.ok) {
+      let msg = await r.text();
+      try { msg = JSON.parse(msg).detail || msg; } catch (_) { /* not JSON */ }
+      throw new Error(msg);
+    }
+    const data = await r.json();
+    const sabClass = data.sab_class || "I";
+    const fields = data.patient || {};
+    const patient = emptyPerson({
+      name: fields.patient_name || "", gender_age: fields.gender_age || "",
+      hospital_mr_no: fields.hospital_mr_no || "NA", specimen: fields.specimen || "Serum",
+      hospital_clinic: fields.hospital_clinic || "", pin: fields.pin || "",
+      sample_number: fields.sample_number || "", collection_date: fields.collection_date || "",
+      receipt_date: fields.receipt_date || "", report_date: fields.report_date || "",
+    });
+    patient.comments = "";
+    if (data.pra_pct != null) {
+      const sentence = sabPraSentence(String(data.pra_pct), sabClass);
+      patient.remarks = sentence;
+      patient.comments = sentence;
+    }
+    const newCase = {
+      report_type: sabClass === "II" ? "sab_class2" : "sab_class1",
+      nabl: checked(document.getElementById("globalNablChk")),
+      with_logo: state.withLogo,
+      signature_stamp: checked(document.getElementById("globalStampChk")),
+      patient, donors: [], rpl_reference: {},
+      sab_alleles: data.alleles || [],
+      sab_chart_bytes: data.chart_bytes || null,
+      sab_class: sabClass,
+    };
+    state.bulkCases.push(newCase);
+    state.bulkSelected.add(state.bulkCases.length - 1);
+    renderBulkList();
+    selectBulkCase(state.bulkCases.length - 1);
+    statusEl.textContent = "Imported: " + sabFileInput.files[0].name;
+    showToast("SAB case added to bulk list.", "success");
+  } catch (e) {
+    statusEl.textContent = "";
+    showToast("SAB import error: " + e.message, "error");
+  }
 }
 
 async function parseBulkExcel() {
   const fi = document.getElementById("bulkFileInput");
   if (!fi.files.length) { showToast("Please select an Excel file first.", "error"); return; }
-  const nabl = checked(document.getElementById("bulkNablChk"));
+  const nabl = checked(document.getElementById("globalNablChk"));
   const fd = new FormData();
   fd.append("file", fi.files[0]);
   fd.append("nabl", nabl);
   try {
     showToast("Parsing Excel file…");
     const r = await fetch("/hla/parse-excel", { method: "POST", body: fd });
-    if (!r.ok) throw new Error(await r.text());
+    if (!r.ok) {
+      let msg = await r.text();
+      try { msg = JSON.parse(msg).detail || msg; } catch (_) { /* not JSON, use raw text */ }
+      throw new Error(msg);
+    }
     const data = await r.json();
     state.bulkCases = data.cases || [];
     state.bulkSelected = new Set(state.bulkCases.map((_, i) => i));
@@ -831,7 +1125,13 @@ async function parseBulkExcel() {
     renderBulkList();
     showToast(`Parsed ${state.bulkCases.length} case(s).`, "success");
   } catch (e) {
-    showToast("Parse error: " + e.message, "error");
+    showToast("Parse error — see details below.", "error");
+    const listEl = document.getElementById("bulkCaseList");
+    listEl.innerHTML = "";
+    listEl.appendChild(el("div", { style: "padding:14px; font-size:11.5px; color:var(--danger); line-height:1.5;" }, [
+      el("i", { class: "fas fa-exclamation-triangle", style: "margin-right:6px;" }),
+      e.message,
+    ]));
   }
 }
 
@@ -849,7 +1149,6 @@ function renderBulkList() {
     const item = el("div", { class: "case-item" + (i === state.bulkCurrentIndex ? " selected" : ""), onclick: () => selectBulkCase(i) }, [
       el("input", { type: "checkbox", onclick: (e) => { e.stopPropagation(); toggleBulkSelect(i, e.target.checked); }, checked: state.bulkSelected.has(i) ? "checked" : null }),
       el("span", { class: "ci-name" }, name),
-      el("span", { class: "ci-type" }, c.report_type || ""),
     ]);
     listEl.appendChild(item);
   });
@@ -861,9 +1160,86 @@ function toggleBulkSelect(i, isChecked) {
 
 function selectBulkCase(i) {
   state.bulkCurrentIndex = i;
+  const c = state.bulkCases[i];
+  const tplName = c && RTYPE_TO_TEMPLATE_NAME[c.report_type];
+  if (tplName) {
+    document.getElementById("templateSelect").value = tplName;
+  }
   renderBulkList();
   renderBulkEditor(i);
   previewBulkCase(i);
+}
+
+function renderBulkSabEditor(editCol, c) {
+  const p = c.patient || {};
+
+  const patCard = el("div", { class: "card" }, [el("h3", {}, "Patient Information")]);
+  const patGrid = el("div", { class: "field-grid" });
+  const SAB_BULK_FIELDS = [
+    ["name", "Patient Name"], ["gender_age", "Gender / Age"], ["hospital_mr_no", "Hospital MR No"],
+    ["specimen", "Specimen"], ["hospital_clinic", "Hospital / Clinic"], ["pin", "PIN"],
+    ["sample_number", "Sample Number"], ["collection_date", "Collection Date"],
+    ["receipt_date", "Receipt Date"], ["report_date", "Report Date"],
+  ];
+  SAB_BULK_FIELDS.forEach(([key, label]) => {
+    const input = el("input", { type: "text", value: p[key] || "" });
+    input.addEventListener("input", () => { p[key] = input.value; });
+    patGrid.appendChild(el("div", { class: "field" }, [el("label", {}, label), input]));
+  });
+  patCard.appendChild(patGrid);
+  editCol.appendChild(patCard);
+
+  const classCard = el("div", { class: "card" }, [el("h3", {}, "SAB Class &amp; % PRA")]);
+  const classSelect = el("select", {}, [el("option", { value: "I" }, "I"), el("option", { value: "II" }, "II")]);
+  classSelect.value = c.sab_class || "I";
+  classSelect.addEventListener("change", () => {
+    c.sab_class = classSelect.value;
+    c.report_type = classSelect.value === "II" ? "sab_class2" : "sab_class1";
+    renderBulkList();
+  });
+  classCard.appendChild(el("div", { class: "field" }, [el("label", {}, "SAB Class"), classSelect]));
+  editCol.appendChild(classCard);
+
+  const remCard = el("div", { class: "card" }, [el("h3", {}, "Remarks / Comments")]);
+  const remarksInput = el("textarea", { value: p.remarks || "" });
+  remarksInput.value = p.remarks || "";
+  remarksInput.addEventListener("input", () => { p.remarks = remarksInput.value; });
+  const commentsInput = el("textarea", {});
+  commentsInput.value = p.comments || "";
+  commentsInput.addEventListener("input", () => { p.comments = commentsInput.value; });
+  remCard.appendChild(el("div", { class: "field-grid" }, [
+    el("div", { class: "field full" }, [el("label", {}, "Remarks"), remarksInput]),
+    el("div", { class: "field full" }, [el("label", {}, "Comments"), commentsInput]),
+  ]));
+  editCol.appendChild(remCard);
+
+  const alleleCard = el("div", { class: "card" }, [el("h3", {}, "Allele Data (one per line: Allele,MFI)")]);
+  const alleleTextarea = el("textarea", { style: "min-height:140px; font-family:'Courier New',monospace; font-size:11px;" });
+  alleleTextarea.value = (c.sab_alleles || []).map(([a, m]) => `${a},${m}`).join("\n");
+  alleleTextarea.addEventListener("input", () => {
+    c.sab_alleles = parseSabAlleleTextLocal(alleleTextarea.value);
+  });
+  alleleCard.appendChild(el("div", { class: "field full" }, [alleleTextarea]));
+  editCol.appendChild(alleleCard);
+
+  const chartCard = el("div", { class: "card" }, [el("h3", {}, "Bead Specificity Chart")]);
+  const chartStatus = el("span", { style: "font-size:11px; color:var(--text-muted);" },
+    c.sab_chart_bytes ? "Chart attached." : "No chart uploaded.");
+  const chartFileInput = el("input", { type: "file", accept: "image/*", class: "hidden" });
+  const chartBtn = el("button", { class: "btn-sm btn-outline", type: "button", onclick: () => chartFileInput.click() },
+    [el("i", { class: "fas fa-upload" }), " Upload Chart Image"]);
+  chartFileInput.addEventListener("change", () => {
+    if (!chartFileInput.files.length) return;
+    const file = chartFileInput.files[0];
+    const reader = new FileReader();
+    reader.onload = () => {
+      c.sab_chart_bytes = reader.result.split(",")[1];
+      chartStatus.textContent = "Uploaded: " + file.name;
+    };
+    reader.readAsDataURL(file);
+  });
+  chartCard.appendChild(el("div", { style: "display:flex; align-items:center; gap:10px;" }, [chartBtn, chartFileInput, chartStatus]));
+  editCol.appendChild(chartCard);
 }
 
 function renderBulkEditor(i) {
@@ -871,6 +1247,15 @@ function renderBulkEditor(i) {
   editCol.innerHTML = "";
   const c = state.bulkCases[i];
   if (!c) return;
+
+  if (c.report_type === "sab_class1" || c.report_type === "sab_class2") {
+    renderBulkSabEditor(editCol, c);
+    editCol.appendChild(el("div", { style: "display:flex; gap:8px; margin-top:8px;" }, [
+      el("button", { class: "btn-sm btn-primary", onclick: () => previewBulkCase(i) }, [el("i", { class: "fas fa-sync" }), " Refresh Preview"]),
+    ]));
+    return;
+  }
+
   const p = c.patient || {};
 
   const card = el("div", { class: "card" }, [el("h3", {}, "Patient Information")]);
@@ -955,7 +1340,7 @@ async function generateBulk(selectedOnly) {
   const cases = indices.map(i => state.bulkCases[i]);
   const outputDir = val(document.getElementById("bulkOutputInput"));
   const withLogo = checked(document.getElementById("bulkLogoChk"));
-  const stamp = checked(document.getElementById("bulkStampChk"));
+  const stamp = checked(document.getElementById("globalStampChk"));
 
   const progWrap = document.getElementById("bulkProgressWrap");
   const progBar = document.getElementById("bulkProgressBar");

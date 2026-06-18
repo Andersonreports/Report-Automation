@@ -1366,12 +1366,18 @@ if _hla_ok:
 
 @app.get("/hla")
 @app.get("/hla.html")
-def hla_page(): return _serve("hla.html")
+def hla_page():
+    p = os.path.join(FRONTEND_DIR, "hla.html")
+    if os.path.exists(p):
+        return FileResponse(p, media_type="text/html",
+                            headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
+    raise HTTPException(404, "hla.html not found")
 
 
 @app.get("/hla.js")
 def hla_js():
     p = os.path.join(FRONTEND_DIR, "hla.js")
     if os.path.exists(p):
-        return FileResponse(p, media_type="application/javascript")
+        return FileResponse(p, media_type="application/javascript",
+                            headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
     raise HTTPException(404, "hla.js not found")

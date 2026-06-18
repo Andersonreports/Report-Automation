@@ -14,6 +14,7 @@ import shutil
 import traceback
 from typing import Optional
 
+import pandas as pd
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 
@@ -22,6 +23,7 @@ from hla_data_parser import (
     parse_excel, get_case_summary,
     c_supertype, compute_rpl_reference,
 )
+from hla_sab_parser import parse_sab_excel, parse_sab_allele_text, sab_pra_sentence
 import hla_assets
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
@@ -30,9 +32,10 @@ HLA_REPORT_DIR = os.path.join(_BASE, "reports-hla")
 HLA_TEMP_DIR   = os.path.join(_BASE, "temp")
 HLA_DRAFT_DIR  = os.path.join(_BASE, "drafts", "HLA")
 HLA_UPLOAD_DIR = os.path.join(_BASE, "uploads", "hla_excel")
+HLA_SAB_UPLOAD_DIR = os.path.join(_BASE, "uploads", "hla_sab_excel")
 HLA_SETTINGS_FILE = os.path.join(_BASE, "drafts", "HLA", "hla_settings.json")
 
-for d in (HLA_REPORT_DIR, HLA_TEMP_DIR, HLA_DRAFT_DIR, HLA_UPLOAD_DIR):
+for d in (HLA_REPORT_DIR, HLA_TEMP_DIR, HLA_DRAFT_DIR, HLA_UPLOAD_DIR, HLA_SAB_UPLOAD_DIR):
     os.makedirs(d, exist_ok=True)
 
 router = APIRouter(prefix="/hla", tags=["hla"])
@@ -119,6 +122,19 @@ def _get_sig_counts() -> dict:
     counts = dict(DEFAULT_SIG_COUNTS)
     counts.update(s.get("sig_counts", {}))
     return counts
+
+
+# ── Base64 decode helper (sab_chart_bytes arrives from the browser as base64) ─
+
+def _decode_case_binary_fields(case: dict) -> None:
+    """In-place: decode base64-encoded binary fields back to raw bytes
+    before handing the case dict to generate_pdf()."""
+    chart_b64 = case.get("sab_chart_bytes")
+    if isinstance(chart_b64, str) and chart_b64:
+        try:
+            case["sab_chart_bytes"] = base64.b64decode(chart_b64)
+        except Exception:
+            case["sab_chart_bytes"] = None
 
 
 # ── Signatory assembly (mirrors GenerateWorker logic) ─────────────────────────
@@ -219,6 +235,7 @@ async def preview(request_body: dict):
     sig_stamp    = case.get("signature_stamp", settings.get("signature_stamp", False))
 
     c = copy.deepcopy(case)
+    _decode_case_binary_fields(c)
     c["signatories"]  = _build_signatories(rtype, nabl, sig_counts, signatories,
                                             c.pop("sig_name_overrides", {}))
     if sig_stamp and any("rayvathy" in s["name"].lower() for s in c["signatories"]):
@@ -260,6 +277,7 @@ async def generate(request_body: dict):
     sig_stamp   = case.get("signature_stamp", settings.get("signature_stamp", False))
 
     c = copy.deepcopy(case)
+    _decode_case_binary_fields(c)
     c["signatories"] = _build_signatories(rtype, nabl, sig_counts, signatories,
                                            c.pop("sig_name_overrides", {}))
     if sig_stamp and any("rayvathy" in s["name"].lower() for s in c["signatories"]):
@@ -296,13 +314,14 @@ async def generate_bulk(request_body: dict):
 
     for case in cases:
         c = copy.deepcopy(case)
+        _decode_case_binary_fields(c)
         c["with_logo"]       = with_logo
         c["signature_stamp"] = sig_stamp
         rtype = c.get("report_type", "single_hla")
         nabl  = c.get("nabl", True)
 
-        # Skip Insufficient Data cases
-        if _has_insufficient_data(c.get("patient", {})):
+        # Skip Insufficient Data cases (not applicable to SAB, which carries no HLA alleles)
+        if rtype not in ("sab_class1", "sab_class2") and _has_insufficient_data(c.get("patient", {})):
             failed.append({"filename": c.get("patient", {}).get("name", "?"), "error": "Insufficient Data"})
             continue
 
@@ -338,6 +357,19 @@ async def parse_excel_file(
         with open(tmp_path, "wb") as f:
             f.write(content)
         cases = parse_excel(tmp_path, nabl=nabl)
+        if not cases:
+            try:
+                sheet_names = pd.ExcelFile(tmp_path).sheet_names
+            except Exception:
+                sheet_names = []
+            raise HTTPException(
+                400,
+                "No HLA cases could be recognised in this file. Sheets found: "
+                f"{', '.join(sheet_names) or 'none'}. Expected an HLA typing export "
+                "('patient-donor detail' + 'result data'/'complete csv data' sheets), "
+                "or a CDC/DSA/Flow/Luminex/PRA/KIR crossmatch workbook — check the "
+                "filename/sheet layout matches one of the supported formats (see User Guide).",
+            )
         summary = get_case_summary(cases)
         # Serialize: convert any bytes (photo_bytes) to base64
         serialized = []
@@ -355,6 +387,8 @@ async def parse_excel_file(
                         c["patient"]["photo_bytes"] = base64.b64encode(pb).decode()
             serialized.append(c)
         return {"cases": serialized, "summary": summary}
+    except HTTPException:
+        raise
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(500, str(e))
@@ -372,6 +406,49 @@ async def compute_rpl(request_body: dict):
     donor   = request_body.get("donor", {})
     ref     = compute_rpl_reference(patient, donor)
     return ref
+
+
+@router.post("/parse-sab-excel")
+async def parse_sab_excel_file(
+    file: UploadFile = File(...),
+    kit: str = Form("kit1"),
+):
+    """Parse a single-patient SAB Class I/II Excel workbook (Immucor/One Lambda).
+
+    Returns {patient, alleles, chart_bytes (base64 or None), pra_pct, sab_class}.
+    """
+    tmp_path = os.path.join(HLA_SAB_UPLOAD_DIR, file.filename or "sab_upload.xlsx")
+    try:
+        content = await file.read()
+        with open(tmp_path, "wb") as f:
+            f.write(content)
+        data = parse_sab_excel(tmp_path, kit=kit)
+        chart_bytes = data.get("chart_bytes")
+        return {
+            "patient":     data.get("patient", {}),
+            "alleles":     data.get("alleles", []),
+            "chart_bytes": base64.b64encode(chart_bytes).decode() if chart_bytes else None,
+            "pra_pct":     data.get("pra_pct"),
+            "sab_class":   data.get("sab_class"),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(500, f"Failed to parse SAB Excel file: {e}")
+    finally:
+        if os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
+
+
+@router.post("/parse-sab-allele-text")
+async def parse_sab_allele_text_endpoint(request_body: dict):
+    """Parse a free-text allele/MFI paste (one 'Allele,MFI' pair per line)."""
+    text = request_body.get("text", "")
+    return {"alleles": parse_sab_allele_text(text)}
 
 
 @router.post("/c-supertype")
