@@ -280,16 +280,43 @@ function buildDonorCard(prefix, fieldsRef, hlaFieldsRef, title = "Donor Informat
   return card;
 }
 
+async function browseOutputFolder(inputEl, btnEl) {
+  const originalHtml = btnEl.innerHTML;
+  btnEl.disabled = true;
+  btnEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Waiting…';
+  try {
+    const r = await fetch(API + "/open-folder-dialog");
+    const d = await r.json();
+    if (d.path) {
+      inputEl.value = d.path;
+      scheduleManualPreview();
+    } else {
+      inputEl.focus();
+    }
+  } catch (e) {
+    showToast("Could not open the folder dialog. Type the path manually.", "error");
+    inputEl.focus();
+  } finally {
+    btnEl.disabled = false;
+    btnEl.innerHTML = originalHtml;
+  }
+}
+
 function buildGenBar(onGenerate) {
   const outputInput = el("input", { type: "text", id: "manualOutputInput", placeholder: "Output folder (leave blank for default backend/reports-hla)", style: "flex:1; padding:7px 10px; border:1px solid var(--input-border); border-radius:6px; font-size:11px;" });
-  const bar = el("div", { class: "gen-bar" }, [
+  const browseBtn = el("button", { class: "btn-folder-sm" }, [el("i", { class: "fas fa-folder-open" }), " Browse"]);
+  browseBtn.addEventListener("click", () => browseOutputFolder(outputInput, browseBtn));
+  const row1 = el("div", { class: "gen-bar" }, [
     outputInput,
+    browseBtn,
     el("button", { class: "btn-sm btn-primary", onclick: onGenerate }, [el("i", { class: "fas fa-file-pdf" }), " Generate Report"]),
+  ]);
+  const row2 = el("div", { class: "gen-bar" }, [
     el("button", { class: "btn-sm btn-outline", onclick: () => saveDraft("manual") }, [el("i", { class: "fas fa-save" }), " Save Draft"]),
     el("button", { class: "btn-sm btn-outline", onclick: () => loadDraft("manual") }, [el("i", { class: "fas fa-folder-open" }), " Load Draft"]),
     el("button", { class: "btn-sm btn-danger-outline", onclick: () => renderManualForm() }, [el("i", { class: "fas fa-eraser" }), " Clear Form"]),
   ]);
-  return bar;
+  return el("div", {}, [row1, row2]);
 }
 
 // Per-template field registries — rebuilt every render

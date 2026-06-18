@@ -4015,24 +4015,61 @@
         });
         const data = await res.json(); if (data.error) throw new Error(data.error);
         progressFill.style.width = "100%"; progressText.textContent = "Complete!";
+
+        const files = [];
+        if (data.results?.pdf) files.push(data.results.pdf);
+        if (data.results?.docx) files.push(data.results.docx);
+
         box.className = "result-box success"; box.style.display = "block";
-        let links = "";
-        if (data.results?.pdf) links += `<a class="download-link" href="${data.results.pdf.url}" target="_blank" download> Download PDF</a> `;
-        if (data.results?.docx) links += `<a class="download-link" href="${data.results.docx.url}" target="_blank" download style="background:#2b579a;"> Download DOCX</a>`;
-        const savedMsg = _dirHandles["manualOutputDir"] ? `<br><small>Saved to: ${document.getElementById("manualOutputDir").value}</small>` : "";
-        box.innerHTML = ` <strong>Report generated!</strong>${savedMsg}<br>${links}`;
-        // Auto-save to chosen local folder using local_url (same-origin, always valid)
-        const saveToDir = async (localUrl, filename) => {
+        box.innerHTML = ` <strong>Report generated!</strong><br><small>Downloading…</small>`;
+
+        const dirHandle = _dirHandles["manualOutputDir"];
+        let downloadedCount = 0;
+        let wroteToFolder = files.length > 0;
+
+        for (const f of files) {
+          // Force a real download via the server's Content-Disposition: attachment header —
+          // this is honored by every browser (Chrome, Firefox, Edge) regardless of origin or
+          // the browser's own PDF-viewer settings, unlike the client-side `download` attribute.
           try {
-            const resp = await fetch(`${BASE}${localUrl}`); const blob = await resp.blob();
-            await saveFileToDir("manualOutputDir", blob, filename);
-          } catch(e) { console.warn("Auto-save to folder failed:", e); }
-        };
-        if (_dirHandles["manualOutputDir"]) {
-          if (data.results?.pdf) saveToDir(data.results.pdf.local_url, data.results.pdf.file);
-          if (data.results?.docx) saveToDir(data.results.docx.local_url, data.results.docx.file);
+            const a = document.createElement("a");
+            a.href = `${BASE}${f.download_url}`; a.download = f.file;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            downloadedCount++;
+          } catch (e) {
+            console.error(`Could not trigger download for ${f.file}:`, e);
+          }
+
+          // Best-effort: also write a copy directly into the folder picked via "Select Output
+          // Folder" (only possible when the browser granted a real directory handle).
+          if (dirHandle) {
+            try {
+              const resp = await fetch(`${BASE}${f.url}`);
+              if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+              const blob = await resp.blob();
+              const fileHandle = await dirHandle.getFileHandle(f.file, { create: true });
+              const writable = await fileHandle.createWritable();
+              await writable.write(blob);
+              await writable.close();
+            } catch (e) {
+              console.warn(`Could not write ${f.file} into the selected folder:`, e);
+              wroteToFolder = false;
+            }
+          } else {
+            wroteToFolder = false;
+          }
         }
-        showToast("Report generated!", "success");
+
+        if (downloadedCount === 0) {
+          box.className = "result-box error";
+          box.innerHTML = ` <strong>Report generated, but the download failed.</strong><br><small>Check your network connection / console and try again.</small>`;
+          showToast("Report generated, but download failed — see console.", "error");
+        } else {
+          box.innerHTML = (dirHandle && wroteToFolder)
+            ? ` <strong>Report generated!</strong><br><small>Downloaded, and saved to: ${document.getElementById("manualOutputDir").value}</small>`
+            : ` <strong>Report generated!</strong><br><small>Downloaded to your browser's Downloads folder${dirHandle ? " (could not also write into the selected folder — check console for details)" : ""}.</small>`;
+          showToast("Report generated!", "success");
+        }
       } catch (err) {
         progressFill.style.width = "100%"; progressFill.style.background = "#ef4444"; progressText.textContent = "Failed";
         box.className = "result-box error"; box.style.display = "block";
@@ -5694,8 +5731,8 @@
               } catch(e) { console.warn("Local save failed for", filename, e); }
             };
             const saves = [];
-            if (data.results?.pdf)  saves.push(saveLocal(data.results.pdf.local_url,  data.results.pdf.file));
-            if (data.results?.docx) saves.push(saveLocal(data.results.docx.local_url, data.results.docx.file));
+            if (data.results?.pdf)  saves.push(saveLocal(data.results.pdf.url,  data.results.pdf.file));
+            if (data.results?.docx) saves.push(saveLocal(data.results.docx.url, data.results.docx.file));
             await Promise.all(saves);
           }
           // Save generated report metadata to localStorage
