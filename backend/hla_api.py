@@ -126,15 +126,31 @@ def _get_sig_counts() -> dict:
 
 # ── Base64 decode helper (sab_chart_bytes arrives from the browser as base64) ─
 
-def _decode_case_binary_fields(case: dict) -> None:
-    """In-place: decode base64-encoded binary fields back to raw bytes
-    before handing the case dict to generate_pdf()."""
-    chart_b64 = case.get("sab_chart_bytes")
-    if isinstance(chart_b64, str) and chart_b64:
+def _decode_b64_field(obj: dict, key: str) -> None:
+    """In-place decode a base64 string field to bytes."""
+    val = obj.get(key)
+    if isinstance(val, str) and val:
         try:
-            case["sab_chart_bytes"] = base64.b64decode(chart_b64)
+            obj[key] = base64.b64decode(val)
         except Exception:
-            case["sab_chart_bytes"] = None
+            obj[key] = None
+
+
+def _decode_case_binary_fields(case: dict) -> None:
+    """In-place: decode all base64-encoded binary fields back to raw bytes
+    before handing the case dict to generate_pdf()."""
+    # SAB chart
+    _decode_b64_field(case, "sab_chart_bytes")
+    # Patient photo
+    if isinstance(case.get("patient"), dict):
+        _decode_b64_field(case["patient"], "photo_bytes")
+    # Donor photos
+    for d in case.get("donors", []):
+        if isinstance(d, dict):
+            _decode_b64_field(d, "photo_bytes")
+    # Luminex case-level photos
+    _decode_b64_field(case, "luminex_pat_photo")
+    _decode_b64_field(case, "luminex_don_photo")
 
 
 # ── Signatory assembly (mirrors GenerateWorker logic) ─────────────────────────
@@ -371,20 +387,21 @@ async def parse_excel_file(
                 "filename/sheet layout matches one of the supported formats (see User Guide).",
             )
         summary = get_case_summary(cases)
-        # Serialize: convert any bytes (photo_bytes) to base64
+        # Serialize: convert any bytes fields to base64 for JSON transport
         serialized = []
         for case in cases:
             c = copy.deepcopy(case)
-            for person_key in ("patient", "donors"):
-                if person_key == "donors":
-                    for d in c.get("donors", []):
-                        pb = d.get("photo_bytes")
-                        if pb and isinstance(pb, (bytes, bytearray)):
-                            d["photo_bytes"] = base64.b64encode(pb).decode()
-                else:
-                    pb = c.get("patient", {}).get("photo_bytes")
-                    if pb and isinstance(pb, (bytes, bytearray)):
-                        c["patient"]["photo_bytes"] = base64.b64encode(pb).decode()
+            pat = c.get("patient") or {}
+            if isinstance(pat.get("photo_bytes"), (bytes, bytearray)):
+                pat["photo_bytes"] = base64.b64encode(pat["photo_bytes"]).decode()
+            for d in c.get("donors", []):
+                if isinstance(d.get("photo_bytes"), (bytes, bytearray)):
+                    d["photo_bytes"] = base64.b64encode(d["photo_bytes"]).decode()
+            for lx_key in ("luminex_pat_photo", "luminex_don_photo"):
+                if isinstance(c.get(lx_key), (bytes, bytearray)):
+                    c[lx_key] = base64.b64encode(c[lx_key]).decode()
+            if isinstance(c.get("sab_chart_bytes"), (bytes, bytearray)):
+                c["sab_chart_bytes"] = base64.b64encode(c["sab_chart_bytes"]).decode()
             serialized.append(c)
         return {"cases": serialized, "summary": summary}
     except HTTPException:
