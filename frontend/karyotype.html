@@ -33,11 +33,12 @@
 
     /* Top header */
     .topbar{
-      display:flex; align-items:center; gap:16px;
+      display:flex; align-items:center; justify-content:space-between; gap:16px;
       padding:14px 28px; position:sticky; top:0; z-index:50;
       background:rgba(255,255,255,0.9); backdrop-filter:blur(12px);
       border-bottom:1px solid var(--card-border); box-shadow:0 1px 6px rgba(0,0,0,0.04);
     }
+    .topbar-left{ display:flex; align-items:center; gap:16px; }
     .back-btn{
       display:inline-flex; align-items:center; gap:8px;
       background:var(--primary); border:1px solid transparent; border-radius:7px;
@@ -45,17 +46,12 @@
       text-decoration:none; transition:.15s; cursor:pointer;
     }
     .back-btn:hover{ background:var(--primary-hover); }
-    .rp-icon{ width:44px;height:44px;border-radius:12px;
-      background:linear-gradient(135deg,var(--primary),#4F81BD);
-      display:flex;align-items:center;justify-content:center;box-shadow:0 4px 14px rgba(31,73,125,.25);}
-    .rp-icon i{ font-size:20px;color:#fff;}
     .rp-title h2{ font-size:20px;font-weight:800;letter-spacing:-.3px;
       background:linear-gradient(135deg,#1F497D,#4F81BD);
       -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;}
-    .rp-title .tag{ font-size:10.5px;color:var(--text-muted);font-weight:600;text-transform:uppercase;letter-spacing:1px;margin-top:2px;}
 
     /* Tabs */
-    .tabs{ display:flex; gap:8px; padding:14px 28px 0; }
+    .tabs{ display:flex; gap:8px; }
     .tab{
       padding:9px 22px; border:1px solid var(--card-border); border-radius:8px;
       background:rgba(255,255,255,0.75); color:var(--text-muted);
@@ -304,19 +300,18 @@
 <body>
 
   <div class="topbar">
-    <a class="back-btn" href="index.html"><i class="fas fa-arrow-left"></i> Home</a>
-    <div class="rp-icon"><i class="fas fa-th"></i></div>
-    <div class="rp-title">
-      <h2>Karyotype Report Generator</h2>
-      <div class="tag">Anderson Diagnostics &mdash; Peripheral Blood Karyotyping</div>
+    <div class="topbar-left">
+      <a class="back-btn" href="index.html"><i class="fas fa-arrow-left"></i> Home</a>
+      <div class="rp-title">
+        <h2>Karyotype Report Generator</h2>
+      </div>
     </div>
-  </div>
-
-  <div class="tabs">
-    <button class="tab active" data-tab="manual"><i class="fas fa-user-edit"></i> Manual Entry</button>
-    <button class="tab" data-tab="bulk"><i class="fas fa-table"></i> Bulk Upload</button>
-    <button class="tab" data-tab="compare"><i class="fas fa-balance-scale"></i> Report Comparison</button>
-    <button class="tab" data-tab="guide"><i class="fas fa-info-circle"></i> User Guide</button>
+    <div class="tabs">
+      <button class="tab active" data-tab="manual"><i class="fas fa-user-edit"></i> Manual Entry</button>
+      <button class="tab" data-tab="bulk"><i class="fas fa-table"></i> Bulk Upload</button>
+      <button class="tab" data-tab="compare"><i class="fas fa-balance-scale"></i> Report Comparison</button>
+      <button class="tab" data-tab="guide"><i class="fas fa-info-circle"></i> User Guide</button>
+    </div>
   </div>
 
   <!-- MANUAL -->

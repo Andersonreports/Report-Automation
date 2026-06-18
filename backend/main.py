@@ -571,7 +571,7 @@ async def pgta_generate(request: Request, background_tasks: BackgroundTasks):
                                               show_logo=show_logo, show_grid=show_grid)
             if upload_pgta_file:
                 background_tasks.add_task(_upload_in_background, fp, fn)
-            results["pdf"] = {"file": fn, "url": f"/reports-pgta/{fn}"}
+            results["pdf"] = {"file": fn, "url": f"/reports-pgta/{fn}", "download_url": f"/pgta/download/{fn}"}
 
         if "docx" in formats:
             fn = base_fn + ".docx"
@@ -580,7 +580,7 @@ async def pgta_generate(request: Request, background_tasks: BackgroundTasks):
                 fp, patient_info, embryos, show_logo=show_logo, show_grid=show_grid)
             if upload_pgta_file:
                 background_tasks.add_task(_upload_in_background, fp, fn)
-            results["docx"] = {"file": fn, "url": f"/reports-pgta/{fn}"}
+            results["docx"] = {"file": fn, "url": f"/reports-pgta/{fn}", "download_url": f"/pgta/download/{fn}"}
 
         for p in tmp_cnv:
             try:
@@ -593,6 +593,18 @@ async def pgta_generate(request: Request, background_tasks: BackgroundTasks):
         import traceback
         traceback.print_exc()
         return {"error": str(e)}
+
+
+@app.get("/pgta/download/{filename}")
+def pgta_download(filename: str):
+    """Force a real file download (Content-Disposition: attachment) instead of letting the
+    browser open PDFs inline in its own viewer."""
+    path = os.path.join(PGTA_REPORT_DIR, os.path.basename(filename))
+    if not os.path.exists(path):
+        raise HTTPException(404, "File not found")
+    media_type = ("application/pdf" if filename.lower().endswith(".pdf")
+                  else "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    return FileResponse(path, media_type=media_type, filename=filename)
 
 
 # ── PGTA Excel parsing ─────────────────────────────────────────────────────────

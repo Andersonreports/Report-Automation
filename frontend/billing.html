@@ -61,6 +61,26 @@
             background: rgba(255, 255, 255, 0.2);
         }
 
+        .home-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: transparent;
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.55);
+            border-radius: 6px;
+            padding: 7px 15px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .home-pill:hover {
+            background: rgba(255, 255, 255, 0.12);
+            border-color: #fff;
+        }
+
         /* Ã¢â€â‚¬Ã¢â€â‚¬ App header Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
         .app-bar {
             background: linear-gradient(135deg, var(--blue), var(--blue2));
@@ -82,20 +102,6 @@
             font-size: .78rem;
             opacity: .8;
             margin-top: 2px;
-        }
-
-        .app-logo {
-            width: 46px;
-            height: 46px;
-            background: var(--orange);
-            border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 900;
-            font-size: 1rem;
-            letter-spacing: 1px;
-            color: #fff;
         }
 
         /* Ã¢â€â‚¬Ã¢â€â‚¬ Two-column layout Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
@@ -871,10 +877,9 @@
     <!-- App Bar -->
     <div class="app-bar">
         <div style="display: flex; align-items: center; gap: 15px;">
-            <div class="app-logo">A</div>
+            <a href="index.html" class="home-pill">&#8592; Home</a>
             <div>
                 <h1>Anderson Research Sample Billing</h1>
-                <p>Anderson Diagnostic Services Internal Generator</p>
             </div>
         </div>
         <div style="display:flex;align-items:center;gap:10px;">
