@@ -701,6 +701,16 @@ function renderManualForm() {
     col.appendChild(interpCard);
   }
 
+  if (rtype === "single_rpl") {
+    const rplRefCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-dna" }), " RPL Reference"])]);
+    const hlaCInput = el("input", { type: "text", placeholder: "e.g. C1, C2 (leave blank to auto-detect from HLA-C alleles)", oninput: scheduleManualPreview });
+    manualSpecialFields.rpl_hla_c = hlaCInput;
+    rplRefCard.appendChild(el("div", { class: "field-grid" }, [
+      el("div", { class: "field full" }, [el("label", {}, "HLA-C Type (Maternal/Paternal)"), hlaCInput]),
+    ]));
+    col.appendChild(rplRefCard);
+  }
+
   if (rtype === "single_locus") {
     const card = el("div", { class: "card" }, [el("h3", {}, "Single Locus Result")]);
     const grid = el("div", { class: "field-grid" });
@@ -1308,6 +1318,9 @@ function collectManualCase() {
 
   const c = { report_type: rtype, nabl, with_logo: state.withLogo, signature_stamp: stamp, patient, donors, rpl_reference: {} };
 
+  if (rtype === "single_rpl" && manualSpecialFields.rpl_hla_c) {
+    c.rpl_reference = { hla_c_patient: manualSpecialFields.rpl_hla_c.value.trim() };
+  }
   if (rtype === "single_locus") {
     // Keys must match hla_template.py: case["locus"], case["sl_allele1"], case["sl_allele2"], case["sl_note"]
     c.locus      = manualSpecialFields.sl_locus   ? manualSpecialFields.sl_locus.value.trim()   : "";
@@ -1650,6 +1663,9 @@ function populateManualForm(c) {
     });
   }
 
+  if (rtype === "single_rpl" && manualSpecialFields.rpl_hla_c) {
+    manualSpecialFields.rpl_hla_c.value = (c.rpl_reference && c.rpl_reference.hla_c_patient) || "";
+  }
   if (rtype === "single_locus") {
     if (manualSpecialFields.sl_locus) manualSpecialFields.sl_locus.value = c.locus || "";
     if (manualSpecialFields.sl_allele1) manualSpecialFields.sl_allele1.value = c.sl_allele1 || "";

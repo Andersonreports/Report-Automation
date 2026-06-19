@@ -2313,7 +2313,8 @@ def _build_single_rpl(case: dict, S: dict) -> list:
             Spacer(1, 3 * mm),
         ]))
 
-    elems.append(Spacer(1, 2 * mm))
+    # ── Page break: page 1 = patient table + reference only ─────────────────
+    elems.append(PageBreak())
 
     # ── Methodology + Background + Disclaimers + Signatures ───────────────────
     methodology_items = _methodology_block(case, S)
