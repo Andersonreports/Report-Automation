@@ -1713,8 +1713,9 @@ function initBulkTab() {
     state.bulkSelected.clear();
     renderBulkList(); updateBulkSelectedCount();
   });
-  document.getElementById("bulkGenAllBtn").addEventListener("click", () => generateBulk(false));
-  document.getElementById("bulkGenSelectedBtn").addEventListener("click", () => generateBulk(true));
+  document.getElementById("bulkGenAllBtn").addEventListener("click", () => generateBulk("all"));
+  document.getElementById("bulkGenSelectedBtn").addEventListener("click", () => generateBulk("selected"));
+  document.getElementById("bulkGenCurrentBtn").addEventListener("click", () => generateBulk("current"));
   const draftFileInput = document.getElementById("bulkDraftFileInput");
   if (draftFileInput) draftFileInput.addEventListener("change", () => _onBulkDraftFileChange(draftFileInput));
 
@@ -2446,8 +2447,16 @@ async function previewBulkCase(i) {
   }
 }
 
-async function generateBulk(selectedOnly) {
-  const indices = selectedOnly ? Array.from(state.bulkSelected) : state.bulkCases.map((_, i) => i);
+async function generateBulk(mode) {
+  let indices;
+  if (mode === "current") {
+    indices = state.bulkCurrentIndex >= 0 && state.bulkCases[state.bulkCurrentIndex] ? [state.bulkCurrentIndex] : [];
+    if (!indices.length) { showToast("No case is currently open.", "error"); return; }
+  } else if (mode === "selected") {
+    indices = Array.from(state.bulkSelected);
+  } else {
+    indices = state.bulkCases.map((_, i) => i);
+  }
   if (!indices.length) { showToast("No cases to generate.", "error"); return; }
   const cases = indices.map(i => state.bulkCases[i]);
   const outputInput = document.getElementById("bulkOutputInput");
