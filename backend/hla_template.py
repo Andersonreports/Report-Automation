@@ -4451,7 +4451,7 @@ def _build_mixed_pra_report(case: dict, S: dict) -> list:
     _section("Comments")
     for _i, _c in enumerate(PRA_COMMENTS, 1):
         elems.append(Paragraph(f"{_i}. {_c}", _num_s))
-    _mpra_user_comment = _clean_display(patient.get("comments", "")) or ""
+    _mpra_user_comment = str(patient.get("comments", "") or "").strip()
     if _mpra_user_comment:
         elems.append(Paragraph(f"{len(PRA_COMMENTS) + 1}. {_mpra_user_comment}", _num_s))
     elems.append(Spacer(1, 5*mm))
