@@ -1872,6 +1872,7 @@ function initBulkTab() {
 
 async function importSabToManual(sabFileInput, sabKitSelect) {
   if (!sabFileInput.files.length) return;
+  const fileName = sabFileInput.files[0].name;
   const statusEl = document.getElementById("bulkSabImportStatus");
   statusEl.textContent = "Parsing…";
   try {
@@ -1894,16 +1895,21 @@ async function importSabToManual(sabFileInput, sabKitSelect) {
     if (manualSpecialFields.sab) {
       applySabImportData(manualSpecialFields.sab, data);
     }
-    statusEl.textContent = "Imported: " + sabFileInput.files[0].name;
+    statusEl.textContent = "Imported: " + fileName;
     showToast("SAB Excel imported into manual form.", "success");
   } catch (e) {
     statusEl.textContent = "";
     showToast("SAB import error: " + e.message, "error");
+  } finally {
+    // Reset the hidden file input so re-selecting the same file (e.g. after a
+    // failed parse) reliably re-fires "change" in every browser.
+    sabFileInput.value = "";
   }
 }
 
 async function importBulkSabExcel(sabFileInput, sabKitSelect) {
   if (!sabFileInput.files.length) return;
+  const fileName = sabFileInput.files[0].name;
   const statusEl = document.getElementById("bulkSabImportStatus");
   statusEl.textContent = "Parsing…";
   try {
@@ -1947,11 +1953,13 @@ async function importBulkSabExcel(sabFileInput, sabKitSelect) {
     state.bulkCurrentIndex = -1;
     renderBulkList();
     selectBulkCase(0);
-    statusEl.textContent = "Imported: " + sabFileInput.files[0].name;
+    statusEl.textContent = "Imported: " + fileName;
     showToast("SAB case loaded into bulk list.", "success");
   } catch (e) {
     statusEl.textContent = "";
     showToast("SAB import error: " + e.message, "error");
+  } finally {
+    sabFileInput.value = "";
   }
 }
 
