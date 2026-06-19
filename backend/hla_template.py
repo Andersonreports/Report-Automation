@@ -1574,11 +1574,14 @@ def _methodology_block(case: dict, S: dict) -> list:
         ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
     ]))
 
-    coverage_block = [
-        Paragraph(f"<b>IMGT/HLA Release</b> {imgt}", S["body"]),
-        Paragraph("<b>Remarks:</b>", S["body"]),
-        cov_table,
-    ]
+    # For loci11 the personal remarks are rendered below the locus table in
+    # _ngs_person_block, so the static "Remarks:" coverage label is omitted to
+    # avoid showing a blank "Remarks:" in the IMGT section.
+    _is_loci11_mb = case.get("report_type") == "loci11"
+    coverage_block = [Paragraph(f"<b>IMGT/HLA Release</b> {imgt}", S["body"])]
+    if not _is_loci11_mb:
+        coverage_block.append(Paragraph("<b>Remarks:</b>", S["body"]))
+    coverage_block.append(cov_table)
 
     # Group 2: Methodology + HR + Typing Status (~40 pt)
     # 11-Loci's reference layout puts the "Methodology:" label on its own line,
