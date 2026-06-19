@@ -996,10 +996,12 @@ function buildSabSection(col, rtype) {
       showToast("SAB import error: " + e.message, "error");
     }
   });
-  importCard.appendChild(el("div", { style: "display:flex; align-items:center; gap:10px; flex-wrap:wrap;" }, [
+  importCard.appendChild(el("div", { style: "display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap;" }, [
     el("div", { class: "field" }, [el("label", {}, "Kit"), kitSelect]),
-    importBtn, sabFileInput, importStatus,
+    el("div", { class: "field" }, [el("label", {}, " "), importBtn]),
+    importStatus,
   ]));
+  importCard.appendChild(sabFileInput);
   col.appendChild(importCard);
 
   // ── Patient Information ──────────────────────────────────────────────
@@ -1021,7 +1023,7 @@ function buildSabSection(col, rtype) {
   col.appendChild(patCard);
 
   // ── SAB Class + % PRA ────────────────────────────────────────────────
-  const classCard = el("div", { class: "card" }, [el("h3", {}, "SAB Class &amp; % PRA")]);
+  const classCard = el("div", { class: "card" }, [el("h3", {}, "SAB Class & % PRA")]);
   const classSelect = el("select", {}, [el("option", { value: "I" }, "I"), el("option", { value: "II" }, "II")]);
   classSelect.value = rtype === "sab_class2" ? "II" : "I";
   sab.classSelect = classSelect;
@@ -2048,7 +2050,7 @@ function renderBulkSabEditor(editCol, c, i) {
   patCard.appendChild(patGrid);
   editCol.appendChild(patCard);
 
-  const classCard = el("div", { class: "card" }, [el("h3", {}, "SAB Class &amp; % PRA")]);
+  const classCard = el("div", { class: "card" }, [el("h3", {}, "SAB Class & % PRA")]);
   const classSelect = el("select", {}, [el("option", { value: "I" }, "I"), el("option", { value: "II" }, "II")]);
   classSelect.value = c.sab_class || "I";
   classSelect.addEventListener("change", () => {
