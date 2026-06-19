@@ -740,8 +740,11 @@ def _title_case(text: str, is_name: bool = False) -> str:
         """
         # Rule 1: Preserve all-uppercase words of length > 1 (already in caps),
         # unless this is a name/place field (is_name=True), where ALL-CAPS input
-        # should be re-cased like any other word.
-        if not is_name and len(token) > 1 and token == token.upper() and token.isalpha():
+        # should be re-cased like any other word. Alphanumeric tokens (e.g. gene/
+        # diagnosis abbreviations like PIK3CD, TP53, BRCA1) are included — only
+        # the letters need to already be uppercase; digits are case-invariant.
+        if (not is_name and len(token) > 1 and token == token.upper()
+                and any(c.isalpha() for c in token) and token.isalnum()):
             if token.lower() in _DEGREE_MAP:
                 return _DEGREE_MAP[token.lower()] + "."
             return token
