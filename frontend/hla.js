@@ -1253,6 +1253,11 @@ function scheduleManualPreview() {
   state.previewTimer = setTimeout(refreshManualPreview, 600);
 }
 
+function scheduleBulkPreview(i) {
+  clearTimeout(state._bulkPreviewTimer);
+  state._bulkPreviewTimer = setTimeout(() => previewBulkCase(i), 600);
+}
+
 async function refreshManualPreview() {
   const statusEl = document.getElementById("manualPreviewStatus");
   const body = document.getElementById("manualPreviewBody");
@@ -1651,13 +1656,13 @@ function _bulkRefreshRow(editCol, i) {
   // Refresh Preview button intentionally removed — preview auto-updates on case select
 }
 
-function _buildBulkPatientCard(p, patFields) {
+function _buildBulkPatientCard(p, patFields, onChange) {
   const card = el("div", { class: "card" }, [el("h3", {}, "Patient Information")]);
   const grid = el("div", { class: "field-grid" });
   patFields.forEach(([key, label]) => {
     const pk = key === "patient_name" ? "name" : key;
     const input = el("input", { type: "text", value: p[pk] || "" });
-    input.addEventListener("input", () => { p[pk] = input.value; });
+    input.addEventListener("input", () => { p[pk] = input.value; if (onChange) onChange(); });
     grid.appendChild(el("div", { class: "field" }, [el("label", {}, label), input]));
   });
   card.appendChild(grid);
@@ -1668,13 +1673,14 @@ function _buildBulkPatientCard(p, patFields) {
 function renderBulkCrossmatchEditor(editCol, c, i) {
   const p = c.patient || {};
   const d = (c.donors || [])[0] || {};
+  const refresh = () => scheduleBulkPreview(i);
   const PAT_X = [["patient_name","Patient Name"],["gender_age","Gender / Age"],["pin","PIN"],
     ["sample_number","Sample Number"],["diagnosis","Diagnosis"],["hospital_clinic","Hospital/Clinic"],
     ["sample_type","Sample Type"],["collection_date","Collection Date"],
     ["receipt_date","Receipt Date"],["report_date","Report Date"]];
-  const patCard = _buildBulkPatientCard(p, PAT_X);
+  const patCard = _buildBulkPatientCard(p, PAT_X, refresh);
   patCard.appendChild(buildPhotoUploadField("Patient Photo",
-    b64 => { p.photo_bytes = b64; }, p.photo_bytes || null));
+    b64 => { p.photo_bytes = b64; refresh(); }, p.photo_bytes || null));
   editCol.appendChild(patCard);
 
   const donCard = el("div", { class: "card" }, [el("h3", {}, "Donor")]);
@@ -1684,12 +1690,12 @@ function renderBulkCrossmatchEditor(editCol, c, i) {
    ["sample_type","Sample Type"],["collection_date","Collection Date"],
    ["receipt_date","Receipt Date"],["report_date","Report Date"]].forEach(([k,l]) => {
     const inp = el("input", { type: "text", value: d[k] || "" });
-    inp.addEventListener("input", () => { d[k] = inp.value; });
+    inp.addEventListener("input", () => { d[k] = inp.value; refresh(); });
     donGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), inp]));
   });
   donCard.appendChild(donGrid);
   donCard.appendChild(buildPhotoUploadField("Donor Photo",
-    b64 => { d.photo_bytes = b64; }, d.photo_bytes || null));
+    b64 => { d.photo_bytes = b64; refresh(); }, d.photo_bytes || null));
   editCol.appendChild(donCard);
 
   const resCard = el("div", { class: "card" }, [el("h3", {}, "Results")]);
@@ -1704,7 +1710,7 @@ function renderBulkCrossmatchEditor(editCol, c, i) {
         el("option",{value:"Doubtful"},"Doubtful"),
       ]);
       sel.value = r[k] || "Negative";
-      sel.addEventListener("change", () => { r[k] = sel.value; c.cdc_results = r; });
+      sel.addEventListener("change", () => { r[k] = sel.value; c.cdc_results = r; refresh(); });
       resGrid.appendChild(el("div",{class:"field"},[el("label",{},l),sel]));
     });
   } else if (c.report_type === "dsa_crossmatch") {
@@ -1712,7 +1718,7 @@ function renderBulkCrossmatchEditor(editCol, c, i) {
     [["class1_result","Class I Result"],["class1_mfi","Class I MFI"],["class1_cutoff","Class I Cutoff"],
      ["class2_result","Class II Result"],["class2_mfi","Class II MFI"],["class2_cutoff","Class II Cutoff"]].forEach(([k,l]) => {
       const inp = el("input",{type:"text",value:r[k]||""});
-      inp.addEventListener("input",()=>{r[k]=inp.value; c.dsa_results=r;});
+      inp.addEventListener("input",()=>{r[k]=inp.value; c.dsa_results=r; refresh();});
       resGrid.appendChild(el("div",{class:"field"},[el("label",{},l),inp]));
     });
   } else {
@@ -1720,7 +1726,7 @@ function renderBulkCrossmatchEditor(editCol, c, i) {
     [["t_mcs","T-Cells MCS"],["t_interpretation","T-Cells Interpretation"],
      ["b_mcs","B-Cells MCS"],["b_interpretation","B-Cells Interpretation"]].forEach(([k,l]) => {
       const inp = el("input",{type:"text",value:r[k]||""});
-      inp.addEventListener("input",()=>{r[k]=inp.value; c.flow_results=r;});
+      inp.addEventListener("input",()=>{r[k]=inp.value; c.flow_results=r; refresh();});
       resGrid.appendChild(el("div",{class:"field"},[el("label",{},l),inp]));
     });
   }
@@ -1733,33 +1739,33 @@ function renderBulkCrossmatchEditor(editCol, c, i) {
 function renderBulkLuminexEditor(editCol, c, i) {
   const p = c.patient || {};
   const don = (c.donors || [])[0] || {};
+  const refresh = () => scheduleBulkPreview(i);
   const PAT_LX = [["patient_name","Patient Name"],["gender_age","Gender / Age"],["pin","PIN"],
     ["sample_number","Sample Number"],["diagnosis","Diagnosis"],["hospital_clinic","Hospital/Clinic"],
     ["relation","Relation"],["sample_type","Sample Type"],["collection_date","Collection Date"],
     ["receipt_date","Receipt Date"],["report_date","Report Date"]];
-  const patCard = _buildBulkPatientCard(p, PAT_LX);
+  const patCard = _buildBulkPatientCard(p, PAT_LX, refresh);
   patCard.appendChild(buildPhotoUploadField("Patient Photo",
-    b64 => { c.luminex_pat_photo = b64; }, c.luminex_pat_photo || null));
+    b64 => { c.luminex_pat_photo = b64; refresh(); }, c.luminex_pat_photo || null));
   editCol.appendChild(patCard);
 
   if (p.hla) {
     const ph = el("div", { class: "card" }, [el("h3", {}, "Patient HLA")]);
     const phGrid = el("div", { class: "allele-grid" });
-    const separateDrb = false;
     HLA_LOCI.forEach(locus => {
       if (locus === "DRB3") {
         const pair = mergeDrb345ForDisplay(p.hla);
         const a1 = el("input",{type:"text",value:pair[0]||""});
         const a2 = el("input",{type:"text",value:pair[1]||""});
-        a1.addEventListener("input",()=>{p.hla["DRB3"]=[a1.value,a2.value];});
-        a2.addEventListener("input",()=>{p.hla["DRB3"]=[a1.value,a2.value];});
+        a1.addEventListener("input",()=>{p.hla["DRB3"]=[a1.value,a2.value]; refresh();});
+        a2.addEventListener("input",()=>{p.hla["DRB3"]=[a1.value,a2.value]; refresh();});
         phGrid.appendChild(el("div",{class:"allele-row"},[el("span",{class:"locus-lbl"},"DRB3/4/5"),a1,a2]));
       } else {
         const pair = p.hla[locus] || ["",""];
         const a1 = el("input",{type:"text",value:pair[0]||""});
         const a2 = el("input",{type:"text",value:pair[1]||""});
-        a1.addEventListener("input",()=>{p.hla[locus]=[a1.value,a2.value];});
-        a2.addEventListener("input",()=>{p.hla[locus]=[a1.value,a2.value];});
+        a1.addEventListener("input",()=>{p.hla[locus]=[a1.value,a2.value]; refresh();});
+        a2.addEventListener("input",()=>{p.hla[locus]=[a1.value,a2.value]; refresh();});
         phGrid.appendChild(el("div",{class:"allele-row"},[el("span",{class:"locus-lbl"},HLA_LOCUS_LABELS[locus]||locus),a1,a2]));
       }
     });
@@ -1773,12 +1779,12 @@ function renderBulkLuminexEditor(editCol, c, i) {
    ["sample_number","Sample Number"],["relation","Relation"],
    ["sample_type","Sample Type"],["collection_date","Collection Date"]].forEach(([k,l]) => {
     const inp = el("input",{type:"text",value:don[k]||""});
-    inp.addEventListener("input",()=>{don[k]=inp.value;});
+    inp.addEventListener("input",()=>{don[k]=inp.value; refresh();});
     donGrid.appendChild(el("div",{class:"field"},[el("label",{},l),inp]));
   });
   donCard.appendChild(donGrid);
   donCard.appendChild(buildPhotoUploadField("Donor Photo",
-    b64 => { c.luminex_don_photo = b64; }, c.luminex_don_photo || null));
+    b64 => { c.luminex_don_photo = b64; refresh(); }, c.luminex_don_photo || null));
   editCol.appendChild(donCard);
 
   if (don.hla) {
@@ -1789,15 +1795,15 @@ function renderBulkLuminexEditor(editCol, c, i) {
         const pair = mergeDrb345ForDisplay(don.hla);
         const a1 = el("input",{type:"text",value:pair[0]||""});
         const a2 = el("input",{type:"text",value:pair[1]||""});
-        a1.addEventListener("input",()=>{don.hla["DRB3"]=[a1.value,a2.value];});
-        a2.addEventListener("input",()=>{don.hla["DRB3"]=[a1.value,a2.value];});
+        a1.addEventListener("input",()=>{don.hla["DRB3"]=[a1.value,a2.value]; refresh();});
+        a2.addEventListener("input",()=>{don.hla["DRB3"]=[a1.value,a2.value]; refresh();});
         dhGrid.appendChild(el("div",{class:"allele-row"},[el("span",{class:"locus-lbl"},"DRB3/4/5"),a1,a2]));
       } else {
         const pair = don.hla[locus]||["",""];
         const a1 = el("input",{type:"text",value:pair[0]||""});
         const a2 = el("input",{type:"text",value:pair[1]||""});
-        a1.addEventListener("input",()=>{don.hla[locus]=[a1.value,a2.value];});
-        a2.addEventListener("input",()=>{don.hla[locus]=[a1.value,a2.value];});
+        a1.addEventListener("input",()=>{don.hla[locus]=[a1.value,a2.value]; refresh();});
+        a2.addEventListener("input",()=>{don.hla[locus]=[a1.value,a2.value]; refresh();});
         dhGrid.appendChild(el("div",{class:"allele-row"},[el("span",{class:"locus-lbl"},HLA_LOCUS_LABELS[locus]||locus),a1,a2]));
       }
     });
@@ -1808,7 +1814,7 @@ function renderBulkLuminexEditor(editCol, c, i) {
   const interpCard = el("div", { class: "card" }, [el("h3", {}, "Interpretation")]);
   const interpTA = el("textarea", {});
   interpTA.value = c.luminex_interpretation || "";
-  interpTA.addEventListener("input", () => { c.luminex_interpretation = interpTA.value; });
+  interpTA.addEventListener("input", () => { c.luminex_interpretation = interpTA.value; refresh(); });
   interpCard.appendChild(el("div",{class:"field full"},[el("label",{},"Interpretation"),interpTA]));
   editCol.appendChild(interpCard);
   _bulkRefreshRow(editCol, i);
@@ -1817,11 +1823,12 @@ function renderBulkLuminexEditor(editCol, c, i) {
 // ── Bulk KIR editor ────────────────────────────────────────────────────────
 function renderBulkKirEditor(editCol, c, i) {
   const p = c.patient || {};
+  const refresh = () => scheduleBulkPreview(i);
   const PAT_KIR = [["patient_name","Patient Name"],["gender_age","Gender / Age"],["pin","PIN"],
     ["sample_number","Sample Number"],["hospital_mr_no","Hospital MR No"],
     ["specimen","Specimen"],["hospital_clinic","Hospital/Clinic"],
     ["collection_date","Collection Date"],["receipt_date","Receipt Date"],["report_date","Report Date"]];
-  editCol.appendChild(_buildBulkPatientCard(p, PAT_KIR));
+  editCol.appendChild(_buildBulkPatientCard(p, PAT_KIR, refresh));
 
   const geneCard = el("div", { class: "card" }, [el("h3", {}, "KIR Genes")]);
   const geneGrid = el("div", { class: "field-grid cols-3" });
@@ -1829,7 +1836,7 @@ function renderBulkKirEditor(editCol, c, i) {
   KIR_GENES.forEach(g => {
     const sel = el("select", {}, [el("option",{value:"Absent"},"Absent"),el("option",{value:"Present"},"Present")]);
     sel.value = genes[g] || "Absent";
-    sel.addEventListener("change", () => { genes[g] = sel.value; c.kir_genes = genes; });
+    sel.addEventListener("change", () => { genes[g] = sel.value; c.kir_genes = genes; refresh(); });
     geneGrid.appendChild(el("div",{class:"field"},[el("label",{},"KIR"+g),sel]));
   });
   geneCard.appendChild(geneGrid);
@@ -1842,11 +1849,11 @@ function renderBulkKirEditor(editCol, c, i) {
     el("option",{value:"AB"},"AB"),el("option",{value:"BB"},"BB"),
   ]);
   gtSel.value = c.kir_genotype_override || "Auto";
-  gtSel.addEventListener("change", () => { c.kir_genotype_override = gtSel.value; });
+  gtSel.addEventListener("change", () => { c.kir_genotype_override = gtSel.value; refresh(); });
   gtGrid.appendChild(el("div",{class:"field"},[el("label",{},"Genotype"),gtSel]));
   const interpTA = el("textarea", {});
   interpTA.value = c.kir_interpretation || "";
-  interpTA.addEventListener("input", () => { c.kir_interpretation = interpTA.value; });
+  interpTA.addEventListener("input", () => { c.kir_interpretation = interpTA.value; refresh(); });
   gtGrid.appendChild(el("div",{class:"field full"},[el("label",{},"Interpretation"),interpTA]));
   gtCard.appendChild(gtGrid);
   editCol.appendChild(gtCard);
@@ -1856,11 +1863,12 @@ function renderBulkKirEditor(editCol, c, i) {
 // ── Bulk PRA editor ────────────────────────────────────────────────────────
 function renderBulkPraEditor(editCol, c, i) {
   const p = c.patient || {};
+  const refresh = () => scheduleBulkPreview(i);
   const PAT_PRA = [["patient_name","Patient Name"],["gender","Gender"],["age","Age"],
     ["specimen","Specimen"],["hospital_clinic","Hospital/Clinic"],["pin","PIN"],
     ["sample_number","Sample Number"],["collection_date","Collection Date"],
     ["receipt_date","Receipt Date"],["report_date","Report Date"]];
-  editCol.appendChild(_buildBulkPatientCard(p, PAT_PRA));
+  editCol.appendChild(_buildBulkPatientCard(p, PAT_PRA, refresh));
 
   const resCard = el("div", { class: "card" }, [el("h3", {}, "PRA Result")]);
   const resGrid = el("div", { class: "field-grid" });
@@ -1868,13 +1876,13 @@ function renderBulkPraEditor(editCol, c, i) {
     [["pra_percentage_1","% PRA Class I"],["pra_result_1","Result Class I"],
      ["pra_percentage_2","% PRA Class II"],["pra_result_2","Result Class II"]].forEach(([k,l]) => {
       const inp = el("input",{type:"text",value:c[k]||""});
-      inp.addEventListener("input",()=>{c[k]=inp.value;});
+      inp.addEventListener("input",()=>{c[k]=inp.value; refresh();});
       resGrid.appendChild(el("div",{class:"field"},[el("label",{},l),inp]));
     });
   } else {
     [["pra_percentage","% PRA"],["pra_result","Result"]].forEach(([k,l]) => {
       const inp = el("input",{type:"text",value:c[k]||""});
-      inp.addEventListener("input",()=>{c[k]=inp.value;});
+      inp.addEventListener("input",()=>{c[k]=inp.value; refresh();});
       resGrid.appendChild(el("div",{class:"field"},[el("label",{},l),inp]));
     });
   }
@@ -1883,8 +1891,9 @@ function renderBulkPraEditor(editCol, c, i) {
   _bulkRefreshRow(editCol, i);
 }
 
-function renderBulkSabEditor(editCol, c) {
+function renderBulkSabEditor(editCol, c, i) {
   const p = c.patient || {};
+  const refresh = () => scheduleBulkPreview(i);
 
   const patCard = el("div", { class: "card" }, [el("h3", {}, "Patient Information")]);
   const patGrid = el("div", { class: "field-grid" });
@@ -1896,7 +1905,7 @@ function renderBulkSabEditor(editCol, c) {
   ];
   SAB_BULK_FIELDS.forEach(([key, label]) => {
     const input = el("input", { type: "text", value: p[key] || "" });
-    input.addEventListener("input", () => { p[key] = input.value; });
+    input.addEventListener("input", () => { p[key] = input.value; refresh(); });
     patGrid.appendChild(el("div", { class: "field" }, [el("label", {}, label), input]));
   });
   patCard.appendChild(patGrid);
@@ -1916,10 +1925,10 @@ function renderBulkSabEditor(editCol, c) {
   const remCard = el("div", { class: "card" }, [el("h3", {}, "Remarks / Comments")]);
   const remarksInput = el("textarea", { value: p.remarks || "" });
   remarksInput.value = p.remarks || "";
-  remarksInput.addEventListener("input", () => { p.remarks = remarksInput.value; });
+  remarksInput.addEventListener("input", () => { p.remarks = remarksInput.value; refresh(); });
   const commentsInput = el("textarea", {});
   commentsInput.value = p.comments || "";
-  commentsInput.addEventListener("input", () => { p.comments = commentsInput.value; });
+  commentsInput.addEventListener("input", () => { p.comments = commentsInput.value; refresh(); });
   remCard.appendChild(el("div", { class: "field-grid" }, [
     el("div", { class: "field full" }, [el("label", {}, "Remarks"), remarksInput]),
     el("div", { class: "field full" }, [el("label", {}, "Comments"), commentsInput]),
@@ -1931,6 +1940,7 @@ function renderBulkSabEditor(editCol, c) {
   alleleTextarea.value = (c.sab_alleles || []).map(([a, m]) => `${a},${m}`).join("\n");
   alleleTextarea.addEventListener("input", () => {
     c.sab_alleles = parseSabAlleleTextLocal(alleleTextarea.value);
+    refresh();
   });
   alleleCard.appendChild(el("div", { class: "field full" }, [alleleTextarea]));
   editCol.appendChild(alleleCard);
@@ -1986,7 +1996,7 @@ function renderBulkEditor(i) {
   if (!c) return;
 
   if (c.report_type === "sab_class1" || c.report_type === "sab_class2") {
-    renderBulkSabEditor(editCol, c);
+    renderBulkSabEditor(editCol, c, i);
     _bulkRefreshRow(editCol, i);
     return;
   }
@@ -2015,8 +2025,8 @@ function renderBulkEditor(i) {
     function addRow(locus, label, pair) {
       const a1 = el("input", { type: "text", value: pair[0] || "" });
       const a2 = el("input", { type: "text", value: pair[1] || "" });
-      a1.addEventListener("input", () => { hla[locus] = [a1.value, a2.value]; });
-      a2.addEventListener("input", () => { hla[locus] = [a1.value, a2.value]; });
+      a1.addEventListener("input", () => { hla[locus] = [a1.value, a2.value]; scheduleBulkPreview(i); });
+      a2.addEventListener("input", () => { hla[locus] = [a1.value, a2.value]; scheduleBulkPreview(i); });
       hgrid.appendChild(el("div", { class: "allele-row" }, [el("span", { class: "locus-lbl" }, label), a1, a2]));
     }
     HLA_LOCI.forEach(locus => {
@@ -2039,10 +2049,14 @@ function renderBulkEditor(i) {
   const fields = {};
   PAT_FIELDS.forEach(([key, label]) => {
     const pk = key === "patient_name" ? "name" : key;
-    const input = el("input", { type: "text", value: p[pk] || "" });
+    const isRemarks = key === "remarks";
+    const input = isRemarks
+      ? el("textarea", { style: "resize:vertical; min-height:48px;" })
+      : el("input", { type: "text", value: p[pk] || "" });
+    if (isRemarks) input.value = p[pk] || "";
     fields[pk] = input;
-    input.addEventListener("input", () => { p[pk] = input.value; });
-    grid.appendChild(el("div", { class: "field" + (key === "remarks" ? " full" : "") }, [el("label", {}, label), input]));
+    input.addEventListener("input", () => { p[pk] = input.value; scheduleBulkPreview(i); });
+    grid.appendChild(el("div", { class: "field" + (isRemarks ? " full" : "") }, [el("label", {}, label), input]));
   });
   card.appendChild(grid);
   if (PHOTO_RTYPES.includes(c.report_type)) {
@@ -2076,7 +2090,7 @@ function renderBulkEditor(i) {
     const dgrid = el("div", { class: "field-grid" });
     ["name", "gender_age", "relationship", "pin", "sample_number", "match"].forEach(key => {
       const input = el("input", { type: "text", value: d[key] || "" });
-      input.addEventListener("input", () => { d[key] = input.value; });
+      input.addEventListener("input", () => { d[key] = input.value; scheduleBulkPreview(i); });
       dgrid.appendChild(el("div", { class: "field" }, [el("label", {}, key.replace("_", " ")), input]));
     });
     dCard.appendChild(dgrid);
