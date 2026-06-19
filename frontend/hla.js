@@ -475,7 +475,11 @@ function buildGenBar(onGenerate) {
   const row2 = el("div", { class: "gen-bar" }, [
     el("button", { class: "btn-sm btn-outline", onclick: () => saveDraft("manual") }, [el("i", { class: "fas fa-save" }), " Save Draft"]),
     el("button", { class: "btn-sm btn-outline", onclick: () => loadDraft("manual") }, [el("i", { class: "fas fa-folder-open" }), " Load Draft"]),
-    el("button", { class: "btn-sm btn-danger-outline", onclick: () => renderManualForm() }, [el("i", { class: "fas fa-eraser" }), " Clear Form"]),
+    el("button", { class: "btn-sm btn-danger-outline", onclick: () => {
+      renderManualForm();
+      const sabStatus = document.getElementById("bulkSabImportStatus");
+      if (sabStatus) sabStatus.textContent = "";
+    } }, [el("i", { class: "fas fa-eraser" }), " Clear Form"]),
   ]);
   return el("div", {}, [row1, row2]);
 }
