@@ -2582,6 +2582,22 @@ function renderBulkEditor(i) {
     editCol.appendChild(el("div", { style: "margin:6px 0;" }, [addDonorBtn]));
   }
 
+  if (c.report_type === "single_rpl") {
+    const rplRefCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-dna" }), " RPL Reference"])]);
+    const hlaCInput = el("input", { type: "text",
+      placeholder: "e.g. C1, C2 (leave blank to auto-detect from HLA-C alleles)",
+      value: (c.rpl_reference && c.rpl_reference.hla_c_patient) || "" });
+    hlaCInput.addEventListener("input", () => {
+      c.rpl_reference = c.rpl_reference || {};
+      c.rpl_reference.hla_c_patient = hlaCInput.value.trim();
+      scheduleBulkPreview(i);
+    });
+    rplRefCard.appendChild(el("div", { class: "field-grid" }, [
+      el("div", { class: "field full" }, [el("label", {}, "HLA-C Type (Maternal/Paternal)"), hlaCInput]),
+    ]));
+    editCol.appendChild(rplRefCard);
+  }
+
   if (c.report_type === "ngs_photo") {
     const interpCard = el("div", { class: "card" }, [el("h3", {}, "Interpretation")]);
     const interpTA = el("textarea", {});
