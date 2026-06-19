@@ -539,6 +539,34 @@ function _refreshLuminexInterp() {
   }
 }
 
+let _flowTLastAutoInterp = "";
+let _flowBLastAutoInterp = "";
+
+// T-CELLS MCS<45 NEGATIVE, 45-60 BORDERLINE, >60 POSITIVE
+// B-CELLS MCS<86 NEGATIVE, 86-116 BORDERLINE, >116 POSITIVE
+function _flowInterpFromMcs(raw, lowMax, highMax) {
+  const v = parseFloat(String(raw || "").replace(/[<>]/g, "").trim());
+  if (isNaN(v)) return null;
+  if (v < lowMax) return "Negative";
+  if (v <= highMax) return "Borderline";
+  return "Positive";
+}
+
+function _refreshFlowInterp() {
+  const r = manualSpecialFields.flow_results;
+  if (!r || !r.t_mcs || !r.t_interpretation) return;
+  const tAuto = _flowInterpFromMcs(r.t_mcs.value, 45, 60);
+  if (tAuto && (r.t_interpretation.value === "" || r.t_interpretation.value === _flowTLastAutoInterp)) {
+    r.t_interpretation.value = tAuto;
+    _flowTLastAutoInterp = tAuto;
+  }
+  const bAuto = _flowInterpFromMcs(r.b_mcs.value, 86, 116);
+  if (bAuto && (r.b_interpretation.value === "" || r.b_interpretation.value === _flowBLastAutoInterp)) {
+    r.b_interpretation.value = bAuto;
+    _flowBLastAutoInterp = bAuto;
+  }
+}
+
 function clearManualRefs() {
   manualFields = {};
   manualHlaFields = {};
@@ -1360,6 +1388,7 @@ function collectManualCase() {
 function scheduleManualPreview() {
   _refreshNgsPhotoInterp();
   _refreshLuminexInterp();
+  _refreshFlowInterp();
   clearTimeout(state.previewTimer);
   state.previewTimer = setTimeout(refreshManualPreview, 600);
 }
@@ -1556,6 +1585,8 @@ function populateManualForm(c) {
       set(r.t_mcs, src.t_mcs); set(r.t_interpretation, src.t_interpretation);
       set(r.b_mcs, src.b_mcs); set(r.b_interpretation, src.b_interpretation);
       set(r.interpretation, src.interpretation);
+      _flowTLastAutoInterp = src.t_interpretation || "";
+      _flowBLastAutoInterp = src.b_interpretation || "";
     }
     scheduleManualPreview();
     return;
@@ -2092,12 +2123,31 @@ function renderBulkCrossmatchEditor(editCol, c, i) {
     });
   } else {
     const r = c.flow_results || {};
-    [["t_mcs","T-Cells MCS"],["t_interpretation","T-Cells Interpretation"],
-     ["b_mcs","B-Cells MCS"],["b_interpretation","B-Cells Interpretation"]].forEach(([k,l]) => {
-      const inp = el("input",{type:"text",value:r[k]||""});
-      inp.addEventListener("input",()=>{r[k]=inp.value; c.flow_results=r; refresh();});
-      resGrid.appendChild(el("div",{class:"field"},[el("label",{},l),inp]));
+    const tInterpInp = el("input",{type:"text",value:r.t_interpretation||""});
+    const bInterpInp = el("input",{type:"text",value:r.b_interpretation||""});
+    const tMcsInp = el("input",{type:"text",value:r.t_mcs||""});
+    const bMcsInp = el("input",{type:"text",value:r.b_mcs||""});
+    tMcsInp.addEventListener("input",()=>{
+      r.t_mcs = tMcsInp.value;
+      const auto = _flowInterpFromMcs(tMcsInp.value, 45, 60);
+      if (auto && (tInterpInp.value === "" || tInterpInp.value === r._tAuto)) { tInterpInp.value = auto; r._tAuto = auto; }
+      r.t_interpretation = tInterpInp.value;
+      c.flow_results = r; refresh();
     });
+    tInterpInp.addEventListener("input",()=>{ r.t_interpretation = tInterpInp.value; c.flow_results = r; refresh(); });
+    bMcsInp.addEventListener("input",()=>{
+      r.b_mcs = bMcsInp.value;
+      const auto = _flowInterpFromMcs(bMcsInp.value, 86, 116);
+      if (auto && (bInterpInp.value === "" || bInterpInp.value === r._bAuto)) { bInterpInp.value = auto; r._bAuto = auto; }
+      r.b_interpretation = bInterpInp.value;
+      c.flow_results = r; refresh();
+    });
+    bInterpInp.addEventListener("input",()=>{ r.b_interpretation = bInterpInp.value; c.flow_results = r; refresh(); });
+    resGrid.appendChild(el("div",{class:"field"},[el("label",{},"T-Cells MCS"),tMcsInp]));
+    resGrid.appendChild(el("div",{class:"field"},[el("label",{},"T-Cells Interpretation"),tInterpInp]));
+    resGrid.appendChild(el("div",{class:"field"},[el("label",{},"B-Cells MCS"),bMcsInp]));
+    resGrid.appendChild(el("div",{class:"field"},[el("label",{},"B-Cells Interpretation"),bInterpInp]));
+    c.flow_results = r;
   }
   resCard.appendChild(resGrid);
   editCol.appendChild(resCard);
