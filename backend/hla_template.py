@@ -3806,6 +3806,19 @@ def _build_luminex_report(case: dict, S: dict) -> list:
         elems.append(Paragraph(_interp_text, _body_s))
     elems.append(Spacer(1, _section_gap))
 
+    _lx_remarks  = _clean_display(patient.get("remarks", "")) or ""
+    _lx_comments = _clean_display(patient.get("comments", "")) or ""
+    if _lx_remarks:
+        elems.append(Paragraph("<b>Remarks</b>", _sec_s))
+        elems.append(HRFlowable(width=CONTENT_W, thickness=0.8, color=colors.grey, spaceAfter=_rule_gap))
+        elems.append(Paragraph(_lx_remarks, _body_s))
+        elems.append(Spacer(1, _section_gap))
+    if _lx_comments:
+        elems.append(Paragraph("<b>Comments</b>", _sec_s))
+        elems.append(HRFlowable(width=CONTENT_W, thickness=0.8, color=colors.grey, spaceAfter=_rule_gap))
+        elems.append(Paragraph(_lx_comments, _body_s))
+        elems.append(Spacer(1, _section_gap))
+
     elems.append(Paragraph("<b>Test Details</b>", _sec_s))
     elems.append(HRFlowable(width=CONTENT_W, thickness=0.8, color=colors.grey, spaceAfter=_rule_gap))
     for _para in LUMINEX_TEST_DETAILS:
@@ -4221,6 +4234,12 @@ def _build_pra_report(case: dict, S: dict) -> list:
     elems.append(_res_t)
     elems.append(Spacer(1, 6*mm))
 
+    _pra_rmk = _clean_display(patient.get("remarks", "")) or ""
+    if _pra_rmk:
+        _section("Remarks")
+        elems.append(Paragraph(_pra_rmk, _body_s))
+        elems.append(Spacer(1, 4*mm))
+
     # ── Interpretation (reference bands) ───────────────────────────────────────
     _section("Interpretation")
     _int_data = [[Paragraph("<b>Panel Reactive Antibody (PRA) Percentage</b>", _th_s),
@@ -4243,6 +4262,9 @@ def _build_pra_report(case: dict, S: dict) -> list:
     _section("Comments")
     for _i, _c in enumerate(PRA_COMMENTS, 1):
         elems.append(Paragraph(f"{_i}. {_c}", _num_s))
+    _pra_user_comment = _clean_display(patient.get("comments", "")) or ""
+    if _pra_user_comment:
+        elems.append(Paragraph(f"{len(PRA_COMMENTS) + 1}. {_pra_user_comment}", _num_s))
     elems.append(Spacer(1, 5*mm))
 
     _section("Recommendations")
@@ -4379,6 +4401,12 @@ def _build_mixed_pra_report(case: dict, S: dict) -> list:
     elems.append(_res_t)
     elems.append(Spacer(1, 6*mm))
 
+    _mpra_rmk = _clean_display(patient.get("remarks", "")) or ""
+    if _mpra_rmk:
+        _section("Remarks")
+        elems.append(Paragraph(_mpra_rmk, _body_s))
+        elems.append(Spacer(1, 4*mm))
+
     # ── Interpretation (reference bands) ──────────────────────────────────────
     _section("Interpretation")
     _int_data = [[Paragraph("<b>Panel Reactive Antibody (PRA) Percentage</b>", _th_s),
@@ -4401,6 +4429,9 @@ def _build_mixed_pra_report(case: dict, S: dict) -> list:
     _section("Comments")
     for _i, _c in enumerate(PRA_COMMENTS, 1):
         elems.append(Paragraph(f"{_i}. {_c}", _num_s))
+    _mpra_user_comment = _clean_display(patient.get("comments", "")) or ""
+    if _mpra_user_comment:
+        elems.append(Paragraph(f"{len(PRA_COMMENTS) + 1}. {_mpra_user_comment}", _num_s))
     elems.append(Spacer(1, 5*mm))
 
     _section("Recommendations")
@@ -4833,6 +4864,19 @@ def _build_kir_report(case: dict, S: dict) -> list:
     for para in interp_paras:
         elems.append(Paragraph(para, _body_s))
         elems.append(Spacer(1, 3*mm))
+
+    _kir_remarks  = _clean_display(patient.get("remarks", "")) or ""
+    _kir_comments = _clean_display(patient.get("comments", "")) or ""
+    if _kir_remarks:
+        elems.append(Paragraph("<b>Remarks</b>", _sec_s))
+        elems.append(HRFlowable(width=cw, thickness=0.8, color=colors.grey, spaceAfter=4))
+        elems.append(Paragraph(_kir_remarks, _body_s))
+        elems.append(Spacer(1, 4*mm))
+    if _kir_comments:
+        elems.append(Paragraph("<b>Comments</b>", _sec_s))
+        elems.append(HRFlowable(width=cw, thickness=0.8, color=colors.grey, spaceAfter=4))
+        elems.append(Paragraph(_kir_comments, _body_s))
+        elems.append(Spacer(1, 4*mm))
 
     # ── Page 2: Test Details + Signatures ──────────────────────────────────────
     elems.append(PageBreak())

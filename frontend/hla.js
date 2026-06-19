@@ -802,6 +802,17 @@ function buildLuminexSection(col) {
   interpCard.appendChild(el("div", { class: "field full" }, [el("label", {}, "Interpretation"), interpInput]));
   col.appendChild(interpCard);
 
+  const lxRemCard = el("div", { class: "card" }, [el("h3", {}, "Remarks / Comments")]);
+  const lxRemarksInput = el("textarea", { oninput: scheduleManualPreview });
+  const lxCommentsInput = el("textarea", { oninput: scheduleManualPreview });
+  lx.patient.remarks = lxRemarksInput;
+  lx.patient.comments = lxCommentsInput;
+  lxRemCard.appendChild(el("div", { class: "field-grid" }, [
+    el("div", { class: "field full" }, [el("label", {}, "Remarks"), lxRemarksInput]),
+    el("div", { class: "field full" }, [el("label", {}, "Comments"), lxCommentsInput]),
+  ]));
+  col.appendChild(lxRemCard);
+
   manualSpecialFields.luminex = lx;
 }
 
@@ -847,6 +858,17 @@ function buildKirSection(col) {
     el("div", { class: "field full" }, [el("label", {}, "Interpretation"), interp]),
   ]));
   col.appendChild(gtCard);
+
+  const kirRemCard = el("div", { class: "card" }, [el("h3", {}, "Remarks / Comments")]);
+  const kirRemarksInput = el("textarea", { oninput: scheduleManualPreview });
+  const kirCommentsInput = el("textarea", { oninput: scheduleManualPreview });
+  kir.patient.remarks = kirRemarksInput;
+  kir.patient.comments = kirCommentsInput;
+  kirRemCard.appendChild(el("div", { class: "field-grid" }, [
+    el("div", { class: "field full" }, [el("label", {}, "Remarks"), kirRemarksInput]),
+    el("div", { class: "field full" }, [el("label", {}, "Comments"), kirCommentsInput]),
+  ]));
+  col.appendChild(kirRemCard);
 
   manualSpecialFields.kir = kir;
 }
@@ -901,6 +923,17 @@ function buildPraSection(col, rtype) {
   }
   resCard.appendChild(resGrid);
   col.appendChild(resCard);
+
+  const praRemCard = el("div", { class: "card" }, [el("h3", {}, "Remarks / Comments")]);
+  const praRemarksInput = el("textarea", { oninput: scheduleManualPreview });
+  const praCommentsInput = el("textarea", { oninput: scheduleManualPreview });
+  pra.patient.remarks = praRemarksInput;
+  pra.patient.comments = praCommentsInput;
+  praRemCard.appendChild(el("div", { class: "field-grid" }, [
+    el("div", { class: "field full" }, [el("label", {}, "Remarks"), praRemarksInput]),
+    el("div", { class: "field full" }, [el("label", {}, "Comments"), praCommentsInput]),
+  ]));
+  col.appendChild(praRemCard);
 
   manualSpecialFields.pra = pra;
 }
@@ -1126,7 +1159,9 @@ function collectManualCase() {
       sample_type: val(lx.patient.sample_type) || "EDTA Blood", collection_date: val(lx.patient.collection_date),
       receipt_date: val(lx.patient.receipt_date), report_date: val(lx.patient.report_date),
       hla: collectAlleles(lx.patHla),
+      remarks: val(lx.patient.remarks),
     });
+    patient.comments = val(lx.patient.comments);
     const donor = emptyPerson({
       name: val(lx.donor.name), gender_age: val(lx.donor.gender_age), pin: val(lx.donor.pin) || "NA",
       sample_number: val(lx.donor.sample_number) || "NA", relation: val(lx.donor.relation),
@@ -1150,7 +1185,9 @@ function collectManualCase() {
       specimen: val(kir.patient.specimen) || "Blood EDTA", hospital_clinic: val(kir.patient.hospital_clinic),
       collection_date: val(kir.patient.collection_date), receipt_date: val(kir.patient.receipt_date),
       report_date: val(kir.patient.report_date),
+      remarks: val(kir.patient.remarks),
     });
+    patient.comments = val(kir.patient.comments);
     const genes = {};
     Object.entries(kir.genes || {}).forEach(([g, sel]) => genes[g] = sel.value);
     return {
@@ -1168,7 +1205,9 @@ function collectManualCase() {
       sample_number: val(pra.patient.sample_number), hospital_clinic: val(pra.patient.hospital_clinic),
       specimen: val(pra.patient.specimen) || "Serum", collection_date: val(pra.patient.collection_date),
       receipt_date: val(pra.patient.receipt_date), report_date: val(pra.patient.report_date),
+      remarks: val(pra.patient.remarks),
     });
+    patient.comments = val(pra.patient.comments);
     patient.gender = val(pra.patient.gender);
     patient.age = val(pra.patient.age);
     const c = { report_type: rtype, nabl, with_logo: state.withLogo, signature_stamp: stamp, patient, donors: [], rpl_reference: {} };
@@ -1621,12 +1660,13 @@ async function importBulkSabExcel(sabFileInput, sabKitSelect) {
       sab_chart_bytes: data.chart_bytes || null,
       sab_class: sabClass,
     };
-    state.bulkCases.push(newCase);
-    state.bulkSelected.add(state.bulkCases.length - 1);
+    state.bulkCases = [newCase];
+    state.bulkSelected = new Set([0]);
+    state.bulkCurrentIndex = -1;
     renderBulkList();
-    selectBulkCase(state.bulkCases.length - 1);
+    selectBulkCase(0);
     statusEl.textContent = "Imported: " + sabFileInput.files[0].name;
-    showToast("SAB case added to bulk list.", "success");
+    showToast("SAB case loaded into bulk list.", "success");
   } catch (e) {
     statusEl.textContent = "";
     showToast("SAB import error: " + e.message, "error");
@@ -1875,6 +1915,19 @@ function renderBulkLuminexEditor(editCol, c, i) {
   interpTA.addEventListener("input", () => { c.luminex_interpretation = interpTA.value; refresh(); });
   interpCard.appendChild(el("div",{class:"field full"},[el("label",{},"Interpretation"),interpTA]));
   editCol.appendChild(interpCard);
+
+  const lxRemCard = el("div", { class: "card" }, [el("h3", {}, "Remarks / Comments")]);
+  const lxRemarksTA = el("textarea", { value: p.remarks || "" });
+  lxRemarksTA.value = p.remarks || "";
+  lxRemarksTA.addEventListener("input", () => { p.remarks = lxRemarksTA.value; refresh(); });
+  const lxCommentsTA = el("textarea", {});
+  lxCommentsTA.value = p.comments || "";
+  lxCommentsTA.addEventListener("input", () => { p.comments = lxCommentsTA.value; refresh(); });
+  lxRemCard.appendChild(el("div", { class: "field-grid" }, [
+    el("div", { class: "field full" }, [el("label", {}, "Remarks"), lxRemarksTA]),
+    el("div", { class: "field full" }, [el("label", {}, "Comments"), lxCommentsTA]),
+  ]));
+  editCol.appendChild(lxRemCard);
   _bulkRefreshRow(editCol, i);
 }
 
@@ -1915,6 +1968,19 @@ function renderBulkKirEditor(editCol, c, i) {
   gtGrid.appendChild(el("div",{class:"field full"},[el("label",{},"Interpretation"),interpTA]));
   gtCard.appendChild(gtGrid);
   editCol.appendChild(gtCard);
+
+  const kirRemCard = el("div", { class: "card" }, [el("h3", {}, "Remarks / Comments")]);
+  const kirRemarksTA = el("textarea", { value: p.remarks || "" });
+  kirRemarksTA.value = p.remarks || "";
+  kirRemarksTA.addEventListener("input", () => { p.remarks = kirRemarksTA.value; refresh(); });
+  const kirCommentsTA = el("textarea", {});
+  kirCommentsTA.value = p.comments || "";
+  kirCommentsTA.addEventListener("input", () => { p.comments = kirCommentsTA.value; refresh(); });
+  kirRemCard.appendChild(el("div", { class: "field-grid" }, [
+    el("div", { class: "field full" }, [el("label", {}, "Remarks"), kirRemarksTA]),
+    el("div", { class: "field full" }, [el("label", {}, "Comments"), kirCommentsTA]),
+  ]));
+  editCol.appendChild(kirRemCard);
   _bulkRefreshRow(editCol, i);
 }
 
@@ -1946,6 +2012,19 @@ function renderBulkPraEditor(editCol, c, i) {
   }
   resCard.appendChild(resGrid);
   editCol.appendChild(resCard);
+
+  const praRemCard = el("div", { class: "card" }, [el("h3", {}, "Remarks / Comments")]);
+  const praRemarksTA = el("textarea", { value: p.remarks || "" });
+  praRemarksTA.value = p.remarks || "";
+  praRemarksTA.addEventListener("input", () => { p.remarks = praRemarksTA.value; refresh(); });
+  const praCommentsTA = el("textarea", {});
+  praCommentsTA.value = p.comments || "";
+  praCommentsTA.addEventListener("input", () => { p.comments = praCommentsTA.value; refresh(); });
+  praRemCard.appendChild(el("div", { class: "field-grid" }, [
+    el("div", { class: "field full" }, [el("label", {}, "Remarks"), praRemarksTA]),
+    el("div", { class: "field full" }, [el("label", {}, "Comments"), praCommentsTA]),
+  ]));
+  editCol.appendChild(praRemCard);
   _bulkRefreshRow(editCol, i);
 }
 
