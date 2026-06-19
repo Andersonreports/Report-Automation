@@ -493,6 +493,51 @@ let manualDonorPhotoBytes = [];   // base64 strings, one per donor, parallel to 
 let manualPatientPhoto = { bytes: null };
 let manualSpecialFields = {};
 let manualDonorsListEl = null;    // DOM container for dynamically added/removed donor cards
+let _ngsPhotoLastAutoInterp = ""; // tracks the last auto-generated interpretation text
+
+function _getNgsPhotoAutoInterp() {
+  const pName = (manualFields.patient_name?.value || "").trim() || "—";
+  if (!manualDonorFields.length) {
+    return `The Patient (${pName}) had showed about — match with the Donor (—).`;
+  }
+  return manualDonorFields.map(df => {
+    const dName = (df.name?.value || "").trim() || "—";
+    let match = (df.match?.value || "").trim().replace(/\s*\(\d+%\)/, "").trim() || "—";
+    return `The Patient (${pName}) had showed about ${match} match with the Donor (${dName}).`;
+  }).join("\n");
+}
+
+function _refreshNgsPhotoInterp() {
+  const ta = manualSpecialFields.ngs_photo_interpretation;
+  if (!ta) return;
+  const auto = _getNgsPhotoAutoInterp();
+  if (ta.value === _ngsPhotoLastAutoInterp) {
+    ta.value = auto;
+    _ngsPhotoLastAutoInterp = auto;
+  }
+}
+
+let _luminexLastAutoInterp = "";
+
+function _getLuminexAutoInterp() {
+  const lx = manualSpecialFields.luminex;
+  if (!lx) return "";
+  const pName = (lx.patient.patient_name?.value || "").trim() || "—";
+  const dName = (lx.donor.name?.value || "").trim() || "—";
+  const matchScore = (lx.matchScore?.value || "").trim();
+  if (!matchScore) return "";
+  return `The Patient (${pName}) had showed about ${matchScore} match with the Donor (${dName}).`;
+}
+
+function _refreshLuminexInterp() {
+  const lx = manualSpecialFields.luminex;
+  if (!lx?.interpretation) return;
+  const auto = _getLuminexAutoInterp();
+  if (lx.interpretation.value === _luminexLastAutoInterp) {
+    lx.interpretation.value = auto;
+    _luminexLastAutoInterp = auto;
+  }
+}
 
 function clearManualRefs() {
   manualFields = {};
@@ -645,12 +690,14 @@ function renderManualForm() {
 
   if (rtype === "ngs_photo") {
     const interpCard = el("div", { class: "card" }, [el("h3", {}, "Interpretation")]);
-    const interpInput = el("textarea", {
-      placeholder: "Leave blank to auto-generate from the donor match percentage.",
-      oninput: scheduleManualPreview,
-    });
+    const interpInput = el("textarea", { oninput: scheduleManualPreview });
     manualSpecialFields.ngs_photo_interpretation = interpInput;
-    interpCard.appendChild(el("div", { class: "field full" }, [el("label", {}, "Interpretation (optional override)"), interpInput]));
+    _ngsPhotoLastAutoInterp = _getNgsPhotoAutoInterp();
+    interpInput.value = _ngsPhotoLastAutoInterp;
+    interpCard.appendChild(el("div", { class: "field full" }, [
+      el("label", {}, "INTERPRETATION (OPTIONAL OVERRIDE)"),
+      interpInput,
+    ]));
     col.appendChild(interpCard);
   }
 
@@ -812,9 +859,15 @@ function buildLuminexSection(col) {
   col.appendChild(donHlaCard);
 
   const interpCard = el("div", { class: "card" }, [el("h3", {}, "Interpretation")]);
+  const matchScoreInput = el("input", { type: "text", placeholder: "e.g. 6 of 12 at High Resolution", oninput: scheduleManualPreview });
+  lx.matchScore = matchScoreInput;
   const interpInput = el("textarea", { oninput: scheduleManualPreview });
   lx.interpretation = interpInput;
-  interpCard.appendChild(el("div", { class: "field full" }, [el("label", {}, "Interpretation"), interpInput]));
+  _luminexLastAutoInterp = "";
+  interpCard.appendChild(el("div", { class: "field-grid" }, [
+    el("div", { class: "field full" }, [el("label", {}, "MATCH SCORE"), matchScoreInput]),
+    el("div", { class: "field full" }, [el("label", {}, "INTERPRETATION"), interpInput]),
+  ]));
   col.appendChild(interpCard);
 
   const lxRemCard = el("div", { class: "card" }, [el("h3", {}, "Remarks / Comments")]);
@@ -1151,6 +1204,7 @@ function collectManualCase() {
       report_type: rtype, nabl, with_logo: state.withLogo, signature_stamp: stamp,
       patient, donors: [donor], rpl_reference: {},
       luminex_interpretation: lx.interpretation ? lx.interpretation.value.trim() : "",
+      luminex_match_score: lx.matchScore ? lx.matchScore.value.trim() : "",
       luminex_pat_photo: lx.patPhoto || null,
       luminex_don_photo: lx.donPhoto || null,
     };
@@ -1279,6 +1333,8 @@ function collectManualCase() {
 // MANUAL TAB — LIVE PREVIEW
 // ══════════════════════════════════════════════════════════════════════════
 function scheduleManualPreview() {
+  _refreshNgsPhotoInterp();
+  _refreshLuminexInterp();
   clearTimeout(state.previewTimer);
   state.previewTimer = setTimeout(refreshManualPreview, 600);
 }
@@ -1497,7 +1553,9 @@ function populateManualForm(c) {
       set(lx.donor.sample_type, d.sample_type); set(lx.donor.collection_date, d.collection_date);
       if (c.luminex_don_photo || d.photo_bytes) lx.donPhoto = c.luminex_don_photo || d.photo_bytes;
       if (d.hla) Object.entries(lx.donHla).forEach(([locus, [a1, a2]]) => { const pair = d.hla[locus] || ["", ""]; a1.value = pair[0] || ""; a2.value = pair[1] || ""; });
-      if (lx.interpretation) set(lx.interpretation, c.luminex_interpretation);
+      if (lx.matchScore) set(lx.matchScore, c.luminex_match_score || "");
+      const _savedLxInterp = c.luminex_interpretation || "";
+      if (lx.interpretation) { lx.interpretation.value = _savedLxInterp; _luminexLastAutoInterp = _savedLxInterp; }
     }
     scheduleManualPreview();
     return;
@@ -1604,7 +1662,9 @@ function populateManualForm(c) {
     if (manualSpecialFields.hc_remark) manualSpecialFields.hc_remark.value = c.hlac_remark || "";
   }
   if (rtype === "ngs_photo" && manualSpecialFields.ngs_photo_interpretation) {
-    manualSpecialFields.ngs_photo_interpretation.value = c.ngs_photo_interpretation || "";
+    const _savedInterp = c.ngs_photo_interpretation || "";
+    manualSpecialFields.ngs_photo_interpretation.value = _savedInterp;
+    _ngsPhotoLastAutoInterp = _savedInterp;
   }
 
   scheduleManualPreview();
@@ -2086,10 +2146,29 @@ function renderBulkLuminexEditor(editCol, c, i) {
   }
 
   const interpCard = el("div", { class: "card" }, [el("h3", {}, "Interpretation")]);
+  const matchScoreTA = el("input", { type: "text", placeholder: "e.g. 6 of 12 at High Resolution", value: c.luminex_match_score || "" });
+  // Auto-generate interpretation from match score when interpretation is empty
+  function _lxBulkAutoInterp() {
+    const _pn = (p.name || "").trim() || "—";
+    const _dn = ((c.donors && c.donors[0]?.name) || "").trim() || "—";
+    const _ms = matchScoreTA.value.trim();
+    return _ms ? `The Patient (${_pn}) had showed about ${_ms} match with the Donor (${_dn}).` : "";
+  }
+  let _lxBulkLastAuto = c.luminex_interpretation || _lxBulkAutoInterp();
+  if (!c.luminex_interpretation) c.luminex_interpretation = _lxBulkLastAuto;
   const interpTA = el("textarea", {});
-  interpTA.value = c.luminex_interpretation || "";
+  interpTA.value = c.luminex_interpretation;
+  matchScoreTA.addEventListener("input", () => {
+    c.luminex_match_score = matchScoreTA.value;
+    const auto = _lxBulkAutoInterp();
+    if (interpTA.value === _lxBulkLastAuto) { interpTA.value = auto; c.luminex_interpretation = auto; _lxBulkLastAuto = auto; }
+    refresh();
+  });
   interpTA.addEventListener("input", () => { c.luminex_interpretation = interpTA.value; refresh(); });
-  interpCard.appendChild(el("div",{class:"field full"},[el("label",{},"Interpretation"),interpTA]));
+  interpCard.appendChild(el("div", { class: "field-grid" }, [
+    el("div", { class: "field full" }, [el("label", {}, "MATCH SCORE"), matchScoreTA]),
+    el("div", { class: "field full" }, [el("label", {}, "INTERPRETATION"), interpTA]),
+  ]));
   editCol.appendChild(interpCard);
 
   const lxRemCard = el("div", { class: "card" }, [el("h3", {}, "Remarks / Comments")]);
@@ -2482,13 +2561,22 @@ function renderBulkEditor(i) {
 
   if (c.report_type === "ngs_photo") {
     const interpCard = el("div", { class: "card" }, [el("h3", {}, "Interpretation")]);
-    const interpTA = el("textarea", {
-      value: c.ngs_photo_interpretation || "",
-      placeholder: "Leave blank to auto-generate from the donor match percentage.",
-    });
-    interpTA.value = c.ngs_photo_interpretation || "";
+    const interpTA = el("textarea", {});
+    // Pre-fill with auto-generated sentence if not already set
+    if (!c.ngs_photo_interpretation) {
+      const _pName = (c.patient?.name || "").trim() || "—";
+      const _donors = c.donors || [];
+      c.ngs_photo_interpretation = _donors.length
+        ? _donors.map(d => {
+            const _dn = (d.name || "").trim() || "—";
+            let _m = (d.match || "").trim().replace(/\s*\(\d+%\)/, "").trim() || "—";
+            return `The Patient (${_pName}) had showed about ${_m} match with the Donor (${_dn}).`;
+          }).join("\n")
+        : `The Patient (${_pName}) had showed about — match with the Donor (—).`;
+    }
+    interpTA.value = c.ngs_photo_interpretation;
     interpTA.addEventListener("input", () => { c.ngs_photo_interpretation = interpTA.value; scheduleBulkPreview(i); });
-    interpCard.appendChild(el("div", { class: "field full" }, [el("label", {}, "Interpretation (optional override)"), interpTA]));
+    interpCard.appendChild(el("div", { class: "field full" }, [el("label", {}, "INTERPRETATION (OPTIONAL OVERRIDE)"), interpTA]));
     editCol.appendChild(interpCard);
   }
 
