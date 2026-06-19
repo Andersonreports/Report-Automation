@@ -1270,6 +1270,57 @@ function populateManualForm(c) {
   scheduleManualPreview();
 }
 
+function _downloadJson(data, filename) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function saveBulkDraft() {
+  if (!state.bulkCases.length) { showToast("No cases to save.", "error"); return; }
+  _downloadJson(state.bulkCases, "hla_bulk_draft.json");
+  showToast("Draft downloaded: hla_bulk_draft.json", "success");
+}
+
+function saveSelectedDraft() {
+  if (!state.bulkSelected.size) { showToast("No cases selected.", "error"); return; }
+  const cases = Array.from(state.bulkSelected).sort((a, b) => a - b).map(i => state.bulkCases[i]);
+  _downloadJson(cases, "hla_selected_draft.json");
+  showToast("Draft downloaded: hla_selected_draft.json (" + cases.length + " case" + (cases.length > 1 ? "s" : "") + ")", "success");
+}
+
+function loadBulkDraft() {
+  document.getElementById("bulkDraftFileInput").click();
+}
+
+function _onBulkDraftFileChange(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const cases = JSON.parse(e.target.result);
+      if (!Array.isArray(cases)) throw new Error("Expected a JSON array of cases.");
+      state.bulkCases = cases;
+      state.bulkSelected = new Set(cases.map((_, i) => i));
+      renderBulkList();
+      updateBulkSelectedCount();
+      showToast("Loaded " + cases.length + " case" + (cases.length > 1 ? "s" : "") + " from draft.", "success");
+    } catch (err) {
+      showToast("Invalid draft file: " + err.message, "error");
+    }
+    input.value = "";
+  };
+  reader.readAsText(file);
+}
+
+function updateBulkSelectedCount() {
+  const el = document.getElementById("bulkSelectedCount");
+  if (el) el.textContent = state.bulkSelected.size + " of " + state.bulkCases.length + " selected";
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // BULK TAB
 // ══════════════════════════════════════════════════════════════════════════
@@ -1310,14 +1361,16 @@ function initBulkTab() {
   document.getElementById("bulkSearchBox").addEventListener("input", renderBulkList);
   document.getElementById("bulkSelectAllBtn").addEventListener("click", () => {
     state.bulkCases.forEach((_, i) => state.bulkSelected.add(i));
-    renderBulkList();
+    renderBulkList(); updateBulkSelectedCount();
   });
   document.getElementById("bulkDeselectAllBtn").addEventListener("click", () => {
     state.bulkSelected.clear();
-    renderBulkList();
+    renderBulkList(); updateBulkSelectedCount();
   });
   document.getElementById("bulkGenAllBtn").addEventListener("click", () => generateBulk(false));
   document.getElementById("bulkGenSelectedBtn").addEventListener("click", () => generateBulk(true));
+  const draftFileInput = document.getElementById("bulkDraftFileInput");
+  if (draftFileInput) draftFileInput.addEventListener("change", () => _onBulkDraftFileChange(draftFileInput));
 
   const sabKitSelect = document.getElementById("bulkSabKitSelect");
   SAB_KIT_NAMES.forEach(k => sabKitSelect.appendChild(el("option", { value: k }, k)));
@@ -1411,6 +1464,7 @@ async function parseBulkExcel() {
 }
 
 function renderBulkList() {
+  updateBulkSelectedCount();
   const listEl = document.getElementById("bulkCaseList");
   listEl.innerHTML = "";
   if (!state.bulkCases.length) {
@@ -1443,6 +1497,7 @@ function renderBulkList() {
 
 function toggleBulkSelect(i, isChecked) {
   if (isChecked) state.bulkSelected.add(i); else state.bulkSelected.delete(i);
+  updateBulkSelectedCount();
 }
 
 function selectBulkCase(i) {
@@ -1459,11 +1514,7 @@ function selectBulkCase(i) {
 
 // ── Shared bulk editor helper ──────────────────────────────────────────────
 function _bulkRefreshRow(editCol, i) {
-  const btn = el("div", { style: "display:flex; gap:8px; margin-top:8px;" }, [
-    el("button", { class: "btn-sm btn-primary", onclick: () => previewBulkCase(i) },
-      [el("i", { class: "fas fa-sync" }), " Refresh Preview"]),
-  ]);
-  editCol.appendChild(btn);
+  // Refresh Preview button intentionally removed — preview auto-updates on case select
 }
 
 function _buildBulkPatientCard(p, patFields) {
@@ -1919,10 +1970,6 @@ function renderBulkEditor(i) {
     editCol.appendChild(el("div", { style: "margin:6px 0;" }, [addDonorBtn]));
   }
 
-  const btnRow = el("div", { style: "display:flex; gap:8px; margin-top:8px;" }, [
-    el("button", { class: "btn-sm btn-primary", onclick: () => previewBulkCase(i) }, [el("i", { class: "fas fa-sync" }), " Refresh Preview"]),
-  ]);
-  editCol.appendChild(btnRow);
 }
 
 async function previewBulkCase(i) {

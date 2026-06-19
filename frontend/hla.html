@@ -412,8 +412,14 @@
           </div>
         </div>
       </div>
-      <div class="gen-bar">
-        <div class="checkbox-item"><input type="checkbox" id="bulkLogoChk" checked> With Logo</div>
+      <input type="file" id="bulkDraftFileInput" accept=".json" class="hidden">
+      <input type="checkbox" id="bulkLogoChk" class="hidden">
+      <div class="gen-bar" style="flex-wrap:wrap; gap:8px; align-items:center; border-top:1px solid var(--panel-border); padding-top:10px; margin-top:6px;">
+        <button class="btn-sm btn-outline" onclick="saveBulkDraft()"><i class="fas fa-save"></i> Save All Draft</button>
+        <button class="btn-sm btn-outline" onclick="saveSelectedDraft()"><i class="fas fa-download"></i> Save Selected Draft</button>
+        <button class="btn-sm btn-outline" onclick="loadBulkDraft()"><i class="fas fa-folder-open"></i> Load Draft</button>
+        <div style="flex:1;"></div>
+        <span id="bulkSelectedCount" style="font-size:11px; color:var(--text-muted); font-weight:600;"></span>
         <button class="btn-sm btn-outline" id="bulkGenSelectedBtn"><i class="fas fa-file-pdf"></i> Generate Selected</button>
         <button class="btn-sm btn-primary" id="bulkGenAllBtn"><i class="fas fa-file-pdf"></i> Generate All</button>
       </div>
@@ -508,6 +514,6 @@
 
   <div class="toast" id="toast"></div>
 
-  <script src="/hla.js?v=17"></script>
+  <script src="/hla.js?v=18"></script>
 </body>
 </html>
