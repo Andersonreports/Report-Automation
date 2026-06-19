@@ -2399,6 +2399,9 @@ def _build_single_locus(case: dict, S: dict) -> list:
     allele1     = (case.get("sl_allele1", "") or "").strip()
     allele2     = (case.get("sl_allele2", "") or "").strip()
     sl_note     = (case.get("sl_note",    "") or "").strip()
+    _rmk_display = _clean_display(patient.get("remarks", "")) or ""
+    if _rmk_display == "—":
+        _rmk_display = ""
     signatories = case.get("signatories") or hla_assets.get_default_signatories(
         "single_locus", nabl)
 
@@ -2476,10 +2479,18 @@ def _build_single_locus(case: dict, S: dict) -> list:
     result_t.hAlign = "CENTER"
     result_t.setStyle(TableStyle(style_cmds))
 
-    # ── Result table + signatures kept together so they never split across pages ─
+    # ── Remarks (optional) ──────────────────────────────────────────────────────
+    remarks_items = []
+    if _rmk_display:
+        remarks_items = [
+            Spacer(1, 2 * mm),
+            Paragraph(f"<b>Remarks:</b> {_rmk_display}", _body_s),
+        ]
+
+    # ── Result table + remarks + signatures kept together so they never split across pages ─
     sig_items = _signature_block(signatories, S)
     elems.append(KeepTogether(
-        [result_t, Spacer(1, 2 * mm)] + (sig_items or [])
+        [result_t] + remarks_items + [Spacer(1, 2 * mm)] + (sig_items or [])
     ))
 
     return elems
