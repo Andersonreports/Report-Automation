@@ -1460,7 +1460,126 @@ async function loadDraft(scope) {
 }
 
 function populateManualForm(c) {
+  const rtype = c.report_type || state.rtype;
   const p = c.patient || {};
+  function set(input, value) { if (input && value != null && String(value).trim()) input.value = value; }
+
+  if (rtype === "cdc_crossmatch" || rtype === "dsa_crossmatch" || rtype === "flow_crossmatch") {
+    const xf = manualSpecialFields.crossmatch;
+    if (xf) {
+      set(xf.patient.name, p.name); set(xf.patient.gender_age, p.gender_age); set(xf.patient.pin, p.pin);
+      set(xf.patient.sample_number, p.sample_number); set(xf.patient.diagnosis, p.diagnosis);
+      set(xf.patient.hospital_clinic, p.hospital_clinic); set(xf.patient.sample_type, p.sample_type);
+      set(xf.patient.collection_date, p.collection_date); set(xf.patient.receipt_date, p.receipt_date);
+      set(xf.patient.report_date, p.report_date); set(xf.patient.remarks, p.remarks); set(xf.patient.comments, p.comments);
+      if (p.photo_bytes) xf.patientPhoto = p.photo_bytes;
+      const d = (c.donors && c.donors[0]) || {};
+      set(xf.donor.name, d.name); set(xf.donor.gender_age, d.gender_age); set(xf.donor.pin, d.pin);
+      set(xf.donor.sample_number, d.sample_number); set(xf.donor.relationship, d.relationship);
+      set(xf.donor.sample_type, d.sample_type); set(xf.donor.collection_date, d.collection_date);
+      set(xf.donor.receipt_date, d.receipt_date); set(xf.donor.report_date, d.report_date);
+      if (d.photo_bytes) xf.donorPhoto = d.photo_bytes;
+    }
+    if (rtype === "cdc_crossmatch" && c.cdc_results && manualSpecialFields.cdc_results) {
+      const r = manualSpecialFields.cdc_results, src = c.cdc_results;
+      if (r.t_cell) r.t_cell.value = src.t_cell || "Negative";
+      if (r.b_cell) r.b_cell.value = src.b_cell || "Negative";
+      set(r.t_with_dtt, src.t_with_dtt); set(r.b_with_dtt, src.b_with_dtt);
+    } else if (rtype === "dsa_crossmatch" && c.dsa_results && manualSpecialFields.dsa_results) {
+      const r = manualSpecialFields.dsa_results, src = c.dsa_results;
+      set(r.class1_result, src.class1_result); set(r.class1_mfi, src.class1_mfi); set(r.class1_cutoff, src.class1_cutoff);
+      set(r.class2_result, src.class2_result); set(r.class2_mfi, src.class2_mfi); set(r.class2_cutoff, src.class2_cutoff);
+    } else if (rtype === "flow_crossmatch" && c.flow_results && manualSpecialFields.flow_results) {
+      const r = manualSpecialFields.flow_results, src = c.flow_results;
+      set(r.t_mcs, src.t_mcs); set(r.t_interpretation, src.t_interpretation);
+      set(r.b_mcs, src.b_mcs); set(r.b_interpretation, src.b_interpretation);
+      set(r.interpretation, src.interpretation);
+    }
+    scheduleManualPreview();
+    return;
+  }
+
+  if (rtype === "luminex_typing") {
+    const lx = manualSpecialFields.luminex;
+    if (lx) {
+      set(lx.patient.patient_name, p.name); set(lx.patient.gender_age, p.gender_age); set(lx.patient.pin, p.pin);
+      set(lx.patient.sample_number, p.sample_number); set(lx.patient.diagnosis, p.diagnosis);
+      set(lx.patient.hospital_clinic, p.hospital_clinic); set(lx.patient.relation, p.relation);
+      set(lx.patient.sample_type, p.sample_type); set(lx.patient.collection_date, p.collection_date);
+      set(lx.patient.receipt_date, p.receipt_date); set(lx.patient.report_date, p.report_date);
+      set(lx.patient.remarks, p.remarks); set(lx.patient.comments, p.comments);
+      if (c.luminex_pat_photo || p.photo_bytes) lx.patPhoto = c.luminex_pat_photo || p.photo_bytes;
+      if (p.hla) Object.entries(lx.patHla).forEach(([locus, [a1, a2]]) => { const pair = p.hla[locus] || ["", ""]; a1.value = pair[0] || ""; a2.value = pair[1] || ""; });
+      const d = (c.donors && c.donors[0]) || {};
+      set(lx.donor.name, d.name); set(lx.donor.gender_age, d.gender_age); set(lx.donor.pin, d.pin);
+      set(lx.donor.sample_number, d.sample_number); set(lx.donor.relation, d.relation);
+      set(lx.donor.sample_type, d.sample_type); set(lx.donor.collection_date, d.collection_date);
+      if (c.luminex_don_photo || d.photo_bytes) lx.donPhoto = c.luminex_don_photo || d.photo_bytes;
+      if (d.hla) Object.entries(lx.donHla).forEach(([locus, [a1, a2]]) => { const pair = d.hla[locus] || ["", ""]; a1.value = pair[0] || ""; a2.value = pair[1] || ""; });
+      if (lx.interpretation) set(lx.interpretation, c.luminex_interpretation);
+    }
+    scheduleManualPreview();
+    return;
+  }
+
+  if (rtype === "kir_genotyping") {
+    const kir = manualSpecialFields.kir;
+    if (kir) {
+      set(kir.patient.patient_name, p.name); set(kir.patient.gender_age, p.gender_age); set(kir.patient.pin, p.pin);
+      set(kir.patient.sample_number, p.sample_number); set(kir.patient.hospital_mr_no, p.hospital_mr_no);
+      set(kir.patient.specimen, p.specimen); set(kir.patient.hospital_clinic, p.hospital_clinic);
+      set(kir.patient.collection_date, p.collection_date); set(kir.patient.receipt_date, p.receipt_date);
+      set(kir.patient.report_date, p.report_date); set(kir.patient.remarks, p.remarks); set(kir.patient.comments, p.comments);
+      if (c.kir_genes) Object.entries(kir.genes).forEach(([g, sel]) => { if (c.kir_genes[g]) sel.value = c.kir_genes[g]; });
+      if (kir.genotypeOverride && c.kir_genotype_override) kir.genotypeOverride.value = c.kir_genotype_override;
+      if (kir.interpretation) set(kir.interpretation, c.kir_interpretation);
+    }
+    scheduleManualPreview();
+    return;
+  }
+
+  if (["pra_class1", "pra_class2", "mixed_pra"].includes(rtype)) {
+    const pra = manualSpecialFields.pra;
+    if (pra) {
+      set(pra.patient.patient_name, p.name); set(pra.patient.gender, p.gender); set(pra.patient.age, p.age);
+      set(pra.patient.specimen, p.specimen); set(pra.patient.hospital_clinic, p.hospital_clinic);
+      set(pra.patient.pin, p.pin); set(pra.patient.sample_number, p.sample_number);
+      set(pra.patient.collection_date, p.collection_date); set(pra.patient.receipt_date, p.receipt_date);
+      set(pra.patient.report_date, p.report_date); set(pra.patient.remarks, p.remarks); set(pra.patient.comments, p.comments);
+      if (rtype === "mixed_pra") {
+        set(pra.result.pra_percentage_1, c.pra_percentage_1); set(pra.result.pra_result_1, c.pra_result_1);
+        set(pra.result.pra_percentage_2, c.pra_percentage_2); set(pra.result.pra_result_2, c.pra_result_2);
+      } else {
+        set(pra.result.pra_percentage, c.pra_percentage); set(pra.result.pra_result, c.pra_result);
+      }
+    }
+    scheduleManualPreview();
+    return;
+  }
+
+  if (rtype === "sab_class1" || rtype === "sab_class2") {
+    const sab = manualSpecialFields.sab;
+    if (sab) {
+      set(sab.patient.patient_name, p.name); set(sab.patient.gender_age, p.gender_age);
+      set(sab.patient.hospital_mr_no, p.hospital_mr_no); set(sab.patient.specimen, p.specimen);
+      set(sab.patient.hospital_clinic, p.hospital_clinic); set(sab.patient.pin, p.pin);
+      set(sab.patient.sample_number, p.sample_number); set(sab.patient.collection_date, p.collection_date);
+      set(sab.patient.receipt_date, p.receipt_date); set(sab.patient.report_date, p.report_date);
+      set(sab.patient.remarks, p.remarks); set(sab.patient.comments, p.comments);
+      if (sab.classSelect) sab.classSelect.value = c.sab_class || (rtype === "sab_class2" ? "II" : "I");
+      if (sab.alleleTextarea) sab.alleleTextarea.value = (c.sab_alleles || []).map(([a, m]) => `${a},${m}`).join("\n");
+      if (c.sab_chart_bytes) {
+        sab.chartBytes = c.sab_chart_bytes;
+        if (sab.chartStatus) sab.chartStatus.textContent = "Chart loaded from draft.";
+      }
+      const praMatch = String(p.remarks || "").match(/(\d+(?:\.\d+)?)\s*%/);
+      if (praMatch && sab.praInput) sab.praInput.value = praMatch[1];
+    }
+    scheduleManualPreview();
+    return;
+  }
+
+  // Default: NGS / RPL / single locus / HLA-C / standard templates
   Object.entries(manualFields).forEach(([key, input]) => {
     const map = { patient_name: "name" };
     const pk = map[key] || key;
@@ -1472,6 +1591,38 @@ function populateManualForm(c) {
       a1.value = pair[0] || ""; a2.value = pair[1] || "";
     });
   }
+  if (rtype === "ngs_photo" && p.photo_bytes) manualPatientPhoto.bytes = p.photo_bytes;
+
+  if (MULTI_DONOR_RTYPES.includes(rtype) && Array.isArray(c.donors)) {
+    const sectionTitle = rtype === "rpl_couple" ? "Spouse / Donor" : "Donor";
+    while (manualDonorFields.length < c.donors.length) addManualDonorCard(rtype, sectionTitle);
+    c.donors.forEach((d, i) => {
+      const df = manualDonorFields[i];
+      if (!df) return;
+      Object.keys(df).forEach(key => { if (d[key] != null) df[key].value = d[key]; });
+      const dhf = manualDonorHlaFields[i];
+      if (dhf && d.hla) {
+        Object.entries(dhf).forEach(([locus, [a1, a2]]) => {
+          const pair = d.hla[locus] || ["", ""];
+          a1.value = pair[0] || ""; a2.value = pair[1] || "";
+        });
+      }
+      if (rtype === "ngs_photo" && d.photo_bytes && manualDonorPhotoBytes[i]) manualDonorPhotoBytes[i].bytes = d.photo_bytes;
+    });
+  }
+
+  if (rtype === "single_locus") {
+    if (manualSpecialFields.sl_locus) manualSpecialFields.sl_locus.value = c.locus || "";
+    if (manualSpecialFields.sl_allele1) manualSpecialFields.sl_allele1.value = c.sl_allele1 || "";
+    if (manualSpecialFields.sl_allele2) manualSpecialFields.sl_allele2.value = c.sl_allele2 || "";
+    if (manualSpecialFields.sl_note) manualSpecialFields.sl_note.value = c.sl_note || "";
+  }
+  if (rtype === "hla_c") {
+    if (manualSpecialFields.hc_allele1) manualSpecialFields.hc_allele1.value = c.hlac_allele1 || "";
+    if (manualSpecialFields.hc_allele2) manualSpecialFields.hc_allele2.value = c.hlac_allele2 || "";
+    if (manualSpecialFields.hc_remark) manualSpecialFields.hc_remark.value = c.hlac_remark || "";
+  }
+
   scheduleManualPreview();
 }
 
