@@ -332,11 +332,11 @@ async def generate(request_body: dict):
             if "rayvathy" in s["name"].lower():
                 s["seal_b64"] = hla_assets.SEAL_REVATHY_B64
 
-    os.makedirs(output_dir, exist_ok=True)
-    fname    = make_filename(c)
-    out_path = unique_output_path(output_dir, fname)
-    fname    = os.path.basename(out_path)
     try:
+        os.makedirs(output_dir, exist_ok=True)
+        fname    = make_filename(c)
+        out_path = unique_output_path(output_dir, fname)
+        fname    = os.path.basename(out_path)
         generate_pdf(c, out_path)
         return {"ok": True, "filename": fname, "path": out_path}
     except Exception as e:

@@ -108,6 +108,7 @@ const state = {
   bulkSelected: new Set(),
   bulkCurrentIndex: -1,
   bulkPhotoBytes: {},
+  savedPatient: null,
   settings: { signatories: DEFAULT_SIGNATORIES, sig_counts: { ...DEFAULT_SIG_COUNTS }, with_logo: true, nabl: true, signature_stamp: false },
 };
 
@@ -184,7 +185,10 @@ function el(tag, attrs = {}, children = []) {
 
 async function apiPost(path, body) {
   const r = await fetch(API + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  if (!r.ok) { const t = await r.text(); throw new Error(t); }
+  if (!r.ok) {
+    const t = await r.text();
+    try { const j = JSON.parse(t); throw new Error(j.detail || t); } catch (e) { if (e instanceof SyntaxError) throw new Error(t); throw e; }
+  }
   return r.json();
 }
 async function apiGet(path) {
@@ -221,6 +225,84 @@ document.querySelectorAll(".tab").forEach(tab => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════
+// PATIENT DATA PERSISTENCE ACROSS TEMPLATE SWITCHES
+// ══════════════════════════════════════════════════════════════════════════
+function capturePatientForRestore() {
+  try {
+    const c = collectManualCase();
+    if (c && c.patient) {
+      const hla = {};
+      Object.entries(manualHlaFields).forEach(([locus, pair]) => {
+        hla[locus] = [pair[0] ? pair[0].value : "", pair[1] ? pair[1].value : ""];
+      });
+      state.savedPatient = { ...c.patient, _hla: hla };
+    }
+  } catch (e) {
+    state.savedPatient = null;
+  }
+}
+
+function restorePatientAfterRender() {
+  const p = state.savedPatient;
+  if (!p) return;
+  function set(input, value) { if (input && value != null && String(value).trim()) input.value = value; }
+  const g_a = p.gender_age || [p.gender, p.age].filter(Boolean).join(" / ");
+
+  // Standard templates
+  set(manualFields.patient_name, p.name);
+  set(manualFields.gender_age, g_a);
+  set(manualFields.pin, p.pin);
+  set(manualFields.sample_number, p.sample_number);
+  set(manualFields.hospital_clinic, p.hospital_clinic);
+  if (p.specimen && p.specimen !== "Blood - EDTA") set(manualFields.specimen, p.specimen);
+  set(manualFields.collection_date, p.collection_date);
+  set(manualFields.receipt_date, p.receipt_date);
+  set(manualFields.report_date, p.report_date);
+  set(manualFields.remarks, p.remarks);
+  if (p.hospital_mr_no && p.hospital_mr_no !== "NA") set(manualFields.hospital_mr_no, p.hospital_mr_no);
+  set(manualFields.diagnosis, p.diagnosis);
+  set(manualFields.referred_by, p.referred_by);
+
+  // HLA alleles
+  if (p._hla) {
+    Object.entries(p._hla).forEach(([locus, [a1, a2]]) => {
+      if (manualHlaFields[locus]) { set(manualHlaFields[locus][0], a1); set(manualHlaFields[locus][1], a2); }
+    });
+  }
+
+  // PRA templates
+  const pra = manualSpecialFields.pra && manualSpecialFields.pra.patient;
+  if (pra) {
+    set(pra.patient_name, p.name);
+    set(pra.gender, p.gender || (g_a.includes("/") ? g_a.split("/")[0].trim() : g_a));
+    set(pra.age, p.age || (g_a.includes("/") ? (g_a.split("/")[1] || "").trim() : ""));
+    set(pra.pin, p.pin); set(pra.sample_number, p.sample_number);
+    set(pra.hospital_clinic, p.hospital_clinic); set(pra.specimen, p.specimen);
+    set(pra.collection_date, p.collection_date); set(pra.receipt_date, p.receipt_date);
+    set(pra.report_date, p.report_date);
+  }
+
+  // Crossmatch templates
+  const xp = manualSpecialFields.crossmatch && manualSpecialFields.crossmatch.patient;
+  if (xp) {
+    set(xp.name, p.name); set(xp.gender_age, g_a); set(xp.pin, p.pin);
+    set(xp.sample_number, p.sample_number); set(xp.hospital_clinic, p.hospital_clinic);
+    set(xp.collection_date, p.collection_date); set(xp.receipt_date, p.receipt_date);
+    set(xp.report_date, p.report_date);
+  }
+
+  // SAB / Luminex / KIR — all use patient_name key
+  ["sab", "luminex", "kir"].forEach(key => {
+    const sp = manualSpecialFields[key] && manualSpecialFields[key].patient;
+    if (!sp) return;
+    set(sp.patient_name, p.name); set(sp.gender_age, g_a); set(sp.pin, p.pin);
+    set(sp.sample_number, p.sample_number); set(sp.hospital_clinic, p.hospital_clinic);
+    set(sp.collection_date, p.collection_date); set(sp.receipt_date, p.receipt_date);
+    set(sp.report_date, p.report_date);
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // HEADER: TEMPLATE + LOGO SELECT
 // ══════════════════════════════════════════════════════════════════════════
 function initTemplateSelect() {
@@ -239,8 +321,10 @@ function initTemplateSelect() {
       renderBulkEditor(state.bulkCurrentIndex);
       previewBulkCase(state.bulkCurrentIndex);
     } else {
+      capturePatientForRestore();
       state.rtype = newRtype;
       renderManualForm();
+      restorePatientAfterRender();
     }
   });
   document.getElementById("logoSelect").addEventListener("change", e => {
