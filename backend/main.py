@@ -891,6 +891,7 @@ async def open_folder_dialog():
             "$d = New-Object System.Windows.Forms.FolderBrowserDialog;"
             "$d.Description = 'Select Output Folder';"
             "$d.ShowNewFolderButton = $true;"
+            "$d.AutoUpgradeEnabled = $true;"
             "if ($d.ShowDialog($owner) -eq 'OK') { Write-Output $d.SelectedPath };"
             "$owner.Dispose();"
         )
