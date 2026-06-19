@@ -1764,11 +1764,11 @@ def _build_ngs_transplant(case: dict, S: dict) -> list:
     while elems and isinstance(elems[-1], Spacer):
         elems.pop()
 
-    # IMGT/HLA Release + Coverage always starts on a fresh page. PageBreakIfNotEmpty
-    # (unlike a bare PageBreak()) is a no-op when the frame is already empty — so it
-    # won't advance an extra blank page if the patient/donor content already
-    # overflowed onto a new page on its own.
-    elems.append(PageBreakIfNotEmpty())
+    # IMGT/HLA Release + Coverage always starts on a fresh page for transplant_donor.
+    # For loci11, let content flow naturally — the table is compact enough to share
+    # a page with IMGT when there are only a few rows.
+    if not _is_loci11:
+        elems.append(PageBreakIfNotEmpty())
     elems.extend(_methodology_block(case, S))
     sig_items = _signature_block(signatories, S)
     if sig_items:
@@ -2625,22 +2625,23 @@ def _build_hla_c(case: dict, S: dict) -> list:
         elems.append(Spacer(1, 2 * mm))
 
         # ── Remarks ──────────────────────────────────────────────────────────
-        elems.extend(_sec("Remarks"))
+        if remark:
+            elems.extend(_sec("Remarks"))
 
-        _rem_w = [CONTENT_W * 0.40]
-        rem_t = Table([
-            [Paragraph(f"<b>{_parent_label} HLA-C Type</b>", _val_c_s)],
-            [Paragraph(_clean_display(remark) or "—", _val_c_s)],
-        ], colWidths=_rem_w)
-        rem_t.hAlign = "CENTER"
-        rem_t.setStyle(TableStyle([
-            ("BACKGROUND",    (0, 0), (-1, -1), WHITE),
-            ("GRID",          (0, 0), (-1, -1), 0.5, colors.grey),
-            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
-            ("TOPPADDING",    (0, 0), (-1, -1), 5),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-        ]))
-        elems.append(rem_t)
+            _rem_w = [CONTENT_W * 0.40]
+            rem_t = Table([
+                [Paragraph(f"<b>{_parent_label} HLA-C Type</b>", _val_c_s)],
+                [Paragraph(remark, _val_c_s)],
+            ], colWidths=_rem_w)
+            rem_t.hAlign = "CENTER"
+            rem_t.setStyle(TableStyle([
+                ("BACKGROUND",    (0, 0), (-1, -1), WHITE),
+                ("GRID",          (0, 0), (-1, -1), 0.5, colors.grey),
+                ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+                ("TOPPADDING",    (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]))
+            elems.append(rem_t)
 
     # ── Disclaimer + Reference + Signatures ─────────────────────────────────
     # POC's Result table is much shorter than the standard Typing Result +
@@ -4259,7 +4260,7 @@ def _build_pra_report(case: dict, S: dict) -> list:
     elems.append(_res_t)
     elems.append(Spacer(1, 6*mm))
 
-    _pra_rmk = _clean_display(patient.get("remarks", "")) or ""
+    _pra_rmk = (patient.get("remarks", "") or "").strip()
     if _pra_rmk:
         _section("Remarks")
         elems.append(Paragraph(_pra_rmk, _body_s))

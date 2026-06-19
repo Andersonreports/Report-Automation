@@ -804,13 +804,17 @@ function buildCrossmatchSection(col, rtype) {
   const resGrid = el("div", { class: "field-grid" });
   if (rtype === "cdc_crossmatch") {
     const r = {};
-    [["t_cell", "T-Cell Result"], ["b_cell", "B-Cell Result"], ["t_with_dtt", "T-Cell with DTT"],
-     ["b_with_dtt", "B-Cell with DTT"]].forEach(([k, l]) => {
+    [["t_cell", "T-Cell Result"], ["b_cell", "B-Cell Result"]].forEach(([k, l]) => {
       const sel = el("select", { onchange: scheduleManualPreview }, [
         el("option", { value: "Negative" }, "Negative"), el("option", { value: "Positive" }, "Positive"), el("option", { value: "Doubtful" }, "Doubtful"),
       ]);
       r[k] = sel;
       resGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), sel]));
+    });
+    [["t_with_dtt", "T-Cell Dead Cell %"], ["b_with_dtt", "B-Cell Dead Cell %"]].forEach(([k, l]) => {
+      const inp = el("input", { type: "text", placeholder: "<10% Dead cells", oninput: scheduleManualPreview });
+      r[k] = inp;
+      resGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), inp]));
     });
     manualSpecialFields.cdc_results = r;
   } else if (rtype === "dsa_crossmatch") {
@@ -1181,6 +1185,7 @@ function collectManualCase() {
         t_with_dtt: val(r.t_with_dtt) || "<10% Dead cells", t_without_dtt: val(r.t_with_dtt) || "<10% Dead cells",
         b_with_dtt: val(r.b_with_dtt) || "<10% Dead cells", b_without_dtt: val(r.b_with_dtt) || "<10% Dead cells",
       };
+      // Note: t_without_dtt mirrors t_with_dtt (single entry covers both columns)
     } else if (rtype === "dsa_crossmatch") {
       const r = manualSpecialFields.dsa_results || {};
       c.dsa_results = {
@@ -2059,8 +2064,7 @@ function renderBulkCrossmatchEditor(editCol, c, i) {
   const resGrid = el("div", { class: "field-grid" });
   if (c.report_type === "cdc_crossmatch") {
     const r = c.cdc_results || {};
-    [["t_cell","T-Cell Result"],["b_cell","B-Cell Result"],
-     ["t_with_dtt","T with DTT"],["b_with_dtt","B with DTT"]].forEach(([k,l]) => {
+    [["t_cell","T-Cell Result"],["b_cell","B-Cell Result"]].forEach(([k,l]) => {
       const sel = el("select", {}, [
         el("option",{value:"Negative"},"Negative"),
         el("option",{value:"Positive"},"Positive"),
@@ -2069,6 +2073,14 @@ function renderBulkCrossmatchEditor(editCol, c, i) {
       sel.value = r[k] || "Negative";
       sel.addEventListener("change", () => { r[k] = sel.value; c.cdc_results = r; refresh(); });
       resGrid.appendChild(el("div",{class:"field"},[el("label",{},l),sel]));
+    });
+    [["t_with_dtt","T Dead Cell %"],["b_with_dtt","B Dead Cell %"]].forEach(([k,l]) => {
+      const inp = el("input",{type:"text",placeholder:"<10% Dead cells",value:r[k]||""});
+      inp.addEventListener("input",()=>{
+        r[k]=inp.value; r[k.replace("with","without")]=inp.value;
+        c.cdc_results=r; refresh();
+      });
+      resGrid.appendChild(el("div",{class:"field"},[el("label",{},l),inp]));
     });
   } else if (c.report_type === "dsa_crossmatch") {
     const r = c.dsa_results || {};
