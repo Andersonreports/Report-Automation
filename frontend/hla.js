@@ -1058,7 +1058,7 @@ function buildSabSection(col, rtype) {
   const alleleCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-vial" }), " Allele Data (one per line: Allele,MFI)"])]);
   const alleleTextarea = el("textarea", {
     placeholder: "A*01:01,2126\nA*36:01,992\nDQA1*01:01, DQB1*05:01,1755",
-    style: "min-height:140px; font-family:'Courier New',monospace; font-size:11px;",
+    style: "min-height:140px; font-family:'Inter',sans-serif; font-size:12px;",
     oninput: scheduleManualPreview,
   });
   sab.alleleTextarea = alleleTextarea;
@@ -2075,7 +2075,7 @@ function renderBulkSabEditor(editCol, c, i) {
   editCol.appendChild(remCard);
 
   const alleleCard = el("div", { class: "card" }, [el("h3", {}, "Allele Data (one per line: Allele,MFI)")]);
-  const alleleTextarea = el("textarea", { style: "min-height:140px; font-family:'Courier New',monospace; font-size:11px;" });
+  const alleleTextarea = el("textarea", { style: "min-height:140px; font-family:'Inter',sans-serif; font-size:12px;" });
   alleleTextarea.value = (c.sab_alleles || []).map(([a, m]) => `${a},${m}`).join("\n");
   alleleTextarea.addEventListener("input", () => {
     c.sab_alleles = parseSabAlleleTextLocal(alleleTextarea.value);
