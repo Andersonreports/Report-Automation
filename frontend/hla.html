@@ -414,16 +414,22 @@
       </div>
       <input type="file" id="bulkDraftFileInput" accept=".json" class="hidden">
       <input type="checkbox" id="bulkLogoChk" class="hidden">
-      <div class="gen-bar" style="flex-wrap:wrap; gap:8px; align-items:center; border-top:1px solid var(--panel-border); padding-top:10px; margin-top:6px;">
-        <button class="btn-sm btn-outline" onclick="saveBulkDraft()"><i class="fas fa-save"></i> Save All Draft</button>
-        <button class="btn-sm btn-outline" onclick="saveSelectedDraft()"><i class="fas fa-download"></i> Save Selected Draft</button>
-        <button class="btn-sm btn-outline" onclick="loadBulkDraft()"><i class="fas fa-folder-open"></i> Load Draft</button>
-        <div style="flex:1;"></div>
-        <span id="bulkSelectedCount" style="font-size:11px; color:var(--text-muted); font-weight:600;"></span>
-        <button class="btn-sm btn-outline" id="bulkGenSelectedBtn"><i class="fas fa-file-pdf"></i> Generate Selected</button>
-        <button class="btn-sm btn-primary" id="bulkGenAllBtn"><i class="fas fa-file-pdf"></i> Generate All</button>
+      <div id="bulkGenSection" style="position:relative;">
+        <button id="bulkGenToggleBtn" onclick="toggleBulkGenBar()" title="Toggle actions bar"
+          style="position:absolute; right:0; top:-18px; width:32px; height:32px; border-radius:50%; background:var(--primary); color:#fff; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:13px; box-shadow:0 2px 6px rgba(0,0,0,0.18); z-index:10;">
+          <i class="fas fa-chevron-down" id="bulkGenToggleIcon"></i>
+        </button>
+        <div id="bulkGenBar" class="gen-bar" style="flex-wrap:wrap; gap:8px; align-items:center; border-top:1px solid var(--panel-border); padding-top:10px; margin-top:6px;">
+          <button class="btn-sm btn-outline" onclick="saveBulkDraft()"><i class="fas fa-save"></i> Save All Draft</button>
+          <button class="btn-sm btn-outline" onclick="saveSelectedDraft()"><i class="fas fa-download"></i> Save Selected Draft</button>
+          <button class="btn-sm btn-outline" onclick="loadBulkDraft()"><i class="fas fa-folder-open"></i> Load Draft</button>
+          <div style="flex:1;"></div>
+          <span id="bulkSelectedCount" style="font-size:11px; color:var(--text-muted); font-weight:600;"></span>
+          <button class="btn-sm btn-outline" id="bulkGenSelectedBtn"><i class="fas fa-file-pdf"></i> Generate Selected</button>
+          <button class="btn-sm btn-primary" id="bulkGenAllBtn"><i class="fas fa-file-pdf"></i> Generate All</button>
+        </div>
+        <div class="progress-wrap hidden" id="bulkProgressWrap"><div class="progress-bar" id="bulkProgressBar"></div></div>
       </div>
-      <div class="progress-wrap hidden" id="bulkProgressWrap"><div class="progress-bar" id="bulkProgressBar"></div></div>
     </div>
 
     <!-- ══════════════ TAB 3: SETTINGS ══════════════ -->
@@ -514,6 +520,6 @@
 
   <div class="toast" id="toast"></div>
 
-  <script src="/hla.js?v=18"></script>
+  <script src="/hla.js?v=19"></script>
 </body>
 </html>

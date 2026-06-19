@@ -1321,6 +1321,19 @@ function updateBulkSelectedCount() {
   if (el) el.textContent = state.bulkSelected.size + " of " + state.bulkCases.length + " selected";
 }
 
+let _bulkGenBarVisible = true;
+function toggleBulkGenBar() {
+  _bulkGenBarVisible = !_bulkGenBarVisible;
+  const bar = document.getElementById("bulkGenBar");
+  const prog = document.getElementById("bulkProgressWrap");
+  const icon = document.getElementById("bulkGenToggleIcon");
+  if (bar) bar.style.display = _bulkGenBarVisible ? "" : "none";
+  if (prog) prog.style.display = _bulkGenBarVisible ? "" : "none";
+  if (icon) {
+    icon.className = _bulkGenBarVisible ? "fas fa-chevron-down" : "fas fa-chevron-up";
+  }
+}
+
 // ══════════════════════════════════════════════════════════════════════════
 // BULK TAB
 // ══════════════════════════════════════════════════════════════════════════
