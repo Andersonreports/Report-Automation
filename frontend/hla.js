@@ -30,10 +30,10 @@ REPORT_TEMPLATES.forEach(t => RTYPE_TO_TEMPLATE_NAME[t.report_type] = t.name);
 
 const HLA_LOCI = ["A", "B", "C", "DRB1", "DQB1", "DPB1", "DRB3", "DPA1", "DQA1"];
 const HLA_LOCUS_LABELS = { DRB3: "DRB3/4/5" };
-// Desktop rule (hla_report_generator.py _update_manual_rpl_visibility):
-// _is_sep_drb = rtype in ("ngs_photo", "transplant_donor") — every other template
-// (including loci11) shows DRB3/DRB4/DRB5 combined into a single row.
-const SEPARATE_DRB_RTYPES = ["ngs_photo", "transplant_donor"];
+// DRB3/DRB4/DRB5 are shown as THREE separate allele rows for every template
+// EXCEPT loci11, which merges them into a single combined "DRB3/4/5" row.
+const SEPARATE_DRB_RTYPES = ["ngs_photo", "transplant_donor"]; // kept for bulk splitDrb345 compat
+function isSeparateDrb(rtype) { return rtype !== "loci11"; }
 
 const DEFAULT_SIG_COUNTS = {
   single_hla: 3, rpl_couple: 2, single_rpl: 2, single_locus: 2, hla_c: 2,
@@ -275,10 +275,13 @@ function buildDonorCard(prefix, fieldsRef, hlaFieldsRef, title = "Donor Informat
   const grid = el("div", { class: "field-grid" });
   const DONOR_FIELDS = [
     ["name", "Donor Name", ""], ["gender_age", "Gender / Age", ""],
-    ["relationship", "Relationship", ""], ["pin", "PIN", "NA"],
-    ["sample_number", "Sample Number", "NA"], ["collection_date", "Collection Date", ""],
-    ["receipt_date", "Sample Receipt Date", ""], ["report_date", "Report Date", ""],
-    ["match", "Match (e.g. '6 of 12 at High Resolution')", ""],
+    ["relationship", "Relationship", ""], ["hospital_mr_no", "Hospital MR No.", "NA"],
+    ["diagnosis", "Diagnosis", ""], ["referred_by", "Referred By", ""],
+    ["hospital_clinic", "Hospital / Clinic", ""], ["pin", "PIN", "NA"],
+    ["sample_number", "Sample Number", "NA"], ["specimen", "Specimen", "Blood - EDTA"],
+    ["collection_date", "Collection Date", ""], ["receipt_date", "Sample Receipt Date", ""],
+    ["report_date", "Report Date", ""], ["match", "Match (e.g. '6 of 12 at High Resolution')", ""],
+    ["remarks", "Remarks", ""],
   ];
   DONOR_FIELDS.forEach(([key, label, def]) => {
     const input = el("input", { type: "text", value: def, oninput: scheduleManualPreview });
@@ -410,7 +413,7 @@ function addManualDonorCard(rtype, sectionTitle) {
   manualDonorFields.push(df);
   manualDonorHlaFields.push(dhf);
   manualDonorPhotoBytes.push(photoRef);
-  const separateDrb = SEPARATE_DRB_RTYPES.includes(rtype);
+  const separateDrb = isSeparateDrb(rtype);
   const cardTitle = sectionTitle + " " + (idx + 1);
 
   const card = el("div", { class: "card donor-card", style: "margin-bottom:8px; border:1px solid var(--card-border);" });
@@ -430,10 +433,13 @@ function addManualDonorCard(rtype, sectionTitle) {
 
   const DONOR_FIELDS = [
     ["name", "Donor Name", ""], ["gender_age", "Gender / Age", ""],
-    ["relationship", "Relationship", ""], ["pin", "PIN", "NA"],
-    ["sample_number", "Sample Number", "NA"], ["collection_date", "Collection Date", ""],
-    ["receipt_date", "Sample Receipt Date", ""], ["report_date", "Report Date", ""],
-    ["match", "Match (e.g. '6 of 12 at High Resolution')", ""],
+    ["relationship", "Relationship", ""], ["hospital_mr_no", "Hospital MR No.", "NA"],
+    ["diagnosis", "Diagnosis", ""], ["referred_by", "Referred By", ""],
+    ["hospital_clinic", "Hospital / Clinic", ""], ["pin", "PIN", "NA"],
+    ["sample_number", "Sample Number", "NA"], ["specimen", "Specimen", "Blood - EDTA"],
+    ["collection_date", "Collection Date", ""], ["receipt_date", "Sample Receipt Date", ""],
+    ["report_date", "Report Date", ""], ["match", "Match (e.g. '6 of 12 at High Resolution')", ""],
+    ["remarks", "Remarks", ""],
   ];
   const grid = el("div", { class: "field-grid" });
   DONOR_FIELDS.forEach(([key, label, def]) => {
@@ -479,7 +485,7 @@ function renderManualForm() {
   }
 
   if (["single_hla", "transplant_donor", "ngs_photo", "loci11", "rpl_couple", "single_rpl"].includes(rtype)) {
-    col.appendChild(buildHlaAlleleCard("man_pat", manualHlaFields, SEPARATE_DRB_RTYPES.includes(rtype)));
+    col.appendChild(buildHlaAlleleCard("man_pat", manualHlaFields, isSeparateDrb(rtype)));
   }
 
   if (MULTI_DONOR_RTYPES.includes(rtype)) {
@@ -489,9 +495,9 @@ function renderManualForm() {
   if (rtype === "single_locus") {
     const card = el("div", { class: "card" }, [el("h3", {}, "Single Locus Result")]);
     const grid = el("div", { class: "field-grid" });
-    ["Locus", "Allele 1", "Allele 2"].forEach((lbl, i) => {
+    [["Locus", "sl_locus"], ["Allele 1", "sl_allele1"], ["Allele 2", "sl_allele2"], ["Note (optional)", "sl_note"]].forEach(([lbl, key]) => {
       const input = el("input", { type: "text", oninput: scheduleManualPreview });
-      manualSpecialFields[`sl_${i}`] = input;
+      manualSpecialFields[key] = input;
       grid.appendChild(el("div", { class: "field" }, [el("label", {}, lbl), input]));
     });
     card.appendChild(grid);
@@ -501,9 +507,9 @@ function renderManualForm() {
   if (rtype === "hla_c") {
     const card = el("div", { class: "card" }, [el("h3", {}, "HLA-C Result")]);
     const grid = el("div", { class: "field-grid" });
-    ["Allele 1", "Allele 2", "Supertype (C1/C2)"].forEach((lbl, i) => {
+    [["Allele 1", "hc_allele1"], ["Allele 2", "hc_allele2"], ["Remark (Maternal HLA-C Type)", "hc_remark"]].forEach(([lbl, key]) => {
       const input = el("input", { type: "text", oninput: scheduleManualPreview });
-      manualSpecialFields[`hc_${i}`] = input;
+      manualSpecialFields[key] = input;
       grid.appendChild(el("div", { class: "field" }, [el("label", {}, lbl), input]));
     });
     card.appendChild(grid);
@@ -541,7 +547,7 @@ function buildCrossmatchSection(col, rtype) {
   const PAT_X_FIELDS = [["name", "Patient Name"], ["gender_age", "Gender / Age"], ["pin", "PIN"],
     ["sample_number", "Sample Number"], ["diagnosis", "Diagnosis"], ["hospital_clinic", "Hospital/Clinic"],
     ["sample_type", "Sample Type"], ["collection_date", "Collection Date"], ["receipt_date", "Receipt Date"],
-    ["report_date", "Report Date"]];
+    ["report_date", "Report Date"], ["remarks", "Remarks (optional)"], ["comments", "Additional Comment (optional)"]];
   const xf = { patient: {}, donor: {}, patientPhoto: null, donorPhoto: null };
   PAT_X_FIELDS.forEach(([k, l]) => {
     const input = el("input", { type: "text", oninput: scheduleManualPreview });
@@ -598,6 +604,9 @@ function buildCrossmatchSection(col, rtype) {
       r[k] = input;
       resGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), input]));
     });
+    const interpInput = el("input", { type: "text", placeholder: "Leave blank to auto-generate from MCS values", oninput: scheduleManualPreview });
+    r.interpretation = interpInput;
+    resGrid.appendChild(el("div", { class: "field full" }, [el("label", {}, "Interpretation Override (optional)"), interpInput]));
     manualSpecialFields.flow_results = r;
   }
   resCard.appendChild(resGrid);
@@ -909,6 +918,7 @@ function collectManualCase() {
       hospital_clinic: val(xf.patient.hospital_clinic), sample_type: val(xf.patient.sample_type) || "Serum",
       collection_date: val(xf.patient.collection_date), receipt_date: val(xf.patient.receipt_date),
       report_date: val(xf.patient.report_date), photo_bytes: xf.patientPhoto || null,
+      remarks: val(xf.patient.remarks), comments: val(xf.patient.comments),
     });
     const donor = emptyPerson({
       name: val(xf.donor.name), gender_age: val(xf.donor.gender_age), pin: val(xf.donor.pin) || "NA",
@@ -938,6 +948,7 @@ function collectManualCase() {
       c.flow_results = {
         t_mcs: val(r.t_mcs) || "<45", t_interpretation: val(r.t_interpretation) || "Negative",
         b_mcs: val(r.b_mcs) || "<86", b_interpretation: val(r.b_interpretation) || "Negative",
+        interpretation: val(r.interpretation) || "",
       };
     }
     return c;
@@ -1048,9 +1059,12 @@ function collectManualCase() {
       const photoRef = manualDonorPhotoBytes[i] || { bytes: null };
       return emptyPerson({
         name: val(df.name), gender_age: val(df.gender_age), relationship: val(df.relationship),
+        hospital_mr_no: val(df.hospital_mr_no) || "NA", diagnosis: val(df.diagnosis),
+        referred_by: val(df.referred_by), hospital_clinic: val(df.hospital_clinic),
         pin: val(df.pin) || "NA", sample_number: val(df.sample_number) || "NA",
+        specimen: val(df.specimen) || "Blood - EDTA",
         collection_date: val(df.collection_date), receipt_date: val(df.receipt_date),
-        report_date: val(df.report_date), match: val(df.match),
+        report_date: val(df.report_date), match: val(df.match), remarks: val(df.remarks),
         hla: Object.keys(dhf).length ? collectAlleles(dhf) : emptyHla(),
         photo_bytes: rtype === "ngs_photo" ? (photoRef.bytes || null) : null,
       });
@@ -1060,18 +1074,17 @@ function collectManualCase() {
   const c = { report_type: rtype, nabl, with_logo: state.withLogo, signature_stamp: stamp, patient, donors, rpl_reference: {} };
 
   if (rtype === "single_locus") {
-    c.single_locus = {
-      locus: manualSpecialFields.sl_0 ? manualSpecialFields.sl_0.value.trim() : "",
-      allele1: manualSpecialFields.sl_1 ? manualSpecialFields.sl_1.value.trim() : "",
-      allele2: manualSpecialFields.sl_2 ? manualSpecialFields.sl_2.value.trim() : "",
-    };
+    // Keys must match hla_template.py: case["locus"], case["sl_allele1"], case["sl_allele2"], case["sl_note"]
+    c.locus      = manualSpecialFields.sl_locus   ? manualSpecialFields.sl_locus.value.trim()   : "";
+    c.sl_allele1 = manualSpecialFields.sl_allele1 ? manualSpecialFields.sl_allele1.value.trim() : "";
+    c.sl_allele2 = manualSpecialFields.sl_allele2 ? manualSpecialFields.sl_allele2.value.trim() : "";
+    c.sl_note    = manualSpecialFields.sl_note    ? manualSpecialFields.sl_note.value.trim()    : "";
   }
   if (rtype === "hla_c") {
-    c.hla_c_result = {
-      allele1: manualSpecialFields.hc_0 ? manualSpecialFields.hc_0.value.trim() : "",
-      allele2: manualSpecialFields.hc_1 ? manualSpecialFields.hc_1.value.trim() : "",
-      supertype: manualSpecialFields.hc_2 ? manualSpecialFields.hc_2.value.trim() : "",
-    };
+    // Keys must match hla_template.py: case["hlac_allele1"], case["hlac_allele2"], case["hlac_remark"]
+    c.hlac_allele1 = manualSpecialFields.hc_allele1 ? manualSpecialFields.hc_allele1.value.trim() : "";
+    c.hlac_allele2 = manualSpecialFields.hc_allele2 ? manualSpecialFields.hc_allele2.value.trim() : "";
+    c.hlac_remark  = manualSpecialFields.hc_remark  ? manualSpecialFields.hc_remark.value.trim()  : "";
   }
 
   return c;
@@ -1706,7 +1719,7 @@ function renderBulkEditor(i) {
   }
 
   const p = c.patient || {};
-  const separateDrb = SEPARATE_DRB_RTYPES.includes(c.report_type);
+  const separateDrb = isSeparateDrb(c.report_type);
 
   function buildHlaGrid(hla) {
     const hgrid = el("div", { class: "allele-grid" });

@@ -136,6 +136,33 @@ def _decode_b64_field(obj: dict, key: str) -> None:
             obj[key] = None
 
 
+def _auto_compute_derived_fields(case: dict) -> None:
+    """Auto-compute rpl_reference for rpl_couple and hla_c_patient for single_rpl."""
+    rtype = case.get("report_type", "")
+    if rtype == "rpl_couple":
+        ref = case.get("rpl_reference") or {}
+        if not (ref.get("match_str") or "").strip():
+            patient = case.get("patient", {})
+            donors  = case.get("donors", [])
+            donor   = donors[0] if donors else {}
+            try:
+                case["rpl_reference"] = compute_rpl_reference(patient, donor)
+            except Exception:
+                pass
+    elif rtype == "single_rpl":
+        ref = case.get("rpl_reference") or {}
+        if not (ref.get("hla_c_patient") or "").strip():
+            patient = case.get("patient", {})
+            pc = (patient.get("hla") or {}).get("HLA-C", ["", ""])
+            try:
+                ct1 = c_supertype(pc[0]) if pc and pc[0] else None
+                ct2 = c_supertype(pc[1]) if pc and len(pc) > 1 and pc[1] else None
+                parts = [s for s in [ct1, ct2] if s]
+                case.setdefault("rpl_reference", {})["hla_c_patient"] = ", ".join(parts) if parts else ""
+            except Exception:
+                pass
+
+
 def _decode_case_binary_fields(case: dict) -> None:
     """In-place: decode all base64-encoded binary fields back to raw bytes
     before handing the case dict to generate_pdf()."""
@@ -252,6 +279,7 @@ async def preview(request_body: dict):
 
     c = copy.deepcopy(case)
     _decode_case_binary_fields(c)
+    _auto_compute_derived_fields(c)
     c["signatories"]  = _build_signatories(rtype, nabl, sig_counts, signatories,
                                             c.pop("sig_name_overrides", {}))
     if sig_stamp and any("rayvathy" in s["name"].lower() for s in c["signatories"]):
@@ -294,6 +322,7 @@ async def generate(request_body: dict):
 
     c = copy.deepcopy(case)
     _decode_case_binary_fields(c)
+    _auto_compute_derived_fields(c)
     c["signatories"] = _build_signatories(rtype, nabl, sig_counts, signatories,
                                            c.pop("sig_name_overrides", {}))
     if sig_stamp and any("rayvathy" in s["name"].lower() for s in c["signatories"]):
@@ -331,6 +360,7 @@ async def generate_bulk(request_body: dict):
     for case in cases:
         c = copy.deepcopy(case)
         _decode_case_binary_fields(c)
+        _auto_compute_derived_fields(c)
         c["with_logo"]       = with_logo
         c["signature_stamp"] = sig_stamp
         rtype = c.get("report_type", "single_hla")
