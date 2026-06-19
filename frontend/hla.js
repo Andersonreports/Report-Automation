@@ -112,6 +112,54 @@ const state = {
 };
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
+const _pdfTokens = {};
+
+function renderPdfToCanvas(arrayBuffer, host, token, tokenKey) {
+  const lib = window['pdfjs-dist/build/pdf'];
+  if (!lib) {
+    if (host.dataset.blobUrl) URL.revokeObjectURL(host.dataset.blobUrl);
+    const u = URL.createObjectURL(new Blob([arrayBuffer], {type: "application/pdf"}));
+    host.dataset.blobUrl = u;
+    host.innerHTML = `<iframe src="${u}#toolbar=0&navpanes=0" style="width:100%;flex:1;border:none;min-height:400px;"></iframe>`;
+    return Promise.resolve();
+  }
+  return lib.getDocument({data: arrayBuffer}).promise.then(doc => {
+    if (_pdfTokens[tokenKey] !== token) return;
+    host.innerHTML = "";
+    const containerW = Math.max((host.clientWidth || 440) - 24, 240);
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    let chain = Promise.resolve();
+    for (let n = 1; n <= doc.numPages; n++) {
+      const num = n;
+      chain = chain.then(() => {
+        if (_pdfTokens[tokenKey] !== token) return;
+        return doc.getPage(num).then(page => {
+          if (_pdfTokens[tokenKey] !== token) return;
+          const vp = page.getViewport({scale: 1});
+          const cssScale = Math.max(0.4, containerW / vp.width);
+          const svp = page.getViewport({scale: cssScale * dpr});
+          const canvas = document.createElement("canvas");
+          canvas.className = "preview-page-canvas";
+          canvas.width = svp.width;
+          canvas.height = svp.height;
+          host.appendChild(canvas);
+          return page.render({canvasContext: canvas.getContext("2d"), viewport: svp}).promise;
+        });
+      });
+    }
+    return chain;
+  });
+}
+
+function praResultFor(pct) {
+  const v = parseFloat(String(pct || "").replace("%", "").trim());
+  if (isNaN(v)) return "";
+  if (v < 4)   return "Negative";
+  if (v <= 10) return "Weak Positive";
+  if (v <= 50) return "Moderate Positive";
+  return "Strong Positive";
+}
+
 function showToast(msg, type = "") {
   const t = document.getElementById("toast");
   t.textContent = msg;
@@ -723,11 +771,27 @@ function buildPraSection(col, rtype) {
   const resCard = el("div", { class: "card" }, [el("h3", {}, "Result")]);
   const resGrid = el("div", { class: "field-grid" });
   if (rtype === "mixed_pra") {
-    [["pra_percentage_1", "% PRA Class I"], ["pra_result_1", "Result Class I"],
-     ["pra_percentage_2", "% PRA Class II"], ["pra_result_2", "Result Class II"]].forEach(([k, l]) => {
-      const input = el("input", { type: "text", oninput: scheduleManualPreview });
-      pra.result[k] = input;
-      resGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), input]));
+    const pct1 = el("input", { type: "text", placeholder: "e.g. 25" });
+    const res1 = el("input", { type: "text", readonly: true,
+      style: "background:#f1f5f9; color:var(--text-muted); cursor:default;" });
+    const pct2 = el("input", { type: "text", placeholder: "e.g. 10" });
+    const res2 = el("input", { type: "text", readonly: true,
+      style: "background:#f1f5f9; color:var(--text-muted); cursor:default;" });
+
+    function syncResults() {
+      res1.value = praResultFor(pct1.value);
+      res2.value = praResultFor(pct2.value);
+      scheduleManualPreview();
+    }
+    pct1.addEventListener("input", syncResults);
+    pct2.addEventListener("input", syncResults);
+
+    pra.result.pra_percentage_1 = pct1; pra.result.pra_result_1 = res1;
+    pra.result.pra_percentage_2 = pct2; pra.result.pra_result_2 = res2;
+
+    [["% PRA Class I", pct1], ["Result Class I", res1],
+     ["% PRA Class II", pct2], ["Result Class II", res2]].forEach(([l, inp]) => {
+      resGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), inp]));
     });
   } else {
     [["pra_percentage", "% PRA"], ["pra_result", "Result (blank = auto)"]].forEach(([k, l]) => {
@@ -1101,8 +1165,9 @@ function scheduleManualPreview() {
 async function refreshManualPreview() {
   const statusEl = document.getElementById("manualPreviewStatus");
   const body = document.getElementById("manualPreviewBody");
+  _pdfTokens["manual"] = (_pdfTokens["manual"] || 0) + 1;
+  const myTok = _pdfTokens["manual"];
   try {
-    statusEl.textContent = "Rendering…";
     const c = collectManualCase();
     const isSab = c.report_type === "sab_class1" || c.report_type === "sab_class2";
     // SAB imports (especially Kit2/One Lambda) may carry only allele data with no
@@ -1113,20 +1178,26 @@ async function refreshManualPreview() {
       : (c.patient && c.patient.name);
     if (!hasPreviewableContent) {
       body.innerHTML = '<div class="preview-placeholder">Fill in patient details to see a live preview.</div>';
-      statusEl.textContent = "";
+      if (statusEl) statusEl.textContent = "";
       return;
     }
+    if (statusEl) statusEl.textContent = "Generating...";
+    body.innerHTML = '<div class="preview-placeholder" style="padding-top:40px;">Generating preview...</div>';
     const resp = await apiPost("/hla/preview", { case: c });
+    if (_pdfTokens["manual"] !== myTok) return;
+    if (!resp.preview_url) throw new Error("No preview URL returned.");
+    const pdfResp = await fetch(resp.preview_url + "?t=" + Date.now(), {cache: "no-store"});
+    if (!pdfResp.ok) throw new Error("PDF not found (" + pdfResp.status + ")");
+    const buf = await pdfResp.arrayBuffer();
+    if (_pdfTokens["manual"] !== myTok) return;
     body.innerHTML = "";
-    if (resp.preview_url) {
-      body.appendChild(el("iframe", { src: resp.preview_url + "?t=" + Date.now(), style: "width:100%; height:100%; min-height:600px; border:none; flex:1;" }));
-    } else {
-      body.innerHTML = '<div class="preview-placeholder">No preview available.</div>';
-    }
-    statusEl.textContent = "";
+    await renderPdfToCanvas(buf, body, myTok, "manual");
+    if (_pdfTokens["manual"] === myTok && statusEl) statusEl.textContent = "Updated " + new Date().toLocaleTimeString();
   } catch (e) {
-    statusEl.textContent = "Error";
-    console.error(e);
+    if (_pdfTokens["manual"] === myTok) {
+      if (statusEl) statusEl.textContent = "Preview error.";
+      body.innerHTML = '<div class="preview-placeholder">Preview error.</div>';
+    }
   }
 }
 
@@ -1196,25 +1267,39 @@ function populateManualForm(c) {
 // BULK TAB
 // ══════════════════════════════════════════════════════════════════════════
 function initBulkTab() {
-  const dz = document.getElementById("bulkDropzone");
   const fi = document.getElementById("bulkFileInput");
-  dz.addEventListener("click", () => fi.click());
-  dz.addEventListener("dragover", e => { e.preventDefault(); dz.classList.add("dragover"); });
-  dz.addEventListener("dragleave", () => dz.classList.remove("dragover"));
-  dz.addEventListener("drop", e => {
-    e.preventDefault(); dz.classList.remove("dragover");
-    if (e.dataTransfer.files.length) { fi.files = e.dataTransfer.files; updateDzLabel(); }
-  });
-  fi.addEventListener("change", updateDzLabel);
+  const zone = document.getElementById("bulkExcelZone");
 
-  function updateDzLabel() {
-    if (fi.files.length) {
-      document.getElementById("bulkDropzoneLabel").innerHTML =
-        `<i class="fas fa-file-excel"></i> ${fi.files[0].name}`;
+  zone.addEventListener("dragover", e => { e.preventDefault(); zone.classList.add("dragover"); });
+  zone.addEventListener("dragleave", () => zone.classList.remove("dragover"));
+  zone.addEventListener("drop", e => {
+    e.preventDefault(); zone.classList.remove("dragover");
+    if (e.dataTransfer.files.length) {
+      const dt = e.dataTransfer;
+      const fileArr = Array.from(dt.files).filter(f => /\.(xlsx?|xls)$/i.test(f.name));
+      if (!fileArr.length) { showToast("Please drop an Excel file (.xlsx / .xls).", "error"); return; }
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(fileArr[0]);
+      fi.files = dataTransfer.files;
+      updateExcelLabel(fi.files[0].name);
+      parseBulkExcel();
     }
+  });
+
+  fi.addEventListener("change", () => {
+    if (fi.files.length) {
+      updateExcelLabel(fi.files[0].name);
+      parseBulkExcel();
+    }
+  });
+
+  function updateExcelLabel(name) {
+    document.getElementById("bulkDropzoneLabel").textContent = name;
   }
 
-  document.getElementById("bulkParseBtn").addEventListener("click", parseBulkExcel);
+  const bulkOutputBtn = document.getElementById("bulkOutputBrowseBtn");
+  bulkOutputBtn.addEventListener("click", () => browseOutputFolder(document.getElementById("bulkOutputInput"), bulkOutputBtn));
+
   document.getElementById("bulkSearchBox").addEventListener("input", renderBulkList);
   document.getElementById("bulkSelectAllBtn").addEventListener("click", () => {
     state.bulkCases.forEach((_, i) => state.bulkSelected.add(i));
@@ -1824,18 +1909,28 @@ function renderBulkEditor(i) {
 async function previewBulkCase(i) {
   const c = state.bulkCases[i];
   if (!c) return;
+  const statusEl = document.getElementById("bulkPreviewStatus");
   const body = document.getElementById("bulkPreviewBody");
-  body.innerHTML = '<div class="preview-placeholder">Rendering…</div>';
+  _pdfTokens["bulk"] = (_pdfTokens["bulk"] || 0) + 1;
+  const myTok = _pdfTokens["bulk"];
   try {
+    if (statusEl) statusEl.textContent = "Generating...";
+    body.innerHTML = '<div class="preview-placeholder" style="padding-top:40px;">Generating preview...</div>';
     const resp = await apiPost("/hla/preview", { case: c });
+    if (_pdfTokens["bulk"] !== myTok) return;
+    if (!resp.preview_url) throw new Error("No preview URL returned.");
+    const pdfResp = await fetch(resp.preview_url + "?t=" + Date.now(), {cache: "no-store"});
+    if (!pdfResp.ok) throw new Error("PDF not found (" + pdfResp.status + ")");
+    const buf = await pdfResp.arrayBuffer();
+    if (_pdfTokens["bulk"] !== myTok) return;
     body.innerHTML = "";
-    if (resp.preview_url) {
-      body.appendChild(el("iframe", { src: resp.preview_url + "?t=" + Date.now(), style: "width:100%; height:100%; min-height:500px; border:none; flex:1;" }));
-    } else {
-      body.innerHTML = '<div class="preview-placeholder">No preview available.</div>';
-    }
+    await renderPdfToCanvas(buf, body, myTok, "bulk");
+    if (_pdfTokens["bulk"] === myTok && statusEl) statusEl.textContent = "Updated " + new Date().toLocaleTimeString();
   } catch (e) {
-    body.innerHTML = '<div class="preview-placeholder">Preview error.</div>';
+    if (_pdfTokens["bulk"] === myTok) {
+      if (statusEl) statusEl.textContent = "Preview error.";
+      body.innerHTML = '<div class="preview-placeholder">Preview error.</div>';
+    }
   }
 }
 
@@ -1939,4 +2034,13 @@ window.addEventListener("DOMContentLoaded", async () => {
   initBulkTab();
   await initSettingsTab();
   document.body.classList.add("loaded");
+
+  document.getElementById("manualRefreshBtn")?.addEventListener("click", refreshManualPreview);
+  document.getElementById("bulkRefreshBtn")?.addEventListener("click", () => {
+    if (state.bulkCurrentIndex >= 0) previewBulkCase(state.bulkCurrentIndex);
+  });
+
+  // Set PDF.js worker after script loads
+  const pdfLib = window['pdfjs-dist/build/pdf'];
+  if (pdfLib) pdfLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 });

@@ -289,12 +289,14 @@ async def preview(request_body: dict):
 
     file_id  = f"{uuid.uuid4()}.pdf"
     tmp_path = os.path.join(HLA_TEMP_DIR, file_id)
+
     try:
         generate_pdf(c, tmp_path)
-        return {"preview_url": f"/hla/preview-file/{file_id}"}
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(500, str(e))
+
+    return {"preview_url": f"/hla/preview-file/{file_id}"}
 
 
 @router.get("/preview-file/{filename}")

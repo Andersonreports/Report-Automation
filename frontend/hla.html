@@ -8,6 +8,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
   <script src="/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    (function(){ var p=window['pdfjs-dist/build/pdf']; if(p) p.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; })();
+  </script>
   <style>
     :root {
       --primary: #1F497D;
@@ -187,9 +191,9 @@
 
     /* ── Layout: form + preview split ── */
     .split-layout { display: flex; gap: 16px; flex: 1; min-height: 0; }
-    .form-col { flex: 1.1; overflow-y: auto; padding-right: 4px; min-width: 0; }
+    .form-col { flex: 1; overflow-y: auto; padding-right: 4px; min-width: 0; }
     .preview-col {
-      flex: 0.9; display: flex; flex-direction: column; min-width: 0;
+      flex: 1.2; display: flex; flex-direction: column; min-width: 0;
       background: var(--panel); border: 1px solid var(--panel-border); border-radius: var(--radius);
       box-shadow: var(--shadow); overflow: hidden;
     }
@@ -197,9 +201,9 @@
       padding: 10px 16px; background: var(--primary); color: #fff; font-size: 12px; font-weight: 700;
       display: flex; justify-content: space-between; align-items: center;
     }
-    .preview-body { flex: 1; overflow: hidden; padding: 0; display: flex; flex-direction: column; }
-    .preview-body .preview-placeholder { padding: 40px 16px; margin: auto; }
-    .preview-body img { max-width: 100%; box-shadow: 0 1px 6px rgba(0,0,0,0.18); border-radius: 2px; }
+    .preview-body { flex: 1; overflow-y: auto; background: #eef2f6; display: flex; flex-direction: column; align-items: center; padding: 8px; gap: 8px; }
+    .preview-body .preview-placeholder { margin: auto; background: transparent; }
+    .preview-page-canvas { display: block; width: 100%; background: #fff; box-shadow: 0 2px 8px rgba(0,0,0,0.15); border-radius: 4px; }
     .preview-placeholder { color: var(--text-muted); font-size: 12px; text-align: center; padding: 40px 16px; }
 
     .gen-bar {
@@ -218,16 +222,28 @@
 
     /* ── Bulk tab ── */
     .bulk-topbar { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
-    .dropzone {
-      border: 2px dashed var(--input-border); border-radius: 8px; padding: 14px; text-align: center;
-      font-size: 12px; color: var(--text-muted); cursor: pointer; transition: 0.15s; flex: 1; min-width: 220px;
+    .drop-zone-compact {
+      display: flex; align-items: center; gap: 10px; padding: 7px 14px;
+      border: 2px dashed var(--input-border); border-radius: 8px; cursor: pointer;
+      color: var(--text-muted); font-size: 12px; transition: 0.2s; flex: 1; min-width: 0;
     }
-    .dropzone:hover, .dropzone.dragover { border-color: var(--primary); background: rgba(31,73,125,0.04); }
+    .drop-zone-compact:hover, .drop-zone-compact.dragover {
+      border-color: var(--primary); background: rgba(31,73,125,0.04); color: var(--primary);
+    }
+    .drop-zone-compact span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bulk-top-sep { width: 1px; height: 28px; background: var(--input-border); flex-shrink: 0; }
+    .folder-pick-row { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+    .folder-pick-display {
+      flex: 1; padding: 7px 10px; border: 1px solid var(--input-border); border-radius: 6px;
+      font-size: 11.5px; background: #fff; color: var(--text); font-family: 'Inter', sans-serif;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; outline: none;
+    }
+    .folder-pick-display::placeholder { color: var(--text-muted); }
 
     .bulk-3col { display: flex; gap: 12px; flex: 1; min-height: 0; }
     .bulk-list-col { width: 230px; display: flex; flex-direction: column; }
     .bulk-edit-col { flex: 1; overflow-y: auto; min-width: 0; }
-    .bulk-preview-col { width: 320px; display: flex; flex-direction: column; }
+    .bulk-preview-col { flex: 1.2; min-width: 320px; display: flex; flex-direction: column; }
 
     .search-box { padding: 7px 10px; border: 1px solid var(--input-border); border-radius: 6px; font-size: 12px; margin-bottom: 8px; width: 100%; }
     .case-list { flex: 1; overflow-y: auto; border: 1px solid var(--panel-border); border-radius: 8px; background: #fff; }
@@ -322,6 +338,13 @@
       </div>
       <div class="checkbox-item"><input type="checkbox" id="globalNablChk" checked> NABL-Accredited</div>
       <div class="checkbox-item"><input type="checkbox" id="globalStampChk"> Signature Stamp</div>
+      <div class="hdr-select-group" style="margin-left:10px; border-left:1px solid var(--input-border); padding-left:14px;">
+        <label style="white-space:nowrap;">SAB Kit:</label>
+        <select id="bulkSabKitSelect" style="padding:6px 10px; border-radius:6px; border:1px solid var(--input-border); font-size:12px;"></select>
+        <input type="file" id="bulkSabFileInput" accept=".xlsx,.xls" class="hidden">
+        <button class="btn-sm btn-outline" id="bulkSabImportBtn"><i class="fas fa-file-import"></i> Import SAB Excel</button>
+        <span id="bulkSabImportStatus" style="font-size:11px; color:var(--text-muted);"></span>
+      </div>
     </div>
 
     <!-- ══════════════ TAB 1: MANUAL ENTRY ══════════════ -->
@@ -332,8 +355,11 @@
         </div>
         <div class="preview-col">
           <div class="preview-hdr">
-            <span><i class="fas fa-eye"></i> Live Preview</span>
-            <span id="manualPreviewStatus" style="font-weight:400; opacity:0.85;"></span>
+            <span><i class="fas fa-eye"></i> LIVE PDF PREVIEW</span>
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span id="manualPreviewStatus" style="font-weight:400; opacity:0.85; font-size:11px;"></span>
+              <button id="manualRefreshBtn" style="background:rgba(255,255,255,0.2); color:#fff; border:1px solid rgba(255,255,255,0.4); padding:3px 8px; border-radius:4px; cursor:pointer; font-size:11px;"><i class="fas fa-sync"></i></button>
+            </div>
           </div>
           <div class="preview-body" id="manualPreviewBody">
             <div class="preview-placeholder">Fill in patient details to see a live preview.</div>
@@ -345,27 +371,18 @@
     <!-- ══════════════ TAB 2: BULK UPLOAD ══════════════ -->
     <div class="tab-content" id="tab-bulk">
       <div class="bulk-topbar">
-        <div class="dropzone" id="bulkDropzone">
-          <span id="bulkDropzoneLabel"><i class="fas fa-file-excel"></i> Drag &amp; drop Excel file here, or click to browse</span>
+        <label class="drop-zone-compact" id="bulkExcelZone" for="bulkFileInput">
+          <i class="fas fa-file-excel" style="font-size:15px; color:var(--primary); flex-shrink:0;"></i>
+          <span id="bulkDropzoneLabel">Click to browse or drag Excel file (.xlsx / .xls)</span>
+          <input type="file" id="bulkFileInput" accept=".xlsx,.xls" class="hidden">
+        </label>
+        <div class="bulk-top-sep"></div>
+        <span style="font-size:11.5px; font-weight:600; color:var(--text-muted); white-space:nowrap;">Output Folder:</span>
+        <div class="folder-pick-row">
+          <input type="text" class="folder-pick-display" id="bulkOutputInput" placeholder="No folder selected — click Browse or type a path">
+          <button class="btn-folder-sm" id="bulkOutputBrowseBtn"><i class="fas fa-folder-open"></i> Browse</button>
         </div>
-        <input type="file" id="bulkFileInput" accept=".xlsx,.xls" class="hidden">
-        <button class="btn-sm btn-primary" id="bulkParseBtn"><i class="fas fa-cogs"></i> Load &amp; Parse Excel</button>
       </div>
-      <div class="bulk-topbar">
-        <span style="font-size:11.5px; font-weight:600; color:var(--text-muted);">SAB Excel (single patient):</span>
-        <select id="bulkSabKitSelect" style="padding:6px 10px; border-radius:6px; border:1px solid var(--input-border); font-size:12px;"></select>
-        <input type="file" id="bulkSabFileInput" accept=".xlsx,.xls" class="hidden">
-        <button class="btn-sm btn-outline" id="bulkSabImportBtn"><i class="fas fa-file-import"></i> Import SAB Excel</button>
-        <span id="bulkSabImportStatus" style="font-size:11px; color:var(--text-muted);"></span>
-      </div>
-      <div class="gen-bar">
-        <span class="path-label" id="bulkOutputLabel">Output: backend/reports-hla (default)</span>
-        <input type="text" id="bulkOutputInput" placeholder="Custom output folder path (optional)" style="flex:1; padding:7px 10px; border:1px solid var(--input-border); border-radius:6px; font-size:11px;">
-        <div class="checkbox-item"><input type="checkbox" id="bulkLogoChk" checked> With Logo</div>
-        <button class="btn-sm btn-outline" id="bulkGenSelectedBtn"><i class="fas fa-file-pdf"></i> Generate Selected</button>
-        <button class="btn-sm btn-primary" id="bulkGenAllBtn"><i class="fas fa-file-pdf"></i> Generate All</button>
-      </div>
-      <div class="progress-wrap hidden" id="bulkProgressWrap"><div class="progress-bar" id="bulkProgressBar"></div></div>
       <div class="bulk-3col">
         <div class="bulk-list-col">
           <input type="text" class="search-box" id="bulkSearchBox" placeholder="Search patients...">
@@ -382,13 +399,25 @@
         </div>
         <div class="bulk-preview-col">
           <div class="preview-col" style="flex:1;">
-            <div class="preview-hdr"><span><i class="fas fa-eye"></i> Case Preview</span></div>
+            <div class="preview-hdr">
+              <span><i class="fas fa-eye"></i> LIVE PDF PREVIEW</span>
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span id="bulkPreviewStatus" style="font-weight:400; opacity:0.85; font-size:11px;"></span>
+                <button id="bulkRefreshBtn" style="background:rgba(255,255,255,0.2); color:#fff; border:1px solid rgba(255,255,255,0.4); padding:3px 8px; border-radius:4px; cursor:pointer; font-size:11px;"><i class="fas fa-sync"></i></button>
+              </div>
+            </div>
             <div class="preview-body" id="bulkPreviewBody">
               <div class="preview-placeholder">Select a case to preview.</div>
             </div>
           </div>
         </div>
       </div>
+      <div class="gen-bar">
+        <div class="checkbox-item"><input type="checkbox" id="bulkLogoChk" checked> With Logo</div>
+        <button class="btn-sm btn-outline" id="bulkGenSelectedBtn"><i class="fas fa-file-pdf"></i> Generate Selected</button>
+        <button class="btn-sm btn-primary" id="bulkGenAllBtn"><i class="fas fa-file-pdf"></i> Generate All</button>
+      </div>
+      <div class="progress-wrap hidden" id="bulkProgressWrap"><div class="progress-bar" id="bulkProgressBar"></div></div>
     </div>
 
     <!-- ══════════════ TAB 3: SETTINGS ══════════════ -->
@@ -435,7 +464,7 @@
           <li>Go to <b>Bulk Upload</b> tab</li>
           <li>Browse and select your Excel file (HLA typing, Luminex, CDC, DSA, Flow or PRA)</li>
           <li>Tick <b>NABL-Accredited</b> for MINISEQ files; untick for SURFSEQ</li>
-          <li>Click <b>Load &amp; Parse Excel</b> — the report type is auto-detected from the file name and sheet contents</li>
+          <li>The file is parsed automatically — report type is auto-detected from the file name and sheet contents</li>
           <li>Select a case from the list to review and edit it in the editor</li>
           <li>Select output folder and click <b>Generate All Reports</b> or <b>Generate Selected</b></li>
         </ol>
@@ -479,6 +508,6 @@
 
   <div class="toast" id="toast"></div>
 
-  <script src="/hla.js?v=13"></script>
+  <script src="/hla.js?v=15"></script>
 </body>
 </html>

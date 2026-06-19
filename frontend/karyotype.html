@@ -193,16 +193,12 @@
     .bulk-genrow{ display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; }
 
     /* Compact bulk load bar (mirrors the other reports' top bar) */
-    .bulk-top-bar{ display:flex; align-items:center; gap:12px; padding:10px 14px;
+    .bulk-top-bar{ display:flex; align-items:center; gap:10px; padding:10px 14px;
       background:var(--panel); backdrop-filter:blur(12px); border:1px solid var(--panel-border);
       border-radius:var(--radius); box-shadow:var(--shadow); margin-bottom:16px; flex-wrap:wrap; }
-    .drop-zone-compact{ display:flex; align-items:center; gap:10px; padding:9px 14px;
-      border:2px dashed var(--input-border); border-radius:8px; cursor:pointer;
-      color:var(--text-muted); font-size:12px; transition:.2s; flex:1; min-width:200px; }
-    .drop-zone-compact:hover{ border-color:var(--primary); background:rgba(31,73,125,0.04); color:var(--primary); }
-    .drop-zone-compact i{ font-size:16px; color:var(--accent-deep); flex-shrink:0; }
-    .drop-zone-compact span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .bulk-top-sep{ width:1px; height:28px; background:var(--input-border); flex-shrink:0; }
+    .bulk-path-label{ flex:1; min-width:120px; padding:7px 10px; border:1px solid var(--input-border);
+      background:#fff; border-radius:6px; font-size:11.5px; color:var(--text-muted);
+      overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
     /* Report Comparison */
     .cmp-upload-row{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
@@ -372,20 +368,14 @@
   <!-- BULK -->
   <section class="panel" id="panel-bulk">
     <div class="bulk-top-bar">
-      <label class="drop-zone-compact" for="b_excel" style="flex:1.4;">
-        <i class="fas fa-file-excel"></i>
-        <span id="b_excel_label">Click to browse Excel file (.xls / .xlsx / .xlsm)</span>
-        <input type="file" id="b_excel" accept=".xls,.xlsx,.xlsm" hidden
-          onchange="document.getElementById('b_excel_label').textContent=this.files[0]?this.files[0].name:'Click to browse Excel file (.xls / .xlsx / .xlsm)';" />
-      </label>
-      <div class="bulk-top-sep"></div>
-      <label class="drop-zone-compact" for="b_images" style="flex:1;">
-        <i class="fas fa-folder-open"></i>
-        <span id="b_images_label">Click to select a folder of karyogram images (optional — auto-matched by Sample Number)</span>
-        <input type="file" id="b_images" accept=".jpg,.jpeg,.png" multiple webkitdirectory hidden />
-      </label>
-      <div class="bulk-top-sep"></div>
-      <button class="btn primary" id="b_load"><i class="fas fa-upload"></i> Load &amp; Parse</button>
+      <input type="file" id="b_excel" accept=".xls,.xlsx,.xlsm" hidden />
+      <button class="btn primary" id="b_excel_btn"><i class="fas fa-file-excel"></i> Select Input Excel</button>
+      <span class="bulk-path-label" id="b_excel_label">No Excel file selected</span>
+
+      <input type="file" id="b_images" accept=".jpg,.jpeg,.png" multiple webkitdirectory hidden />
+      <button class="btn sm" id="b_images_btn"><i class="fas fa-images"></i> Select Image Folder</button>
+      <span class="bulk-path-label" id="b_images_label">No image folder selected (optional)</span>
+
       <span class="preview-status" id="b_loadstatus" style="flex:0 1 auto;white-space:nowrap;"></span>
     </div>
 
@@ -1097,16 +1087,25 @@
   var b_timer=null;
   function b_schedule(){ if(B_current<0) return; clearTimeout(b_timer); b_timer=setTimeout(b_run,900); }
 
+  $("b_excel_btn").addEventListener("click", function(){ $("b_excel").click(); });
+  $("b_images_btn").addEventListener("click", function(){ $("b_images").click(); });
+
   $("b_images").addEventListener("change", function(){
     var imgs=Array.prototype.filter.call(this.files, function(f){ return /\.(jpe?g|png)$/i.test(f.name); });
     var folder=(this.files[0] && this.files[0].webkitRelativePath) ? this.files[0].webkitRelativePath.split("/")[0] : "";
     $("b_images_label").textContent = imgs.length
       ? (imgs.length+" image(s)"+(folder?(' in "'+folder+'"'):""))
-      : "Click to select a folder of karyogram images (optional — auto-matched by Sample Number)";
+      : "No image folder selected (optional)";
   });
-  $("b_load").addEventListener("click", function(){
+
+  $("b_excel").addEventListener("change", function(){
+    if(this.files[0]) $("b_excel_label").textContent = this.files[0].name;
+    loadAndParseBulk();
+  });
+
+  function loadAndParseBulk(){
     var ex=$("b_excel").files[0];
-    if(!ex){ toast("Choose an Excel file first.","err"); return; }
+    if(!ex){ return; }
     var fd=new FormData(); fd.append("file",ex);
     // Folder pick (webkitdirectory) returns every file in the folder — keep only images
     var bulkFiles=Array.prototype.slice.call($("b_images").files||[]).filter(function(f){ return /\.(jpe?g|png)$/i.test(f.name); });
@@ -1141,7 +1140,7 @@
         $("b_status").textContent="Select a row to preview.";
       })
       .catch(function(e){ $("b_loadstatus").textContent="Error: "+e.message; });
-  });
+  }
 
   function renderBulkTable(){
     var tb=$("b_tbody");
