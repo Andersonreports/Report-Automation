@@ -1421,7 +1421,16 @@ function showPickerModal(title, items) {
 // DRAFTS
 // ══════════════════════════════════════════════════════════════════════════
 async function saveDraft(scope) {
-  const name = await showInputModal("Save Draft", scope === "manual" ? "manual_draft" : "bulk_draft");
+  let defaultName = scope === "manual" ? "manual_draft" : "bulk_draft";
+  if (scope === "manual") {
+    try {
+      const c = collectManualCase();
+      if (c && c.patient && c.patient.name && c.patient.name.trim()) {
+        defaultName = c.patient.name.trim();
+      }
+    } catch (e) { /* keep fallback default */ }
+  }
+  const name = await showInputModal("Save Draft", defaultName);
   if (!name) return;
   const data = scope === "manual" ? { rtype: state.rtype, case: collectManualCase() } : { cases: state.bulkCases };
   try {
