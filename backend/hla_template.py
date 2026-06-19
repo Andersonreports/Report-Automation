@@ -2418,9 +2418,9 @@ def _build_single_locus(case: dict, S: dict) -> list:
     _title_s = ParagraphStyle("_sl_title", fontName=F_BOLD, fontSize=20,
                                textColor=C_NGS_TITLE, alignment=TA_CENTER, leading=26)
     _hdr_s   = ParagraphStyle("_sl_hdr",   fontName=F_BOLD, fontSize=13,
-                               textColor=C_SL_SEC, leading=16, spaceBefore=2, spaceAfter=0)
-    _body_s  = ParagraphStyle("_sl_body",  fontName=F_REG,  fontSize=11,
-                               textColor=BLACK, leading=14, alignment=TA_JUSTIFY, spaceAfter=2)
+                               textColor=C_SL_SEC, leading=16, spaceBefore=0, spaceAfter=0)
+    _body_s  = ParagraphStyle("_sl_body",  fontName=F_REG,  fontSize=10,
+                               textColor=BLACK, leading=13, alignment=TA_JUSTIFY, spaceAfter=1)
     _cell_s  = ParagraphStyle("_sl_cell",  fontName=F_BOLD, fontSize=11,
                                textColor=BLACK, leading=14, alignment=TA_CENTER)
     _val_s   = ParagraphStyle("_sl_val",   fontName=F_REG,  fontSize=11,
@@ -2437,17 +2437,17 @@ def _build_single_locus(case: dict, S: dict) -> list:
 
     # ── Title ─────────────────────────────────────────────────────────────────
     elems.append(Paragraph(f"<b>HLA-{locus}*</b>", _title_s))
-    elems.append(Spacer(1, 2 * mm))
+    elems.append(Spacer(1, 1 * mm))
 
     # ── Patient info — custom 5-row table with separate Gender / Age rows ─────
     elems.append(_sl_info_table(patient, S))
-    elems.append(Spacer(1, 2 * mm))
+    elems.append(Spacer(1, 1 * mm))
 
     # ── Method ────────────────────────────────────────────────────────────────
     elems.extend(_sec("Method"))
     for para_text in SINGLE_LOCUS_METHODOLOGY:
         elems.append(Paragraph(para_text, _body_s))
-    elems.append(Spacer(1, 2 * mm))
+    elems.append(Spacer(1, 1 * mm))
 
     # ── Result ────────────────────────────────────────────────────────────────
     _result_heading = _sec("Result")
@@ -2469,8 +2469,8 @@ def _build_single_locus(case: dict, S: dict) -> list:
         ("INNERGRID",     (0, 0), (-1, -1),  0.25, WHITE),
         ("ALIGN",         (0, 0), (-1, -1),  "CENTER"),
         ("VALIGN",        (0, 0), (-1, -1),  "MIDDLE"),
-        ("TOPPADDING",    (0, 0), (-1, -1),  5),
-        ("BOTTOMPADDING", (0, 0), (-1, -1),  5),
+        ("TOPPADDING",    (0, 0), (-1, -1),  4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1),  4),
     ]
     if sl_note:
         note_row_idx = len(result_rows)
@@ -2497,7 +2497,7 @@ def _build_single_locus(case: dict, S: dict) -> list:
     # signatures spill onto page 2 — they all move together if they don't fit.
     sig_items = _signature_block(signatories, S)
     elems.append(KeepTogether(
-        _result_heading + [result_t] + remarks_items + [Spacer(1, 2 * mm)] + (sig_items or [])
+        _result_heading + [result_t] + remarks_items + [Spacer(1, 1 * mm)] + (sig_items or [])
     ))
 
     return elems
