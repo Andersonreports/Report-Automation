@@ -114,6 +114,7 @@ const state = {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 const _pdfTokens = {};
+const _dirHandles = {};
 
 function renderPdfToCanvas(arrayBuffer, host, token, tokenKey) {
   const lib = window['pdfjs-dist/build/pdf'];
@@ -434,18 +435,25 @@ function buildDonorCard(prefix, fieldsRef, hlaFieldsRef, title = "Donor Informat
 }
 
 async function browseOutputFolder(inputEl, btnEl) {
+  if (window.showDirectoryPicker) {
+    try {
+      const handle = await window.showDirectoryPicker({ mode: "readwrite" });
+      _dirHandles[inputEl.id] = handle;
+      inputEl.value = handle.name;
+    } catch (e) {
+      if (e.name !== "AbortError") showToast("Could not open folder picker.", "error");
+    }
+    return;
+  }
+  // Fallback for non-Chrome browsers
   const originalHtml = btnEl.innerHTML;
   btnEl.disabled = true;
   btnEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Waiting…';
   try {
     const r = await fetch(API + "/open-folder-dialog");
     const d = await r.json();
-    if (d.path) {
-      inputEl.value = d.path;
-      scheduleManualPreview();
-    } else {
-      inputEl.focus();
-    }
+    if (d.path) { inputEl.value = d.path; delete _dirHandles[inputEl.id]; }
+    else { inputEl.focus(); }
   } catch (e) {
     showToast("Could not open the folder dialog. Type the path manually.", "error");
     inputEl.focus();
@@ -1300,9 +1308,20 @@ async function refreshManualPreview() {
 async function generateManual() {
   const c = collectManualCase();
   if (!c.patient || !c.patient.name) { showToast("Patient Name is required.", "error"); return; }
-  const outputDir = val(document.getElementById("manualOutputInput"));
+  const outputInput = document.getElementById("manualOutputInput");
+  const dirHandle = outputInput && _dirHandles[outputInput.id];
+  const outputDir = val(outputInput);
   try {
-    const resp = await apiPost("/hla/generate", { case: c, output_dir: outputDir || undefined });
+    const resp = await apiPost("/hla/generate", { case: c, output_dir: dirHandle ? undefined : (outputDir || undefined) });
+    if (dirHandle && resp.download_url) {
+      const pdfResp = await fetch(resp.download_url + "?t=" + Date.now(), { cache: "no-store" });
+      if (!pdfResp.ok) throw new Error("Download failed (" + pdfResp.status + ")");
+      const blob = await pdfResp.blob();
+      const fh = await dirHandle.getFileHandle(resp.filename, { create: true });
+      const writable = await fh.createWritable();
+      await writable.write(blob);
+      await writable.close();
+    }
     showToast("Generated: " + resp.filename, "success");
     refreshManualPreview();
   } catch (e) {
@@ -2156,7 +2175,9 @@ async function generateBulk(selectedOnly) {
   const indices = selectedOnly ? Array.from(state.bulkSelected) : state.bulkCases.map((_, i) => i);
   if (!indices.length) { showToast("No cases to generate.", "error"); return; }
   const cases = indices.map(i => state.bulkCases[i]);
-  const outputDir = val(document.getElementById("bulkOutputInput"));
+  const outputInput = document.getElementById("bulkOutputInput");
+  const dirHandle = outputInput && _dirHandles[outputInput.id];
+  const outputDir = val(outputInput);
   const withLogo = checked(document.getElementById("bulkLogoChk"));
   const stamp = checked(document.getElementById("globalStampChk"));
 
@@ -2166,9 +2187,31 @@ async function generateBulk(selectedOnly) {
   progBar.style.width = "10%";
 
   try {
-    const resp = await apiPost("/hla/generate-bulk", { cases, output_dir: outputDir || undefined, with_logo: withLogo, signature_stamp: stamp });
-    progBar.style.width = "100%";
-    showToast(`Generated ${resp.success.length} report(s), ${resp.failed.length} failed.`, resp.failed.length ? "error" : "success");
+    const resp = await apiPost("/hla/generate-bulk", { cases, output_dir: dirHandle ? undefined : (outputDir || undefined), with_logo: withLogo, signature_stamp: stamp });
+    progBar.style.width = "70%";
+    if (dirHandle && resp.success && resp.success.length) {
+      let written = 0;
+      for (const item of resp.success) {
+        if (item.download_url) {
+          try {
+            const pdfResp = await fetch(item.download_url + "?t=" + Date.now(), { cache: "no-store" });
+            if (pdfResp.ok) {
+              const blob = await pdfResp.blob();
+              const fh = await dirHandle.getFileHandle(item.filename, { create: true });
+              const writable = await fh.createWritable();
+              await writable.write(blob);
+              await writable.close();
+              written++;
+            }
+          } catch (_) { /* best effort */ }
+        }
+      }
+      progBar.style.width = "100%";
+      showToast(`Saved ${written} of ${resp.success.length} report(s) to folder${resp.failed.length ? ", " + resp.failed.length + " failed" : ""}.`, resp.failed.length ? "error" : "success");
+    } else {
+      progBar.style.width = "100%";
+      showToast(`Generated ${resp.success.length} report(s), ${resp.failed.length} failed.`, resp.failed.length ? "error" : "success");
+    }
   } catch (e) {
     showToast("Bulk generation error: " + e.message, "error");
   } finally {

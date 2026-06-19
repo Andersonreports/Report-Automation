@@ -311,7 +311,7 @@ def preview_file(filename: str):
 async def generate(request_body: dict):
     """Generate a single report PDF and stream it back to the browser."""
     case       = request_body.get("case", {})
-    output_dir = request_body.get("output_dir", HLA_REPORT_DIR)
+    output_dir = request_body.get("output_dir") or None
     if not case:
         raise HTTPException(400, "case is required")
 
@@ -333,12 +333,16 @@ async def generate(request_body: dict):
                 s["seal_b64"] = hla_assets.SEAL_REVATHY_B64
 
     try:
-        os.makedirs(output_dir, exist_ok=True)
         fname    = make_filename(c)
-        out_path = unique_output_path(output_dir, fname)
-        fname    = os.path.basename(out_path)
-        generate_pdf(c, out_path)
-        return {"ok": True, "filename": fname, "path": out_path}
+        tmp_id   = fname + "_" + str(uuid.uuid4())[:8] + ".pdf"
+        tmp_path = os.path.join(HLA_TEMP_DIR, tmp_id)
+        generate_pdf(c, tmp_path)
+        if output_dir:
+            os.makedirs(output_dir, exist_ok=True)
+            out_path = unique_output_path(output_dir, fname)
+            shutil.copy(tmp_path, out_path)
+            fname = os.path.basename(out_path)
+        return {"ok": True, "filename": fname, "download_url": f"/hla/preview-file/{tmp_id}"}
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(500, str(e))
@@ -348,7 +352,7 @@ async def generate(request_body: dict):
 async def generate_bulk(request_body: dict):
     """Generate PDFs for a list of cases. Returns success/failed lists."""
     cases      = request_body.get("cases", [])
-    output_dir = request_body.get("output_dir", HLA_REPORT_DIR)
+    output_dir = request_body.get("output_dir") or None
     with_logo  = request_body.get("with_logo", True)
     sig_stamp  = request_body.get("signature_stamp", False)
 
@@ -356,7 +360,8 @@ async def generate_bulk(request_body: dict):
     sig_counts  = {**DEFAULT_SIG_COUNTS, **settings.get("sig_counts", {})}
     signatories = settings.get("signatories", DEFAULT_SIGNATORIES)
 
-    os.makedirs(output_dir, exist_ok=True)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
     success, failed = [], []
 
     for case in cases:
@@ -381,11 +386,15 @@ async def generate_bulk(request_body: dict):
                     s["seal_b64"] = hla_assets.SEAL_REVATHY_B64
 
         fname    = make_filename(c)
-        out_path = unique_output_path(output_dir, fname)
-        fname    = os.path.basename(out_path)
+        tmp_id   = fname + "_" + str(uuid.uuid4())[:8] + ".pdf"
+        tmp_path = os.path.join(HLA_TEMP_DIR, tmp_id)
         try:
-            generate_pdf(c, out_path)
-            success.append({"filename": fname, "path": out_path})
+            generate_pdf(c, tmp_path)
+            if output_dir:
+                out_path = unique_output_path(output_dir, fname)
+                shutil.copy(tmp_path, out_path)
+                fname = os.path.basename(out_path)
+            success.append({"filename": fname, "download_url": f"/hla/preview-file/{tmp_id}"})
         except Exception as e:
             traceback.print_exc()
             failed.append({"filename": fname, "error": str(e)})
