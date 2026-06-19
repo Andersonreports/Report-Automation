@@ -1638,17 +1638,33 @@ function _downloadJson(data, filename) {
   URL.revokeObjectURL(url);
 }
 
+function _sanitizeFilename(s) {
+  return String(s || "").trim().replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "patient";
+}
+
+function _todayStamp() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 function saveBulkDraft() {
   if (!state.bulkCases.length) { showToast("No cases to save.", "error"); return; }
-  _downloadJson(state.bulkCases, "hla_bulk_draft.json");
-  showToast("Draft downloaded: hla_bulk_draft.json", "success");
+  const filename = `hla_bulk_draft_${_todayStamp()}.json`;
+  _downloadJson(state.bulkCases, filename);
+  showToast("Draft downloaded: " + filename, "success");
 }
 
 function saveSelectedDraft() {
   if (!state.bulkSelected.size) { showToast("No cases selected.", "error"); return; }
-  const cases = Array.from(state.bulkSelected).sort((a, b) => a - b).map(i => state.bulkCases[i]);
-  _downloadJson(cases, "hla_selected_draft.json");
-  showToast("Draft downloaded: hla_selected_draft.json (" + cases.length + " case" + (cases.length > 1 ? "s" : "") + ")", "success");
+  const idxs = Array.from(state.bulkSelected).sort((a, b) => a - b);
+  const cases = idxs.map(i => state.bulkCases[i]);
+  const firstName = _sanitizeFilename((cases[0].patient || {}).name);
+  const filename = cases.length > 1
+    ? `${firstName}_and_${cases.length - 1}_more_draft.json`
+    : `${firstName}_draft.json`;
+  _downloadJson(cases, filename);
+  showToast("Draft downloaded: " + filename, "success");
 }
 
 function loadBulkDraft() {
