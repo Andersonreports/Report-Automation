@@ -878,11 +878,24 @@ async def open_folder_dialog():
     try:
         import subprocess
         ps = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
-        script = ("Add-Type -AssemblyName System.Windows.Forms;"
-                  "$d = New-Object System.Windows.Forms.FolderBrowserDialog;"
-                  "if ($d.ShowDialog() -eq 'OK') { Write-Output $d.SelectedPath }")
+        script = (
+            "Add-Type -AssemblyName System.Windows.Forms;"
+            "Add-Type -AssemblyName System.Drawing;"
+            "[System.Windows.Forms.Application]::EnableVisualStyles();"
+            "$owner = New-Object System.Windows.Forms.Form;"
+            "$owner.TopMost = $true;"
+            "$owner.Size = New-Object System.Drawing.Size(1,1);"
+            "$owner.StartPosition = 'CenterScreen';"
+            "$owner.Show();"
+            "$owner.Activate();"
+            "$d = New-Object System.Windows.Forms.FolderBrowserDialog;"
+            "$d.Description = 'Select Output Folder';"
+            "$d.ShowNewFolderButton = $true;"
+            "if ($d.ShowDialog($owner) -eq 'OK') { Write-Output $d.SelectedPath };"
+            "$owner.Dispose();"
+        )
         res = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: subprocess.run([ps, "-NoProfile", "-NonInteractive", "-Command", script],
+            None, lambda: subprocess.run([ps, "-NoProfile", "-Command", script],
                                          capture_output=True, text=True, timeout=120))
         return {"path": res.stdout.strip()}
     except Exception as e:

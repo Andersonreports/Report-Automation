@@ -245,7 +245,14 @@ function initTemplateSelect() {
   });
   document.getElementById("logoSelect").addEventListener("change", e => {
     state.withLogo = e.target.value === "true";
-    scheduleManualPreview();
+    // Keep bulk logo checkbox in sync
+    const bulkChk = document.getElementById("bulkLogoChk");
+    if (bulkChk) bulkChk.checked = state.withLogo;
+    if (document.querySelector(".tab[data-tab='bulk']")?.classList.contains("active") && state.bulkCurrentIndex >= 0) {
+      previewBulkCase(state.bulkCurrentIndex);
+    } else {
+      scheduleManualPreview();
+    }
   });
   document.getElementById("globalNablChk").addEventListener("change", scheduleManualPreview);
   document.getElementById("globalStampChk").addEventListener("change", scheduleManualPreview);
@@ -1421,10 +1428,11 @@ function renderBulkList() {
     const searchTarget = (patName + " " + donorLabel).toLowerCase();
     if (q && !searchTarget.includes(q)) return;
     const nameEl = el("span", { class: "ci-name" }, patName);
-    const children = [
-      el("input", { type: "checkbox", onclick: (e) => { e.stopPropagation(); toggleBulkSelect(i, e.target.checked); }, checked: state.bulkSelected.has(i) ? "checked" : null }),
-      nameEl,
-    ];
+    const chk = document.createElement("input");
+    chk.type = "checkbox";
+    chk.checked = state.bulkSelected.has(i);
+    chk.addEventListener("click", (e) => { e.stopPropagation(); toggleBulkSelect(i, e.target.checked); });
+    const children = [chk, nameEl];
     if (donorLabel) {
       children.push(el("span", { style: "font-size:10px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block;" }, "↳ " + donorLabel));
     }
@@ -1924,10 +1932,14 @@ async function previewBulkCase(i) {
   const body = document.getElementById("bulkPreviewBody");
   _pdfTokens["bulk"] = (_pdfTokens["bulk"] || 0) + 1;
   const myTok = _pdfTokens["bulk"];
+  // Apply current logo/nabl/stamp settings to preview (bulk cases store parse-time values)
+  const previewCase = { ...c, with_logo: state.withLogo,
+    nabl: checked(document.getElementById("globalNablChk")),
+    signature_stamp: checked(document.getElementById("globalStampChk")) };
   try {
     if (statusEl) statusEl.textContent = "Generating...";
     body.innerHTML = '<div class="preview-placeholder" style="padding-top:40px;">Generating preview...</div>';
-    const resp = await apiPost("/hla/preview", { case: c });
+    const resp = await apiPost("/hla/preview", { case: previewCase });
     if (_pdfTokens["bulk"] !== myTok) return;
     if (!resp.preview_url) throw new Error("No preview URL returned.");
     const pdfResp = await fetch(resp.preview_url + "?t=" + Date.now(), {cache: "no-store"});
