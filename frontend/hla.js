@@ -1306,10 +1306,57 @@ async function generateManual() {
 }
 
 // ══════════════════════════════════════════════════════════════════════════
+// MODAL HELPERS
+// ══════════════════════════════════════════════════════════════════════════
+function showInputModal(title, defaultValue) {
+  return new Promise(resolve => {
+    const backdrop = el("div", { class: "hla-modal-backdrop" });
+    const input = el("input", { type: "text", value: defaultValue });
+    const okBtn = el("button", { style: "background:var(--primary);color:#fff;border-color:var(--primary);" }, "Save");
+    const cancelBtn = el("button", { style: "background:transparent;color:var(--text-muted);border-color:var(--input-border);" }, "Cancel");
+    const modal = el("div", { class: "hla-modal" }, [
+      el("h4", {}, title),
+      input,
+      el("div", { class: "hla-modal-actions" }, [cancelBtn, okBtn]),
+    ]);
+    backdrop.appendChild(modal);
+    document.body.appendChild(backdrop);
+    input.focus(); input.select();
+    const done = val => { document.body.removeChild(backdrop); resolve(val); };
+    okBtn.addEventListener("click", () => done(input.value.trim() || null));
+    cancelBtn.addEventListener("click", () => done(null));
+    input.addEventListener("keydown", e => { if (e.key === "Enter") done(input.value.trim() || null); if (e.key === "Escape") done(null); });
+    backdrop.addEventListener("click", e => { if (e.target === backdrop) done(null); });
+  });
+}
+
+function showPickerModal(title, items) {
+  return new Promise(resolve => {
+    const backdrop = el("div", { class: "hla-modal-backdrop" });
+    const list = el("div", { class: "hla-modal-list" });
+    items.forEach(name => {
+      const btn = el("button", { class: "hla-modal-item" }, name);
+      btn.addEventListener("click", () => { document.body.removeChild(backdrop); resolve(name); });
+      list.appendChild(btn);
+    });
+    const cancelBtn = el("button", { style: "background:transparent;color:var(--text-muted);border-color:var(--input-border);padding:7px 18px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid;" }, "Cancel");
+    cancelBtn.addEventListener("click", () => { document.body.removeChild(backdrop); resolve(null); });
+    const modal = el("div", { class: "hla-modal" }, [
+      el("h4", {}, title),
+      list,
+      el("div", { class: "hla-modal-actions" }, [cancelBtn]),
+    ]);
+    backdrop.appendChild(modal);
+    document.body.appendChild(backdrop);
+    backdrop.addEventListener("click", e => { if (e.target === backdrop) { document.body.removeChild(backdrop); resolve(null); } });
+  });
+}
+
+// ══════════════════════════════════════════════════════════════════════════
 // DRAFTS
 // ══════════════════════════════════════════════════════════════════════════
 async function saveDraft(scope) {
-  const name = prompt("Draft name:", scope === "manual" ? "manual_draft" : "bulk_draft");
+  const name = await showInputModal("Save Draft", scope === "manual" ? "manual_draft" : "bulk_draft");
   if (!name) return;
   const data = scope === "manual" ? { rtype: state.rtype, case: collectManualCase() } : { cases: state.bulkCases };
   try {
@@ -1322,7 +1369,7 @@ async function loadDraft(scope) {
   try {
     const list = await apiGet("/hla/drafts");
     if (!list.drafts || !list.drafts.length) { showToast("No drafts found.", "error"); return; }
-    const name = prompt("Drafts available:\n" + list.drafts.join("\n") + "\n\nEnter draft name to load:");
+    const name = await showPickerModal("Select a Draft to Load", list.drafts);
     if (!name) return;
     const data = await apiGet("/hla/drafts/" + encodeURIComponent(name));
     if (scope === "manual" && data.case) {
