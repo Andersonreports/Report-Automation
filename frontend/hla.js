@@ -714,7 +714,14 @@ function renderManualForm() {
   if (rtype === "single_locus") {
     const card = el("div", { class: "card" }, [el("h3", {}, "Single Locus Result")]);
     const grid = el("div", { class: "field-grid" });
-    [["Locus", "sl_locus"], ["Allele 1", "sl_allele1"], ["Allele 2", "sl_allele2"], ["Note (optional)", "sl_note"]].forEach(([lbl, key]) => {
+    // Locus — dropdown matching the bulk editor
+    const locusSel = el("select", { onchange: scheduleManualPreview },
+      SINGLE_LOCUS_LOCI.map(l => el("option", { value: l }, l)));
+    locusSel.value = "C";
+    manualSpecialFields.sl_locus = locusSel;
+    grid.appendChild(el("div", { class: "field" }, [el("label", {}, "Locus"), locusSel]));
+    // Allele 1, Allele 2, Note — text inputs
+    [["Allele 1", "sl_allele1"], ["Allele 2", "sl_allele2"], ["Note (optional)", "sl_note"]].forEach(([lbl, key]) => {
       const input = el("input", { type: "text", oninput: scheduleManualPreview });
       manualSpecialFields[key] = input;
       grid.appendChild(el("div", { class: "field" }, [el("label", {}, lbl), input]));
