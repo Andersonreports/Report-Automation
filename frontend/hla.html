@@ -209,6 +209,22 @@
     .gen-bar {
       display: flex; align-items: center; gap: 10px; padding: 10px 0; flex-wrap: wrap;
     }
+    .bulk-bottom-controls {
+      padding: 10px 14px; border: 1px solid var(--panel-border); border-top: 2px solid var(--accent);
+      flex-shrink: 0; background: var(--panel); border-radius: 0 0 var(--radius) var(--radius);
+      box-shadow: var(--shadow); margin-top: 4px;
+    }
+    .bulk-bottom-controls.collapsed { display: none; }
+    .bulk-bottom-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .bulk-bottom-toggle {
+      position: fixed; right: 24px; bottom: 24px; width: 40px; height: 40px; border-radius: 50%;
+      background: var(--primary); color: #fff; border: none; box-shadow: var(--shadow);
+      cursor: pointer; font-size: 14px; display: flex; align-items: center; justify-content: center;
+      z-index: 200; transition: background 0.15s;
+    }
+    .bulk-bottom-toggle:hover { background: var(--primary-hover); }
+    .bulk-bottom-toggle i { transition: transform 0.2s; }
+    .bulk-bottom-toggle.collapsed i { transform: rotate(180deg); }
     .gen-bar .path-label {
       flex: 1; min-width: 160px; padding: 7px 10px; border: 1px solid var(--input-border);
       background: #fff; border-radius: 6px; font-size: 11px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -440,22 +456,21 @@
       </div>
       <input type="file" id="bulkDraftFileInput" accept=".json" class="hidden">
       <input type="checkbox" id="bulkLogoChk" class="hidden">
-      <div id="bulkGenSection" style="position:relative;">
-        <button id="bulkGenToggleBtn" onclick="toggleBulkGenBar()" title="Toggle actions bar"
-          style="position:absolute; right:0; top:-18px; width:32px; height:32px; border-radius:50%; background:var(--primary); color:#fff; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; font-size:13px; box-shadow:0 2px 6px rgba(0,0,0,0.18); z-index:10;">
-          <i class="fas fa-chevron-down" id="bulkGenToggleIcon"></i>
-        </button>
-        <div id="bulkGenBar" class="gen-bar" style="flex-wrap:wrap; gap:8px; align-items:center; border-top:1px solid var(--panel-border); padding-top:10px; margin-top:6px;">
+      <div class="bulk-bottom-controls" id="bulkBottomControls">
+        <div class="bulk-bottom-row">
           <button class="btn-sm btn-outline" onclick="saveBulkDraft()"><i class="fas fa-save"></i> Save All Draft</button>
           <button class="btn-sm btn-outline" onclick="saveSelectedDraft()"><i class="fas fa-download"></i> Save Selected Draft</button>
           <button class="btn-sm btn-outline" onclick="loadBulkDraft()"><i class="fas fa-folder-open"></i> Load Draft</button>
-          <div style="flex:1;"></div>
-          <span id="bulkSelectedCount" style="font-size:11px; color:var(--text-muted); font-weight:600;"></span>
           <button class="btn-sm btn-outline" id="bulkGenSelectedBtn"><i class="fas fa-file-pdf"></i> Generate Selected</button>
           <button class="btn-sm btn-primary" id="bulkGenAllBtn"><i class="fas fa-file-pdf"></i> Generate All</button>
+          <div style="flex:1;"></div>
+          <span id="bulkSelectedCount" style="font-size:11px; color:var(--text-muted); font-weight:600;"></span>
         </div>
-        <div class="progress-wrap hidden" id="bulkProgressWrap"><div class="progress-bar" id="bulkProgressBar"></div></div>
+        <div class="progress-wrap hidden" id="bulkProgressWrap" style="margin-top:6px;"><div class="progress-bar" id="bulkProgressBar"></div></div>
       </div>
+      <button type="button" class="bulk-bottom-toggle" id="bulkBottomToggle" onclick="toggleBulkGenBar()" title="Hide actions bar">
+        <i class="fas fa-chevron-down"></i>
+      </button>
     </div>
 
     <!-- ══════════════ TAB 3: SETTINGS ══════════════ -->
