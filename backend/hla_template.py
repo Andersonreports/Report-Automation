@@ -4423,12 +4423,6 @@ def _build_mixed_pra_report(case: dict, S: dict) -> list:
     elems.append(_res_t)
     elems.append(Spacer(1, 6*mm))
 
-    _mpra_rmk = _clean_display(patient.get("remarks", "")) or ""
-    if _mpra_rmk:
-        _section("Remarks")
-        elems.append(Paragraph(_mpra_rmk, _body_s))
-        elems.append(Spacer(1, 4*mm))
-
     # ── Interpretation (reference bands) ──────────────────────────────────────
     _section("Interpretation")
     _int_data = [[Paragraph("<b>Panel Reactive Antibody (PRA) Percentage</b>", _th_s),
