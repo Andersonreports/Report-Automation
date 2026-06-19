@@ -2450,7 +2450,7 @@ def _build_single_locus(case: dict, S: dict) -> list:
     elems.append(Spacer(1, 2 * mm))
 
     # ── Result ────────────────────────────────────────────────────────────────
-    elems.extend(_sec("Result"))
+    _result_heading = _sec("Result")
 
     _col_w = [CONTENT_W * 0.12, CONTENT_W * 0.25]   # total ≈ 37 % of content, centred
 
@@ -2492,10 +2492,12 @@ def _build_single_locus(case: dict, S: dict) -> list:
             Paragraph(f"<b>Remarks:</b> {_rmk_display}", _body_s),
         ]
 
-    # ── Result table + remarks + signatures kept together so they never split across pages ─
+    # ── Result heading + table + remarks + signatures kept together as one unit
+    # so the "Result" heading never gets orphaned on page 1 while the table and
+    # signatures spill onto page 2 — they all move together if they don't fit.
     sig_items = _signature_block(signatories, S)
     elems.append(KeepTogether(
-        [result_t] + remarks_items + [Spacer(1, 2 * mm)] + (sig_items or [])
+        _result_heading + [result_t] + remarks_items + [Spacer(1, 2 * mm)] + (sig_items or [])
     ))
 
     return elems
