@@ -2307,7 +2307,7 @@ function renderBulkPraEditor(editCol, c, i) {
 }
 
 // ── Bulk Single Locus editor ───────────────────────────────────────────────
-const SINGLE_LOCUS_LOCI = ["A", "B", "C", "DRB1", "DRB3", "DRB4", "DRB5", "DQA1", "DQB1", "DPA1", "DPB1", "E", "F", "G"];
+const SINGLE_LOCUS_LOCI = ["A", "B", "C", "DRB1", "DRB3", "DRB4", "DRB5", "DQA1", "DQB1", "DPA1", "DPB1"];
 
 function renderBulkSingleLocusEditor(editCol, c, i) {
   const p = c.patient || {};
