@@ -698,7 +698,7 @@ function buildCrossmatchSection(col, rtype) {
   const PAT_X_FIELDS = [["name", "Patient Name"], ["gender_age", "Gender / Age"], ["pin", "PIN"],
     ["sample_number", "Sample Number"], ["diagnosis", "Diagnosis"], ["hospital_clinic", "Hospital/Clinic"],
     ["sample_type", "Sample Type"], ["collection_date", "Collection Date"], ["receipt_date", "Receipt Date"],
-    ["report_date", "Report Date"], ["remarks", "Remarks (optional)"], ["comments", "Additional Comment (optional)"]];
+    ["report_date", "Report Date"], ["remarks", "Remarks (optional)"], ["comments", "Additional Comments (optional)"]];
   const xf = { patient: {}, donor: {}, patientPhoto: null, donorPhoto: null };
   PAT_X_FIELDS.forEach(([k, l]) => {
     const input = el("input", { type: "text", oninput: scheduleManualPreview });
@@ -1946,6 +1946,19 @@ function renderBulkCrossmatchEditor(editCol, c, i) {
   patCard.appendChild(buildPhotoUploadField("Patient Photo",
     b64 => { p.photo_bytes = b64; refresh(); }, p.photo_bytes || null));
   editCol.appendChild(patCard);
+
+  const xRemCard = el("div", { class: "card" }, [el("h3", {}, "Remarks / Additional Comments")]);
+  const xRemarksTA = el("textarea", { value: p.remarks || "" });
+  xRemarksTA.value = p.remarks || "";
+  xRemarksTA.addEventListener("input", () => { p.remarks = xRemarksTA.value; refresh(); });
+  const xCommentsTA = el("textarea", {});
+  xCommentsTA.value = p.comments || "";
+  xCommentsTA.addEventListener("input", () => { p.comments = xCommentsTA.value; refresh(); });
+  xRemCard.appendChild(el("div", { class: "field-grid" }, [
+    el("div", { class: "field full" }, [el("label", {}, "Remarks"), xRemarksTA]),
+    el("div", { class: "field full" }, [el("label", {}, "Additional Comments"), xCommentsTA]),
+  ]));
+  editCol.appendChild(xRemCard);
 
   const donCard = el("div", { class: "card" }, [el("h3", {}, "Donor")]);
   const donGrid = el("div", { class: "field-grid" });
