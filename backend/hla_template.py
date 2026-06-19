@@ -1574,12 +1574,18 @@ def _methodology_block(case: dict, S: dict) -> list:
         ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
     ]))
 
-    # For loci11 the personal remarks are rendered below the locus table in
-    # _ngs_person_block, so the static "Remarks:" coverage label is omitted to
-    # avoid showing a blank "Remarks:" in the IMGT section.
-    _is_loci11_mb = case.get("report_type") == "loci11"
+    # The personal remarks are rendered below each person's locus table in
+    # _ngs_person_block, so this static "Remarks:" coverage label is only shown
+    # when there's actual remarks content somewhere — otherwise it renders as a
+    # blank, orphan label in the IMGT/Coverage section.
+    def _has_real_remarks(p):
+        v = str((p or {}).get("remarks", "") or "").strip()
+        return bool(v) and v not in ("—", "-", "NA", "N/A", "None", "null")
+    _patient_mb = case.get("patient", {})
+    _donors_mb  = case.get("donors", []) or []
+    _show_remarks_label = _has_real_remarks(_patient_mb) or any(_has_real_remarks(d) for d in _donors_mb)
     coverage_block = [Paragraph(f"<b>IMGT/HLA Release</b> {imgt}", S["body"])]
-    if not _is_loci11_mb:
+    if _show_remarks_label:
         coverage_block.append(Paragraph("<b>Remarks:</b>", S["body"]))
     coverage_block.append(cov_table)
 
