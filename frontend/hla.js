@@ -1539,7 +1539,46 @@ function initBulkTab() {
   SAB_KIT_NAMES.forEach(k => sabKitSelect.appendChild(el("option", { value: k }, k)));
   const sabFileInput = document.getElementById("bulkSabFileInput");
   document.getElementById("bulkSabImportBtn").addEventListener("click", () => sabFileInput.click());
-  sabFileInput.addEventListener("change", () => importBulkSabExcel(sabFileInput, sabKitSelect));
+  sabFileInput.addEventListener("change", async () => {
+    const activeTab = document.querySelector(".tab.active")?.dataset.tab;
+    if (activeTab === "manual") {
+      await importSabToManual(sabFileInput, sabKitSelect);
+    } else {
+      await importBulkSabExcel(sabFileInput, sabKitSelect);
+    }
+  });
+}
+
+async function importSabToManual(sabFileInput, sabKitSelect) {
+  if (!sabFileInput.files.length) return;
+  const statusEl = document.getElementById("bulkSabImportStatus");
+  statusEl.textContent = "Parsing…";
+  try {
+    const fd = new FormData();
+    fd.append("file", sabFileInput.files[0]);
+    fd.append("kit", sabKitId(sabKitSelect.value));
+    const r = await fetch("/hla/parse-sab-excel", { method: "POST", body: fd });
+    if (!r.ok) {
+      let msg = await r.text();
+      try { msg = JSON.parse(msg).detail || msg; } catch (_) { /* not JSON */ }
+      throw new Error(msg);
+    }
+    const data = await r.json();
+    const sabClass = data.sab_class || "I";
+    const rtype = sabClass === "II" ? "sab_class2" : "sab_class1";
+    state.rtype = rtype;
+    const templateSelect = document.getElementById("templateSelect");
+    if (templateSelect) templateSelect.value = RTYPE_TO_TEMPLATE_NAME[rtype] || "SAB Class I";
+    renderManualForm();
+    if (manualSpecialFields.sab) {
+      applySabImportData(manualSpecialFields.sab, data);
+    }
+    statusEl.textContent = "Imported: " + sabFileInput.files[0].name;
+    showToast("SAB Excel imported into manual form.", "success");
+  } catch (e) {
+    statusEl.textContent = "";
+    showToast("SAB import error: " + e.message, "error");
+  }
 }
 
 async function importBulkSabExcel(sabFileInput, sabKitSelect) {
