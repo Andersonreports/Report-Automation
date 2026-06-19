@@ -1573,21 +1573,16 @@ function renderBulkList() {
     const patName = (c.patient && c.patient.name) || "Unnamed";
     const donors = c.donors || [];
     const donorNames = donors.map(d => d.name).filter(Boolean);
-    const donorLabel = donorNames.length === 1 ? donorNames[0]
-      : donorNames.length > 1 ? donorNames.join(", ")
-      : "";
-    const searchTarget = (patName + " " + donorLabel).toLowerCase();
-    if (q && !searchTarget.includes(q)) return;
-    const nameEl = el("span", { class: "ci-name" }, patName);
+    const displayName = donorNames.length ? patName + " + " + donorNames.join(" + ") : patName;
+    if (q && !displayName.toLowerCase().includes(q)) return;
     const chk = document.createElement("input");
     chk.type = "checkbox";
     chk.checked = state.bulkSelected.has(i);
     chk.addEventListener("click", (e) => { e.stopPropagation(); toggleBulkSelect(i, e.target.checked); });
-    const children = [chk, nameEl];
-    if (donorLabel) {
-      children.push(el("span", { style: "font-size:10px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block;" }, "↳ " + donorLabel));
-    }
-    const item = el("div", { class: "case-item" + (i === state.bulkCurrentIndex ? " selected" : ""), style: "flex-wrap:wrap;", onclick: () => selectBulkCase(i) }, children);
+    const item = el("div", { class: "case-item" + (i === state.bulkCurrentIndex ? " selected" : ""), onclick: () => selectBulkCase(i) }, [
+      chk,
+      el("span", { class: "ci-name" }, displayName),
+    ]);
     listEl.appendChild(item);
   });
 }
