@@ -935,6 +935,12 @@ function buildLuminexSection(col) {
 
 // ── KIR section ────────────────────────────────────────────────────────────
 const KIR_GENES = ["2DL1","2DL2","2DL3","2DL4","2DL5","2DS1","2DS2","2DS3","2DS4","2DS5","2DP1","3DL1","3DL2","3DL3","3DP1","3DS1"];
+// Older drafts may have stored "Present"/"Absent" before the dropdowns switched to "+"/"-".
+function _normalizeKirGeneVal(v) {
+  if (v === "Present") return "+";
+  if (v === "Absent") return "-";
+  return v;
+}
 
 function buildKirSection(col) {
   const patCard = el("div", { class: "card" }, [el("h3", {}, "Patient")]);
@@ -951,11 +957,11 @@ function buildKirSection(col) {
   patCard.appendChild(patGrid);
   col.appendChild(patCard);
 
-  const geneCard = el("div", { class: "card" }, [el("h3", {}, "KIR Genes (Present / Absent)")]);
+  const geneCard = el("div", { class: "card" }, [el("h3", {}, "KIR Genes (+ / -)")]);
   const geneGrid = el("div", { class: "field-grid cols-3" });
   KIR_GENES.forEach(g => {
     const sel = el("select", { onchange: scheduleManualPreview }, [
-      el("option", { value: "Absent" }, "Absent"), el("option", { value: "Present" }, "Present"),
+      el("option", { value: "-" }, "-"), el("option", { value: "+" }, "+"),
     ]);
     kir.genes[g] = sel;
     geneGrid.appendChild(el("div", { class: "field" }, [el("label", {}, "KIR" + g), sel]));
@@ -1625,7 +1631,7 @@ function populateManualForm(c) {
       set(kir.patient.specimen, p.specimen); set(kir.patient.hospital_clinic, p.hospital_clinic);
       set(kir.patient.collection_date, p.collection_date); set(kir.patient.receipt_date, p.receipt_date);
       set(kir.patient.report_date, p.report_date); set(kir.patient.remarks, p.remarks); set(kir.patient.comments, p.comments);
-      if (c.kir_genes) Object.entries(kir.genes).forEach(([g, sel]) => { if (c.kir_genes[g]) sel.value = c.kir_genes[g]; });
+      if (c.kir_genes) Object.entries(kir.genes).forEach(([g, sel]) => { if (c.kir_genes[g]) sel.value = _normalizeKirGeneVal(c.kir_genes[g]); });
       if (kir.genotypeOverride && c.kir_genotype_override) kir.genotypeOverride.value = c.kir_genotype_override;
       if (kir.interpretation) set(kir.interpretation, c.kir_interpretation);
     }
@@ -2293,8 +2299,8 @@ function renderBulkKirEditor(editCol, c, i) {
   const geneGrid = el("div", { class: "field-grid cols-3" });
   const genes = c.kir_genes || {};
   KIR_GENES.forEach(g => {
-    const sel = el("select", {}, [el("option",{value:"Absent"},"Absent"),el("option",{value:"Present"},"Present")]);
-    sel.value = genes[g] || "Absent";
+    const sel = el("select", {}, [el("option",{value:"-"},"-"),el("option",{value:"+"},"+")]);
+    sel.value = _normalizeKirGeneVal(genes[g]) || "-";
     sel.addEventListener("change", () => { genes[g] = sel.value; c.kir_genes = genes; refresh(); });
     geneGrid.appendChild(el("div",{class:"field"},[el("label",{},"KIR"+g),sel]));
   });
