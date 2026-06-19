@@ -1675,7 +1675,7 @@ def _build_ngs_single(case: dict, S: dict) -> list:
     elems = []
 
     elems.extend(_ngs_person_block(patient, is_donor=False, match_str="", S=S,
-                                   nabl=case.get("nabl", True)))
+                                   nabl=case.get("nabl", True), separate_drb=True))
 
     elems.extend(_methodology_block(case, S))
     sig_items = _signature_block(signatories, S)
@@ -2127,7 +2127,7 @@ def _build_rpl_couple(case: dict, S: dict) -> list:
     else:
         # Single-person RPL: NGS-style patient block
         patient_block = _ngs_person_block(patient, is_donor=False, match_str="", S=S,
-                                          nabl=case.get("nabl", True))
+                                          nabl=case.get("nabl", True), separate_drb=True)
         elems.append(KeepTogether(patient_block))
         _emit_remarks(patient, "Remarks")
 
