@@ -970,44 +970,6 @@ function buildSabSection(col, rtype) {
   const sab = { patient: {} };
   manualSpecialFields.sab = sab;
 
-  // ── Kit + Excel import ────────────────────────────────────────────────
-  const importCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-file-import" }), " Import from SAB Excel"])]);
-  const kitSelect = el("select", {}, SAB_KIT_NAMES.map(k => el("option", { value: k }, k)));
-  sab.kitSelect = kitSelect;
-  const importStatus = el("span", { style: "font-size:11px; color:var(--text-muted);" }, "");
-  const sabFileInput = el("input", { type: "file", accept: ".xlsx,.xls", class: "hidden" });
-  const importBtn = el("button", { class: "btn-sm btn-outline", type: "button", onclick: () => sabFileInput.click() },
-    [el("i", { class: "fas fa-upload" }), " Browse Excel…"]);
-  sabFileInput.addEventListener("change", async () => {
-    if (!sabFileInput.files.length) return;
-    importStatus.textContent = "Parsing…";
-    try {
-      const fd = new FormData();
-      fd.append("file", sabFileInput.files[0]);
-      fd.append("kit", sabKitId(kitSelect.value));
-      const r = await fetch("/hla/parse-sab-excel", { method: "POST", body: fd });
-      if (!r.ok) {
-        let msg = await r.text();
-        try { msg = JSON.parse(msg).detail || msg; } catch (_) { /* not JSON */ }
-        throw new Error(msg);
-      }
-      const data = await r.json();
-      applySabImportData(sab, data);
-      importStatus.textContent = "Imported: " + sabFileInput.files[0].name;
-      showToast("SAB Excel imported successfully.", "success");
-    } catch (e) {
-      importStatus.textContent = "";
-      showToast("SAB import error: " + e.message, "error");
-    }
-  });
-  importCard.appendChild(el("div", { style: "display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap;" }, [
-    el("div", { class: "field" }, [el("label", {}, "Kit"), kitSelect]),
-    el("div", { class: "field" }, [el("label", {}, " "), importBtn]),
-    importStatus,
-  ]));
-  importCard.appendChild(sabFileInput);
-  col.appendChild(importCard);
-
   // ── Patient Information ──────────────────────────────────────────────
   const patCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-user" }), " Patient Information"])]);
   const patGrid = el("div", { class: "field-grid" });
