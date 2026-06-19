@@ -643,6 +643,17 @@ function renderManualForm() {
     buildManualDonorsSection(rtype, col);
   }
 
+  if (rtype === "ngs_photo") {
+    const interpCard = el("div", { class: "card" }, [el("h3", {}, "Interpretation")]);
+    const interpInput = el("textarea", {
+      placeholder: "Leave blank to auto-generate from the donor match percentage.",
+      oninput: scheduleManualPreview,
+    });
+    manualSpecialFields.ngs_photo_interpretation = interpInput;
+    interpCard.appendChild(el("div", { class: "field full" }, [el("label", {}, "Interpretation (optional override)"), interpInput]));
+    col.appendChild(interpCard);
+  }
+
   if (rtype === "single_locus") {
     const card = el("div", { class: "card" }, [el("h3", {}, "Single Locus Result")]);
     const grid = el("div", { class: "field-grid" });
@@ -1256,6 +1267,10 @@ function collectManualCase() {
     c.hlac_allele2 = manualSpecialFields.hc_allele2 ? manualSpecialFields.hc_allele2.value.trim() : "";
     c.hlac_remark  = manualSpecialFields.hc_remark  ? manualSpecialFields.hc_remark.value.trim()  : "";
   }
+  if (rtype === "ngs_photo") {
+    c.ngs_photo_interpretation = manualSpecialFields.ngs_photo_interpretation
+      ? manualSpecialFields.ngs_photo_interpretation.value.trim() : "";
+  }
 
   return c;
 }
@@ -1587,6 +1602,9 @@ function populateManualForm(c) {
     if (manualSpecialFields.hc_allele1) manualSpecialFields.hc_allele1.value = c.hlac_allele1 || "";
     if (manualSpecialFields.hc_allele2) manualSpecialFields.hc_allele2.value = c.hlac_allele2 || "";
     if (manualSpecialFields.hc_remark) manualSpecialFields.hc_remark.value = c.hlac_remark || "";
+  }
+  if (rtype === "ngs_photo" && manualSpecialFields.ngs_photo_interpretation) {
+    manualSpecialFields.ngs_photo_interpretation.value = c.ngs_photo_interpretation || "";
   }
 
   scheduleManualPreview();
@@ -2186,6 +2204,51 @@ function renderBulkPraEditor(editCol, c, i) {
   _bulkRefreshRow(editCol, i);
 }
 
+// ── Bulk Single Locus editor ───────────────────────────────────────────────
+const SINGLE_LOCUS_LOCI = ["A", "B", "C", "DRB1", "DRB3", "DRB4", "DRB5", "DQA1", "DQB1", "DPA1", "DPB1", "E", "F", "G"];
+
+function renderBulkSingleLocusEditor(editCol, c, i) {
+  const p = c.patient || {};
+  const refresh = () => scheduleBulkPreview(i);
+  const PAT_SL = [["patient_name","Patient Name"],["gender_age","Gender / Age"],["hospital_mr_no","Hospital MR No."],
+    ["diagnosis","Diagnosis"],["referred_by","Referred By"],["hospital_clinic","Hospital/Clinic"],
+    ["pin","PIN"],["sample_number","Sample Number"],["specimen","Specimen"],
+    ["collection_date","Collection Date"],["receipt_date","Receipt Date"],["report_date","Report Date"]];
+  editCol.appendChild(_buildBulkPatientCard(p, PAT_SL, refresh));
+
+  const slCard = el("div", { class: "card" }, [el("h3", {}, "Single Locus Result")]);
+  const slGrid = el("div", { class: "field-grid" });
+
+  const locusSel = el("select", {}, SINGLE_LOCUS_LOCI.map(l => el("option", { value: l }, l)));
+  locusSel.value = c.locus || "C";
+  locusSel.addEventListener("change", () => { c.locus = locusSel.value; refresh(); });
+  slGrid.appendChild(el("div", { class: "field" }, [el("label", {}, "Locus"), locusSel]));
+
+  const a1 = el("input", { type: "text", value: c.sl_allele1 || "" });
+  a1.addEventListener("input", () => { c.sl_allele1 = a1.value; refresh(); });
+  slGrid.appendChild(el("div", { class: "field" }, [el("label", {}, "Allele 1"), a1]));
+
+  const a2 = el("input", { type: "text", value: c.sl_allele2 || "" });
+  a2.addEventListener("input", () => { c.sl_allele2 = a2.value; refresh(); });
+  slGrid.appendChild(el("div", { class: "field" }, [el("label", {}, "Allele 2"), a2]));
+
+  const noteInp = el("input", { type: "text", value: c.sl_note || "" });
+  noteInp.addEventListener("input", () => { c.sl_note = noteInp.value; refresh(); });
+  slGrid.appendChild(el("div", { class: "field" }, [el("label", {}, "Note (optional)"), noteInp]));
+
+  slCard.appendChild(slGrid);
+  editCol.appendChild(slCard);
+
+  const remCard = el("div", { class: "card" }, [el("h3", {}, "Remarks")]);
+  const remTA = el("textarea", { value: p.remarks || "" });
+  remTA.value = p.remarks || "";
+  remTA.addEventListener("input", () => { p.remarks = remTA.value; refresh(); });
+  remCard.appendChild(el("div", { class: "field full" }, [el("label", {}, "Remarks"), remTA]));
+  editCol.appendChild(remCard);
+
+  _bulkRefreshRow(editCol, i);
+}
+
 function renderBulkSabEditor(editCol, c, i) {
   const p = c.patient || {};
   const refresh = () => scheduleBulkPreview(i);
@@ -2311,6 +2374,10 @@ function renderBulkEditor(i) {
     renderBulkPraEditor(editCol, c, i);
     return;
   }
+  if (c.report_type === "single_locus") {
+    renderBulkSingleLocusEditor(editCol, c, i);
+    return;
+  }
 
   const p = c.patient || {};
   const separateDrb = isSeparateDrb(c.report_type);
@@ -2363,7 +2430,7 @@ function renderBulkEditor(i) {
   }
   editCol.appendChild(card);
 
-  const _hlaRtypes = ["single_hla","transplant_donor","ngs_photo","loci11","rpl_couple","single_rpl","hla_c","single_locus"];
+  const _hlaRtypes = ["single_hla","transplant_donor","ngs_photo","loci11","rpl_couple","single_rpl","hla_c"];
   if (p.hla && _hlaRtypes.includes(c.report_type)) {
     const hlaCard = el("div", { class: "card" }, [el("h3", {}, "HLA Results")]);
     hlaCard.appendChild(buildHlaGrid(p.hla));
@@ -2411,6 +2478,18 @@ function renderBulkEditor(i) {
       }
     }, [el("i", { class: "fas fa-plus" }), " Add Donor"]);
     editCol.appendChild(el("div", { style: "margin:6px 0;" }, [addDonorBtn]));
+  }
+
+  if (c.report_type === "ngs_photo") {
+    const interpCard = el("div", { class: "card" }, [el("h3", {}, "Interpretation")]);
+    const interpTA = el("textarea", {
+      value: c.ngs_photo_interpretation || "",
+      placeholder: "Leave blank to auto-generate from the donor match percentage.",
+    });
+    interpTA.value = c.ngs_photo_interpretation || "";
+    interpTA.addEventListener("input", () => { c.ngs_photo_interpretation = interpTA.value; scheduleBulkPreview(i); });
+    interpCard.appendChild(el("div", { class: "field full" }, [el("label", {}, "Interpretation (optional override)"), interpTA]));
+    editCol.appendChild(interpCard);
   }
 
 }

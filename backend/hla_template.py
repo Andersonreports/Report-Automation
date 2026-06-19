@@ -673,7 +673,12 @@ _DEGREE_MAP = {
     "dnb": "DNB", "phd": "PhD", "dgo": "DGO", "frcs": "FRCS", "mrcp": "MRCP",
 }
 # Fix 2: expanded to include medical/lab abbreviations that must always be uppercased.
-_ABBREV_SET = {"edta", "dna", "rna", "pcr", "bmt", "hla", "rpl", "rif", "nips", "poc", "ngs", "wbc", "rbc", "idd"}
+# Also includes common hospital/organization acronyms (e.g. ESIC, AIIMS) — these
+# contain vowels so the no-vowel abbreviation rule (6b) would otherwise miss them,
+# and Hospital/Clinic name fields re-case ALL-CAPS input (is_name=True) so they'd
+# fall through to default title-casing without this explicit whitelist entry.
+_ABBREV_SET = {"edta", "dna", "rna", "pcr", "bmt", "hla", "rpl", "rif", "nips", "poc", "ngs", "wbc", "rbc", "idd",
+               "esic", "aiims"}
 _PREFIX_MAP_TC = {"mr": "Mr", "mrs": "Mrs", "ms": "Ms", "master": "Master", "dr": "Dr"}
 
 
@@ -4607,9 +4612,6 @@ def _build_flow_report(case: dict, S: dict) -> list:
     # ── "Flowcytometry Cross match for T & B Lymphocytes" section title ───────
     _section_title_s = ParagraphStyle("_fst", fontName=F_BOLD, fontSize=16,
                                        textColor=C_NGS_TITLE, alignment=TA_CENTER, leading=20)
-    elems.append(Paragraph("<b>Flowcytometry Cross match for T &amp; B Lymphocytes</b>",
-                            _section_title_s))
-    elems.append(Spacer(1, 2*mm))
 
     # ── 4-column results table ────────────────────────────────────────────────
     t_antibody    = flow.get("t_antibody", "T-CELLS (CD3)")
@@ -4681,7 +4683,15 @@ def _build_flow_report(case: dict, S: dict) -> list:
         ("LEFTPADDING",   (0,0), (-1,-1), 4),
         ("RIGHTPADDING",  (0,0), (-1,-1), 4),
     ]))
-    elems.append(res_t)
+    # Title + table kept as one unit so a tall info table above (e.g. a
+    # Hospital/Clinic name that wraps to a 2nd line) can never push a page
+    # break between the title and the table, or split the table mid-row
+    # (which would strand the B-CELLS row alone on the next page).
+    elems.append(KeepTogether([
+        Paragraph("<b>Flowcytometry Cross match for T &amp; B Lymphocytes</b>", _section_title_s),
+        Spacer(1, 2*mm),
+        res_t,
+    ]))
 
     # ── Page break → page 2 (Interpretation / Comments / Disclaimer / Signatures)
     # Without this the signature block overflows to a third page.
