@@ -1412,12 +1412,23 @@ function renderBulkList() {
   }
   const q = (document.getElementById("bulkSearchBox").value || "").toLowerCase();
   state.bulkCases.forEach((c, i) => {
-    const name = (c.patient && c.patient.name) || "Unnamed";
-    if (q && !name.toLowerCase().includes(q)) return;
-    const item = el("div", { class: "case-item" + (i === state.bulkCurrentIndex ? " selected" : ""), onclick: () => selectBulkCase(i) }, [
+    const patName = (c.patient && c.patient.name) || "Unnamed";
+    const donors = c.donors || [];
+    const donorNames = donors.map(d => d.name).filter(Boolean);
+    const donorLabel = donorNames.length === 1 ? donorNames[0]
+      : donorNames.length > 1 ? donorNames.join(", ")
+      : "";
+    const searchTarget = (patName + " " + donorLabel).toLowerCase();
+    if (q && !searchTarget.includes(q)) return;
+    const nameEl = el("span", { class: "ci-name" }, patName);
+    const children = [
       el("input", { type: "checkbox", onclick: (e) => { e.stopPropagation(); toggleBulkSelect(i, e.target.checked); }, checked: state.bulkSelected.has(i) ? "checked" : null }),
-      el("span", { class: "ci-name" }, name),
-    ]);
+      nameEl,
+    ];
+    if (donorLabel) {
+      children.push(el("span", { style: "font-size:10px; color:var(--text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block;" }, "↳ " + donorLabel));
+    }
+    const item = el("div", { class: "case-item" + (i === state.bulkCurrentIndex ? " selected" : ""), style: "flex-wrap:wrap;", onclick: () => selectBulkCase(i) }, children);
     listEl.appendChild(item);
   });
 }
