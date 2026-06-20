@@ -28,6 +28,30 @@ REPORT_TEMPLATES.forEach(t => TEMPLATE_TO_RTYPE[t.name] = t.report_type);
 const RTYPE_TO_TEMPLATE_NAME = {};
 REPORT_TEMPLATES.forEach(t => RTYPE_TO_TEMPLATE_NAME[t.report_type] = t.name);
 
+// One distinct color per template, used as a small dot + tinted background in
+// the bulk case list so mixed-template lists are visually scannable.
+const RTYPE_COLORS = {
+  single_hla:        "#1f497d",
+  rpl_couple:         "#8e44ad",
+  single_rpl:         "#9b59b6",
+  single_locus:       "#16a085",
+  hla_c:              "#2c6baa",
+  transplant_donor:   "#c0392b",
+  ngs_photo:          "#d35400",
+  loci11:             "#e67e22",
+  cdc_crossmatch:     "#2980b9",
+  dsa_crossmatch:     "#2471a3",
+  sab_class1:         "#27ae60",
+  sab_class2:         "#1e8449",
+  flow_crossmatch:    "#117a65",
+  luminex_typing:     "#b7950b",
+  kir_genotyping:     "#7d3c98",
+  pra_class1:         "#a04000",
+  pra_class2:         "#ba4a00",
+  mixed_pra:          "#935116",
+};
+function rtypeColor(rtype) { return RTYPE_COLORS[rtype] || "#7f8c8d"; }
+
 const HLA_LOCI = ["A", "B", "C", "DRB1", "DQB1", "DPB1", "DRB3", "DPA1", "DQA1"];
 const HLA_LOCUS_LABELS = { DRB3: "DRB3/4/5" };
 // DRB3/DRB4/DRB5 are shown as THREE separate allele rows for every template
@@ -2054,8 +2078,18 @@ function renderBulkList() {
     chk.type = "checkbox";
     chk.checked = state.bulkSelected.has(i);
     chk.addEventListener("click", (e) => { e.stopPropagation(); toggleBulkSelect(i, e.target.checked); });
-    const item = el("div", { class: "case-item" + (i === state.bulkCurrentIndex ? " selected" : ""), onclick: () => selectBulkCase(i) }, [
+    const color = rtypeColor(c.report_type);
+    const dot = el("span", {
+      class: "ci-dot", title: RTYPE_TO_TEMPLATE_NAME[c.report_type] || c.report_type,
+      style: `background:${color};`,
+    });
+    const item = el("div", {
+      class: "case-item" + (i === state.bulkCurrentIndex ? " selected" : ""),
+      style: `border-left: 3px solid ${color}; background: ${color}14;`,
+      onclick: () => selectBulkCase(i),
+    }, [
       chk,
+      dot,
       el("span", { class: "ci-name" }, displayName),
     ]);
     listEl.appendChild(item);

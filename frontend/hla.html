@@ -269,8 +269,12 @@
     .case-item {
       padding: 8px 10px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 11.5px; display: flex; align-items: center; gap: 6px;
     }
-    .case-item:hover { background: #f4f6fb; }
-    .case-item.selected { background: rgba(31,73,125,0.10); border-left: 3px solid var(--primary); }
+    .case-item:hover { filter: brightness(0.97); }
+    /* Per-template border/background color comes from an inline style (see
+       rtypeColor() in hla.js) — .selected uses an inset ring instead of
+       border-left/background so it doesn't get overridden by that. */
+    .case-item.selected { box-shadow: inset 0 0 0 2px var(--primary); }
+    .case-item .ci-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
     .case-item .ci-name { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     .select-row { display: flex; gap: 6px; margin-bottom: 8px; }
@@ -565,6 +569,6 @@
 
   <div class="toast" id="toast"></div>
 
-  <script src="/hla.js?v=47"></script>
+  <script src="/hla.js?v=48"></script>
 </body>
 </html>
