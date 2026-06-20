@@ -2636,6 +2636,7 @@ def _build_hla_c(case: dict, S: dict) -> list:
         # commentary — always shown for the Peripheral Blood layout, with a
         # "—" placeholder when empty, matching the desktop app exactly.
         elems.extend(_sec("Remarks"))
+        elems.append(Spacer(1, 3 * mm))
 
         _rem_w = [CONTENT_W * 0.40]
         rem_t = Table([
