@@ -181,33 +181,64 @@
   </div>
 
   <script>
-    // TODO (IT): wire this form up to the real authentication backend.
+    // NOTE: this is an interim username+password check against the
+    // access_api.py / mysql_client.py `users` table — a stand-in until the
+    // IT team's real username + password + OTP system is ready.
     const form     = document.getElementById('loginForm');
     const errorBox = document.getElementById('errorMsg');
+    const errorText = document.getElementById('errorText');
+    const submitBtn = document.getElementById('submitBtn');
 
-    form.addEventListener('submit', (e) => {
+    function showError(msg) {
+      errorText.textContent = msg;
+      errorBox.classList.add('show');
+    }
+
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
       errorBox.classList.remove('show');
 
-      // Placeholder only — replace with a real auth request.
       const username = document.getElementById('username').value.trim();
       const password = document.getElementById('password').value;
-
       if (!username || !password) {
-        errorBox.classList.add('show');
+        showError('Invalid username or password.');
         return;
       }
 
       const useOtp = document.getElementById('useOtp').checked;
-      if (useOtp) {
-        // Hand off to the OTP step before granting access.
-        sessionStorage.setItem('arc_otp_pending', 'true');
-        window.location.href = '/otp.html';
-        return;
-      }
+      submitBtn.disabled = true;
 
-      localStorage.setItem('arc_authenticated', 'true');
-      window.location.href = '/index.html';
+      try {
+        const res = await fetch('/access/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password }),
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          showError(data.detail || 'Invalid username or password.');
+          return;
+        }
+
+        if (useOtp) {
+          // Hand off to the OTP step before granting access.
+          sessionStorage.setItem('arc_otp_pending', 'true');
+          sessionStorage.setItem('arc_pending_user', JSON.stringify(data));
+          window.location.href = '/otp.html';
+          return;
+        }
+
+        localStorage.setItem('arc_authenticated', 'true');
+        localStorage.setItem('arc_username', data.username);
+        localStorage.setItem('arc_role', data.role);
+        localStorage.setItem('arc_report', data.report || '');
+        window.location.href = '/index.html';
+      } catch (err) {
+        showError('Could not reach the server. Please try again.');
+      } finally {
+        submitBtn.disabled = false;
+      }
     });
   </script>
 </body>

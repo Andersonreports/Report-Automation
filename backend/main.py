@@ -93,6 +93,14 @@ except Exception as _hla_err:
     _hla_ok = False
     print(f"[HLA] router not loaded: {_hla_err}")
 
+# ── Access control (Admin page + per-report login) router ─────────────────────
+try:
+    from access_api import router as access_router
+    _access_ok = True
+except Exception as _access_err:
+    _access_ok = False
+    print(f"[Access] router not loaded: {_access_err}")
+
 # ── MySQL database ─────────────────────────────────────────────────────────────
 _mysql_enabled = False
 upload_pdf = upload_pgta_file = save_report = None
@@ -153,6 +161,11 @@ def login_page(): return _serve("login.html")
 @app.get("/otp.html")
 @app.get("/otp")
 def otp_page(): return _serve("otp.html")
+
+
+@app.get("/admin.html")
+@app.get("/admin")
+def admin_page(): return _serve("admin.html")
 
 
 @app.get("/index.html")
@@ -1410,6 +1423,11 @@ if _hla_ok:
     if os.path.isdir(_hla_fonts_dir):
         app.mount("/hla-fonts", StaticFiles(directory=_hla_fonts_dir), name="hla-fonts")
     print("[HLA] routes loaded")
+
+# ── Access control routes (Admin page + per-report login) ─────────────────────
+if _access_ok:
+    app.include_router(access_router)
+    print("[Access] routes loaded" + ("" if _mysql_enabled else " (MySQL not configured yet)"))
 
 
 @app.get("/hla")

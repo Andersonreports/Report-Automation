@@ -217,9 +217,17 @@
         return;
       }
 
-      // Placeholder only — replace with a real OTP verification request.
+      // Placeholder only — replace with a real OTP verification request
+      // (IT team's username + password + OTP system).
+      const pending = JSON.parse(sessionStorage.getItem('arc_pending_user') || 'null');
       sessionStorage.removeItem('arc_otp_pending');
+      sessionStorage.removeItem('arc_pending_user');
       localStorage.setItem('arc_authenticated', 'true');
+      if (pending) {
+        localStorage.setItem('arc_username', pending.username);
+        localStorage.setItem('arc_role', pending.role);
+        localStorage.setItem('arc_report', pending.report || '');
+      }
       window.location.href = '/index.html';
     });
   </script>
