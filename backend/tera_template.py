@@ -799,7 +799,7 @@ class TERAReportGenerator:
     # ═══════════════════════════════════════════════════════════════════════════
     def _patient_rows(self):
         d     = self.d
-        name  = self._s(d.get("Patient Name", ""))
+        name  = self._s(d.get("Patient Name", "")).title()
         # PIN field in report ← Sample ID column (col C of Excel)
         pin   = self._s(d.get("Sample ID", "")) or "Not Provided"
         # Sample Number field in report ← Lab No. column (col H of Excel)

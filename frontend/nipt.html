@@ -756,25 +756,14 @@
       transition: 0.15s;
     }
 
-    .btn-list-save {
+    .btn-list-save, .btn-list-load {
       border-color: var(--primary);
       color: var(--primary);
       background: transparent;
     }
 
-    .btn-list-save:hover {
+    .btn-list-save:hover, .btn-list-load:hover {
       background: var(--primary);
-      color: #fff;
-    }
-
-    .btn-list-load {
-      border-color: var(--text-muted);
-      color: var(--text-muted);
-      background: transparent;
-    }
-
-    .btn-list-load:hover {
-      background: var(--text-muted);
       color: #fff;
     }
 
@@ -849,49 +838,6 @@
       flex-shrink: 0;
     }
 
-    /* ── Per-patient action row ── */
-    .per-patient-actions {
-      display: flex;
-      gap: 6px;
-      flex-shrink: 0;
-      margin-top: 8px;
-    }
-
-    .per-patient-actions button {
-      flex: 1;
-      padding: 6px 8px;
-      font-size: 11px;
-      font-weight: 600;
-      border-radius: 6px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 4px;
-      border: 1.5px solid;
-      transition: 0.15s;
-    }
-
-    .btn-pp-draft {
-      border-color: var(--text-muted);
-      color: var(--text-muted);
-      background: transparent;
-    }
-
-    .btn-pp-draft:hover {
-      background: var(--text-muted);
-      color: #fff;
-    }
-
-    .btn-pp-gen {
-      border-color: var(--primary);
-      color: #fff;
-      background: var(--primary);
-    }
-
-    .btn-pp-gen:hover {
-      background: var(--primary-hover);
-    }
 
     /* ── Progress Bar ── */
     .progress-wrap {
@@ -1566,6 +1512,13 @@
           <div class="card-label"><i class="fas fa-edit" style="margin-right:4px;"></i>Patient Editor</div>
           <div class="batch-editor-scroll" id="batchEditorScroll">
             <div class="batch-editor-placeholder">Select a patient from the list on the left</div>
+          </div>
+          <div id="perPatientActionsBar" style="display:none;">
+            <div class="action-bar" style="padding:6px 0 0 0;">
+              <button class="btn-primary" id="perPatientGenBtn"><i class="fas fa-file-pdf"></i> Generate Report</button>
+              <button class="btn-outline" id="perPatientDraftBtn"><i class="fas fa-save"></i> Save Draft</button>
+            </div>
+            <div id="perPatientResultBar" class="result-box" style="margin-top:4px;"></div>
           </div>
         </div>
 
@@ -2517,12 +2470,13 @@
         </div>
       </div>
     </div>
-    <div class="per-patient-actions">
-      <button class="btn-pp-draft" onclick="saveIndividualDraft(${idx})"><i class="fas fa-save"></i> Save Individual Draft</button>
-      <button class="btn-pp-gen" onclick="generateSingleBatch(${idx})"><i class="fas fa-file-pdf"></i> Generate Report for This Patient</button>
-    </div>
-    <div id="perPatientResult${idx}" class="result-box" style="margin-top:6px;"></div>
   `;
+      // Wire up the fixed footer action bar for this patient
+      const bar = document.getElementById('perPatientActionsBar');
+      bar.style.display = '';
+      document.getElementById('perPatientGenBtn').onclick = () => generateSingleBatch(idx);
+      document.getElementById('perPatientDraftBtn').onclick = () => saveIndividualDraft(idx);
+      document.getElementById('perPatientResultBar').innerHTML = '';
       triggerBatchPreview();
     }
 
@@ -2599,8 +2553,7 @@
     // BATCH GENERATE (SINGLE + ALL)
     // ══════════════════════════════════════════════════════════════
     async function generateSingleBatch(idx) {
-      const resultId = `perPatientResult${idx}`;
-      const resultEl = document.getElementById(resultId);
+      const resultEl = document.getElementById('perPatientResultBar');
       if (!_serverUp) {
         if (resultEl) { resultEl.className = 'result-box error'; resultEl.style.display = 'block'; resultEl.innerHTML = SERVER_REQUIRED_MSG; }
         return;
@@ -2743,7 +2696,26 @@
       const reader = new FileReader();
       reader.onload = e => {
         try {
-          batchPatients = JSON.parse(e.target.result);
+          const parsed = JSON.parse(e.target.result);
+          if (Array.isArray(parsed)) {
+            // Format 1: plain array (bulk download format)
+            batchPatients = parsed;
+          } else if (parsed.patients && Array.isArray(parsed.patients)) {
+            // Format 2: { patients: [...], _type: 'nipt_bulk_draft' } (server-saved bulk format)
+            batchPatients = parsed.patients;
+          } else if (parsed.patient_details) {
+            // Format 3: { patient_details: {...}, z_scores: {...} } (individual draft)
+            const pd = parsed.patient_details || {};
+            const zs = parsed.z_scores || {};
+            const patient = { ...pd };
+            for (let i = 1; i <= 22; i++) patient[`chr${i}`] = zs[`chr${i}`] ?? 0;
+            patient.chrX = zs.chrX ?? 0;
+            patient.ff = zs.fetal_fraction ?? 0;
+            batchPatients = [patient];
+          } else {
+            throw new Error('Unrecognised draft format');
+          }
+          if (!batchPatients.length) throw new Error('No patient data found in draft');
           currentBatchIdx = -1;
           document.getElementById('batchEditorScroll').innerHTML = '<div class="batch-editor-placeholder">Select a patient from the list on the left</div>';
           rebuildPatientList();

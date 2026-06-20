@@ -846,34 +846,28 @@ class KaryotypeReportGenerator:
     def _draw_recommendations_block(self, c, y: float) -> float:
         y = _draw_section_heading(c, "Recommendations", y)
         c.setFillColor(BLACK)
-        if self._is_normal():
-            items = [
-                "Genetic counseling is recommended to discuss the implications of the result.",
-                "Additional genetic testing may be warranted based on the specific phenotypic indication.",
-            ]
-            y = _draw_bullet_list(c, items, DIV_X0, y - 18,
-                                  DIV_X1 - DIV_X0, F_BODY, 11)
-        else:
-            recs = self._get("RECOMMENDATIONS")
-            # Split multiple recommendations on bullet char or newline
+        default_items = [
+            "Genetic counseling is recommended to discuss the implications of the result.",
+            "Additional genetic testing may be warranted based on the specific phenotypic indication.",
+        ]
+        items = list(default_items)
+        recs = self._get("RECOMMENDATIONS").strip()
+        if recs:
             raw_items = [r.strip() for r in re.split(r'[\n\uf0b7\u2022]', recs) if r.strip()]
-            # Merge continuation fragments: if an item starts with lowercase it's a
-            # continuation of the previous item (e.g. line-break mid-sentence in Excel)
-            items = []
+            custom_items = []
             for item in raw_items:
-                if items and item and item[0].islower():
-                    items[-1] = items[-1] + " " + item
+                if custom_items and item and item[0].islower():
+                    custom_items[-1] = custom_items[-1] + " " + item
                 else:
-                    items.append(item)
-            if len(items) > 1:
-                y = _draw_bullet_list(c, items, DIV_X0, y - 18,
-                                      DIV_X1 - DIV_X0, F_BODY, 11)
-            elif items:
-                y = _draw_justified(c, items[0], DIV_X0, y - 10,
-                                    DIV_X1 - DIV_X0, F_BODY, 11)
-            else:
-                y = _draw_justified(c, recs, DIV_X0, y - 10,
-                                    DIV_X1 - DIV_X0, F_BODY, 11)
+                    custom_items.append(item)
+            # Skip any custom item that just duplicates a default sentence
+            # (e.g. a report-type template that pre-fills the same wording).
+            seen_defaults = {d.strip().lower().rstrip('.') for d in default_items}
+            custom_items = [it for it in custom_items
+                            if it.strip().lower().rstrip('.') not in seen_defaults]
+            items.extend(custom_items)
+        y = _draw_bullet_list(c, items, DIV_X0, y - 18,
+                              DIV_X1 - DIV_X0, F_BODY, 11)
         return y
 
     def _draw_methodology_block(self, c, y: float) -> float:
