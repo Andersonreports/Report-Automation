@@ -816,11 +816,15 @@ function buildCrossmatchSection(col, rtype) {
   const donGrid = el("div", { class: "field-grid" });
   const DON_X_FIELDS = [["name", "Donor Name"], ["gender_age", "Gender / Age"], ["pin", "PIN"],
     ["sample_number", "Sample Number"], ["relationship", "Relationship"], ["sample_type", "Sample Type"],
-    ["collection_date", "Collection Date"], ["receipt_date", "Receipt Date"], ["report_date", "Report Date"]];
+    ["collection_date", "Collection Date"], ["receipt_date", "Receipt Date"], ["report_date", "Report Date"],
+    ["remarks", "Remarks (optional)"]];
   DON_X_FIELDS.forEach(([k, l]) => {
-    const input = el("input", { type: "text", oninput: scheduleManualPreview });
+    const isRemarks = k === "remarks";
+    const input = isRemarks
+      ? el("textarea", { oninput: scheduleManualPreview })
+      : el("input", { type: "text", oninput: scheduleManualPreview });
     xf.donor[k] = input;
-    donGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), input]));
+    donGrid.appendChild(el("div", { class: "field" + (isRemarks ? " full" : "") }, [el("label", {}, l), input]));
   });
   donCard.appendChild(donGrid);
   donCard.appendChild(buildPhotoUploadField("Donor Photo", b64 => { xf.donorPhoto = b64; }));
@@ -921,11 +925,14 @@ function buildLuminexSection(col) {
 
   const lxRemCard = el("div", { class: "card" }, [el("h3", {}, "Remarks / Comments")]);
   const lxRemarksInput = el("textarea", { oninput: scheduleManualPreview });
+  const lxDonorRemarksInput = el("textarea", { oninput: scheduleManualPreview });
   const lxCommentsInput = el("textarea", { oninput: scheduleManualPreview });
   lx.patient.remarks = lxRemarksInput;
+  lx.donor.remarks = lxDonorRemarksInput;
   lx.patient.comments = lxCommentsInput;
   lxRemCard.appendChild(el("div", { class: "field-grid" }, [
     el("div", { class: "field full" }, [el("label", {}, "Remarks"), lxRemarksInput]),
+    el("div", { class: "field full" }, [el("label", {}, "Donor Remarks"), lxDonorRemarksInput]),
     el("div", { class: "field full" }, [el("label", {}, "Comments"), lxCommentsInput]),
   ]));
   col.appendChild(lxRemCard);
@@ -1209,6 +1216,7 @@ function collectManualCase() {
       sample_type: val(xf.donor.sample_type) || "Sodium Heparin Whole Blood",
       collection_date: val(xf.donor.collection_date), receipt_date: val(xf.donor.receipt_date),
       report_date: val(xf.donor.report_date), photo_bytes: xf.donorPhoto || null,
+      remarks: val(xf.donor.remarks),
     });
     donors = [donor];
     const c = { report_type: rtype, nabl, with_logo: state.withLogo, signature_stamp: stamp, patient, donors, rpl_reference: {} };
@@ -1255,6 +1263,7 @@ function collectManualCase() {
       sample_number: val(lx.donor.sample_number) || "NA", relation: val(lx.donor.relation),
       sample_type: val(lx.donor.sample_type) || "EDTA Blood", collection_date: val(lx.donor.collection_date),
       hla: collectAlleles(lx.donHla),
+      remarks: val(lx.donor.remarks),
     });
     return {
       report_type: rtype, nabl, with_logo: state.withLogo, signature_stamp: stamp,
@@ -1575,6 +1584,7 @@ function populateManualForm(c) {
       set(xf.donor.sample_number, d.sample_number); set(xf.donor.relationship, d.relationship);
       set(xf.donor.sample_type, d.sample_type); set(xf.donor.collection_date, d.collection_date);
       set(xf.donor.receipt_date, d.receipt_date); set(xf.donor.report_date, d.report_date);
+      set(xf.donor.remarks, d.remarks);
       if (d.photo_bytes) xf.donorPhoto = d.photo_bytes;
     }
     if (rtype === "cdc_crossmatch" && c.cdc_results && manualSpecialFields.cdc_results) {
@@ -1613,6 +1623,7 @@ function populateManualForm(c) {
       set(lx.donor.name, d.name); set(lx.donor.gender_age, d.gender_age); set(lx.donor.pin, d.pin);
       set(lx.donor.sample_number, d.sample_number); set(lx.donor.relation, d.relation);
       set(lx.donor.sample_type, d.sample_type); set(lx.donor.collection_date, d.collection_date);
+      set(lx.donor.remarks, d.remarks);
       if (c.luminex_don_photo || d.photo_bytes) lx.donPhoto = c.luminex_don_photo || d.photo_bytes;
       if (d.hla) Object.entries(lx.donHla).forEach(([locus, [a1, a2]]) => { const pair = d.hla[locus] || ["", ""]; a1.value = pair[0] || ""; a2.value = pair[1] || ""; });
       if (lx.matchScore) set(lx.matchScore, c.luminex_match_score || "");
@@ -2101,6 +2112,11 @@ function renderBulkCrossmatchEditor(editCol, c, i) {
     donGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), inp]));
   });
   donCard.appendChild(donGrid);
+  const donRemarksTA = el("textarea", { value: d.remarks || "" });
+  donRemarksTA.addEventListener("input", () => { d.remarks = donRemarksTA.value; refresh(); });
+  donCard.appendChild(el("div", { class: "field-grid" }, [
+    el("div", { class: "field full" }, [el("label", {}, "Donor Remarks"), donRemarksTA]),
+  ]));
   donCard.appendChild(buildPhotoUploadField("Donor Photo",
     b64 => { d.photo_bytes = b64; refresh(); }, d.photo_bytes || null));
   editCol.appendChild(donCard);
@@ -2274,11 +2290,14 @@ function renderBulkLuminexEditor(editCol, c, i) {
   const lxRemarksTA = el("textarea", { value: p.remarks || "" });
   lxRemarksTA.value = p.remarks || "";
   lxRemarksTA.addEventListener("input", () => { p.remarks = lxRemarksTA.value; refresh(); });
+  const lxDonorRemarksTA = el("textarea", { value: don.remarks || "" });
+  lxDonorRemarksTA.addEventListener("input", () => { don.remarks = lxDonorRemarksTA.value; refresh(); });
   const lxCommentsTA = el("textarea", {});
   lxCommentsTA.value = p.comments || "";
   lxCommentsTA.addEventListener("input", () => { p.comments = lxCommentsTA.value; refresh(); });
   lxRemCard.appendChild(el("div", { class: "field-grid" }, [
     el("div", { class: "field full" }, [el("label", {}, "Remarks"), lxRemarksTA]),
+    el("div", { class: "field full" }, [el("label", {}, "Donor Remarks"), lxDonorRemarksTA]),
     el("div", { class: "field full" }, [el("label", {}, "Comments"), lxCommentsTA]),
   ]));
   editCol.appendChild(lxRemCard);
@@ -2628,10 +2647,27 @@ function renderBulkEditor(i) {
     }
     dCard.appendChild(dHdr);
     const dgrid = el("div", { class: "field-grid" });
-    ["name", "gender_age", "relationship", "pin", "sample_number", "match"].forEach(key => {
-      const input = el("input", { type: "text", value: d[key] || "" });
+    // Mirrors the manual tab's DONOR_FIELDS so bulk-edited donors expose the
+    // same fields as the patient editor (e.g. remarks, match score), not just
+    // a minimal subset.
+    const DONOR_BULK_FIELDS = [
+      ["name", "Donor Name"], ["gender_age", "Gender / Age"],
+      ["relationship", "Relationship"], ["hospital_mr_no", "Hospital MR No."],
+      ["diagnosis", "Diagnosis"], ["referred_by", "Referred By"],
+      ["hospital_clinic", "Hospital / Clinic"], ["pin", "PIN"],
+      ["sample_number", "Sample Number"], ["specimen", "Specimen"],
+      ["collection_date", "Collection Date"], ["receipt_date", "Sample Receipt Date"],
+      ["report_date", "Report Date"], ["match", "Match (e.g. '6 of 12 at High Resolution')"],
+      ["remarks", "Remarks"],
+    ];
+    DONOR_BULK_FIELDS.forEach(([key, label]) => {
+      const isRemarks = key === "remarks";
+      const input = isRemarks
+        ? el("textarea", { style: "resize:vertical; min-height:48px;" })
+        : el("input", { type: "text" });
+      input.value = d[key] || "";
       input.addEventListener("input", () => { d[key] = input.value; scheduleBulkPreview(i); });
-      dgrid.appendChild(el("div", { class: "field" }, [el("label", {}, key.replace("_", " ")), input]));
+      dgrid.appendChild(el("div", { class: "field" + (isRemarks ? " full" : "") }, [el("label", {}, label), input]));
     });
     dCard.appendChild(dgrid);
     if (d.hla) {

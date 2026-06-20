@@ -3163,7 +3163,8 @@ def _build_cdc_report(case: dict, S: dict) -> list:
                                 textColor=BLACK, alignment=TA_CENTER, leading=13)
 
     _cdc_rmk = patient.get("remarks", "").strip()
-    _row_pad  = 4 if _cdc_rmk else 3
+    _cdc_donor_rmk = (donor.get("remarks", "") or "").strip()
+    _row_pad  = 4 if (_cdc_rmk or _cdc_donor_rmk) else 3
 
     dtt_t = Table([
         [Paragraph("<b>Cells</b>",                dtt_hdr_s),
@@ -3194,6 +3195,12 @@ def _build_cdc_report(case: dict, S: dict) -> list:
                            leading=14, spaceBefore=4, spaceAfter=4)
         )
     ] if _cdc_rmk else [])
+    if _cdc_donor_rmk:
+        _cdc_rmk_items.append(Paragraph(
+            f"<b>Donor Remarks : </b>{_clean_display(_cdc_donor_rmk)}",
+            ParagraphStyle("_cdc_drmk", fontName=F_BOLD, fontSize=10,
+                           leading=14, spaceBefore=4, spaceAfter=4)
+        ))
 
     elems.append(KeepTogether([
         Paragraph("<b>Result</b>", ParagraphStyle("_cdc_sec",
@@ -3515,8 +3522,9 @@ def _build_dsa_report(case: dict, S: dict) -> list:
          "", "", ""],
     ]
     _rmk = patient.get("remarks", "").strip()
+    _donor_rmk = (donor.get("remarks", "") or "").strip()
     # Use tighter row padding when remarks is present so the whole block fits on page 1
-    _row_pad = 4 if _rmk else 5
+    _row_pad = 4 if (_rmk or _donor_rmk) else 5
 
     dsa_t = Table(dsa_data, colWidths=_dsa_col_w)
     dsa_t.setStyle(TableStyle([
@@ -3538,6 +3546,12 @@ def _build_dsa_report(case: dict, S: dict) -> list:
         ParagraphStyle("_dsa_rmk", fontName=F_BOLD, fontSize=10,
                        leading=14, spaceBefore=6)
     )] if _rmk else [])
+    if _donor_rmk:
+        _rmk_para.append(Paragraph(
+            f"<b>Donor Remarks : </b>{_clean_display(_donor_rmk)}",
+            ParagraphStyle("_dsa_drmk", fontName=F_BOLD, fontSize=10,
+                           leading=14, spaceBefore=6)
+        ))
 
     elems.append(KeepTogether([_det_para, dsa_t] + _rmk_para))
 
@@ -3838,12 +3852,16 @@ def _build_luminex_report(case: dict, S: dict) -> list:
         elems.append(Paragraph(_interp_text, _body_s))
     elems.append(Spacer(1, _section_gap))
 
-    _lx_remarks  = _clean_display(patient.get("remarks", "")) or ""
-    _lx_comments = _clean_display(patient.get("comments", "")) or ""
-    if _lx_remarks:
+    _lx_remarks       = (patient.get("remarks", "") or "").strip()
+    _lx_donor_remarks = (donor.get("remarks", "") or "").strip()
+    _lx_comments      = (patient.get("comments", "") or "").strip()
+    if _lx_remarks or _lx_donor_remarks:
         elems.append(Paragraph("<b>Remarks</b>", _sec_s))
         elems.append(HRFlowable(width=CONTENT_W, thickness=0.8, color=colors.grey, spaceAfter=_rule_gap))
-        elems.append(Paragraph(_lx_remarks, _body_s))
+        if _lx_remarks:
+            elems.append(Paragraph(_lx_remarks, _body_s))
+        if _lx_donor_remarks:
+            elems.append(Paragraph(f"<b>Donor Remarks : </b>{_lx_donor_remarks}", _body_s))
         elems.append(Spacer(1, _section_gap))
     if _lx_comments:
         elems.append(Paragraph("<b>Comments</b>", _sec_s))
@@ -4737,6 +4755,18 @@ def _build_flow_report(case: dict, S: dict) -> list:
             f"<font color='#{b_col}'>{b_interp}</font> for B cells.",
             _body_s))
     elems.append(Spacer(1, 3*mm))
+
+    # ── Remarks (patient + donor, only if present) ──────────────────────────────
+    _flow_pat_rmk   = (patient.get("remarks", "") or "").strip()
+    _flow_donor_rmk = (donor.get("remarks", "") or "").strip()
+    if _flow_pat_rmk or _flow_donor_rmk:
+        elems.append(Paragraph("<b>Remarks</b>", _head_l_s))
+        elems.append(HRFlowable(width=CONTENT_W, thickness=0.8, color=colors.grey, spaceAfter=6))
+        if _flow_pat_rmk:
+            elems.append(Paragraph(f"<b>Remarks : </b>{_flow_pat_rmk}", _body_s))
+        if _flow_donor_rmk:
+            elems.append(Paragraph(f"<b>Donor Remarks : </b>{_flow_donor_rmk}", _body_s))
+        elems.append(Spacer(1, 3*mm))
 
     # ── Comments ──────────────────────────────────────────────────────────────
     elems.append(Paragraph("<b>Comments</b>", _head_l_s))
