@@ -1767,13 +1767,15 @@ def _build_ngs_transplant(case: dict, S: dict) -> list:
     while elems and isinstance(elems[-1], Spacer):
         elems.pop()
 
-    # IMGT/HLA Release + Coverage + Methodology + Signatures are kept as one
-    # atomic block so Coverage never gets orphaned alone on a page (with a
-    # large blank gap below it) while Methodology/Signatures spill to the
-    # next page — they now move together, flowing naturally onto page 1
-    # when there's room for all of it, or together onto page 2 otherwise.
+    # IMGT/Coverage and Methodology are kept as one block so Coverage never
+    # gets orphaned alone on a page with Methodology spilling to the next one.
+    # Signatures are a separate block so they can flow onto whatever page has
+    # room on their own, without dragging the (often larger) Coverage +
+    # Methodology block down with them when only the signatures don't fit.
+    elems.append(KeepTogether(_methodology_block(case, S)))
     sig_items = _signature_block(signatories, S)
-    elems.append(KeepTogether(_methodology_block(case, S) + sig_items))
+    if sig_items:
+        elems.append(KeepTogether(sig_items))
 
     return elems
 
