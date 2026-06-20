@@ -2883,7 +2883,7 @@
         <h1>PGT-A Report Generator</h1>
       </div>
       <div class="tab-bar">
-        <button class="tab active" data-tab="manual" onclick="switchTab('manual')"> Manual
+        <button class="tab active" data-tab="manual" onclick="switchTab('manual')"> Single
           Entry</button>
         <button class="tab" data-tab="bulk" onclick="switchTab('bulk')"> Bulk Upload</button>
         <button class="tab" data-tab="compare" onclick="switchTab('compare')"> Report
@@ -3406,7 +3406,7 @@
                 <h3>8. Quick Start</h3>
                 <ul class="guide-feature-list">
                   <li><span class="guide-icon">1</span> Log in with your credentials at the home page</li>
-                  <li><span class="guide-icon">2</span> For <b>Manual Entry:</b> Fill patient details &rarr; Add embryo
+                  <li><span class="guide-icon">2</span> For <b>Single Entry:</b> Fill patient details &rarr; Add embryo
                     data &rarr; Generate</li>
                   <li><span class="guide-icon">3</span> For <b>Bulk Upload:</b> Browse Excel &rarr; Search/Select
                     patient &rarr; Review &rarr; Generate All</li>
@@ -4324,7 +4324,7 @@
     function showDraftPickerModal() {
       const isManual = _draftModalMode === "manual";
       const prefix = isManual ? "pgta_draft_" : "pgta_bulk_draft_";
-      document.getElementById("draftModalTitle").textContent = isManual ? "Load Manual Draft" : "Load Bulk Draft";
+      document.getElementById("draftModalTitle").textContent = isManual ? "Load Single Entry Draft" : "Load Bulk Draft";
 
       // Gather keys newest-first
       const keys = Object.keys(localStorage)
