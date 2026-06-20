@@ -362,13 +362,22 @@ const PAT_FIELDS = [
   ["remarks", "Remarks", ""],
 ];
 
-function buildPatientInfoCard(prefix, fieldsRef) {
+// HLA-C's report layout depends on the specimen text — backend checks for
+// the substring "poc" (case-insensitive) to switch to the POC Result layout.
+const HLA_C_SPECIMEN_OPTIONS = ["Peripheral Blood", "DNA (POC)"];
+
+function buildPatientInfoCard(prefix, fieldsRef, rtype) {
   const card = el("div", { class: "card" }, [
     el("h3", {}, [el("i", { class: "fas fa-user" }), " Patient Information"]),
   ]);
   const grid = el("div", { class: "field-grid" });
   PAT_FIELDS.forEach(([key, label, def]) => {
-    const input = el("input", { type: "text", id: `${prefix}_${key}`, value: def, oninput: scheduleManualPreview });
+    const isHlaCSpecimen = rtype === "hla_c" && key === "specimen";
+    const input = isHlaCSpecimen
+      ? el("select", { id: `${prefix}_${key}`, onchange: scheduleManualPreview },
+          HLA_C_SPECIMEN_OPTIONS.map(o => el("option", { value: o }, o)))
+      : el("input", { type: "text", id: `${prefix}_${key}`, value: def, oninput: scheduleManualPreview });
+    if (isHlaCSpecimen) input.value = HLA_C_SPECIMEN_OPTIONS[0];
     fieldsRef[key] = input;
     const wrap = el("div", { class: "field" + (key === "remarks" ? " full" : "") }, [
       el("label", {}, label),
@@ -705,7 +714,7 @@ function renderManualForm() {
   const rtype = state.rtype;
 
   if (!SPECIALIZED_RTYPES.includes(rtype)) {
-    col.appendChild(buildPatientInfoCard("man", manualFields));
+    col.appendChild(buildPatientInfoCard("man", manualFields, rtype));
   }
 
   if (rtype === "ngs_photo") {
@@ -2620,12 +2629,19 @@ function renderBulkEditor(i) {
   PAT_FIELDS.forEach(([key, label]) => {
     const pk = key === "patient_name" ? "name" : key;
     const isRemarks = key === "remarks";
-    const input = isRemarks
-      ? el("textarea", { style: "resize:vertical; min-height:48px;" })
-      : el("input", { type: "text", value: p[pk] || "" });
-    if (isRemarks) input.value = p[pk] || "";
+    const isHlaCSpecimen = c.report_type === "hla_c" && key === "specimen";
+    let input;
+    if (isHlaCSpecimen) {
+      input = el("select", {}, HLA_C_SPECIMEN_OPTIONS.map(o => el("option", { value: o }, o)));
+      input.value = HLA_C_SPECIMEN_OPTIONS.includes(p[pk]) ? p[pk] : HLA_C_SPECIMEN_OPTIONS[0];
+    } else if (isRemarks) {
+      input = el("textarea", { style: "resize:vertical; min-height:48px;" });
+      input.value = p[pk] || "";
+    } else {
+      input = el("input", { type: "text", value: p[pk] || "" });
+    }
     fields[pk] = input;
-    input.addEventListener("input", () => { p[pk] = input.value; scheduleBulkPreview(i); });
+    input.addEventListener(isHlaCSpecimen ? "change" : "input", () => { p[pk] = input.value; scheduleBulkPreview(i); });
     grid.appendChild(el("div", { class: "field" + (isRemarks ? " full" : "") }, [el("label", {}, label), input]));
   });
   card.appendChild(grid);
