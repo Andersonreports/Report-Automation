@@ -1550,7 +1550,7 @@ function showPickerModal(title, items) {
 // DRAFTS
 // ══════════════════════════════════════════════════════════════════════════
 async function saveDraft(scope) {
-  let defaultName = scope === "manual" ? "manual_draft" : "bulk_draft";
+  let defaultName = scope === "manual" ? "single_entry_draft" : "bulk_draft";
   if (scope === "manual") {
     try {
       const c = collectManualCase();
@@ -1936,7 +1936,7 @@ async function importSabToManual(sabFileInput, sabKitSelect) {
       applySabImportData(manualSpecialFields.sab, data);
     }
     statusEl.textContent = "Imported: " + fileName;
-    showToast("SAB Excel imported into manual form.", "success");
+    showToast("SAB Excel imported into Single Entry form.", "success");
   } catch (e) {
     statusEl.textContent = "";
     showToast("SAB import error: " + e.message, "error");
