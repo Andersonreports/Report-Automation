@@ -28,6 +28,30 @@ REPORT_TEMPLATES.forEach(t => TEMPLATE_TO_RTYPE[t.name] = t.report_type);
 const RTYPE_TO_TEMPLATE_NAME = {};
 REPORT_TEMPLATES.forEach(t => RTYPE_TO_TEMPLATE_NAME[t.report_type] = t.name);
 
+// One distinct color per template, used as a small dot + tinted background in
+// the bulk case list so mixed-template lists are visually scannable.
+const RTYPE_COLORS = {
+  single_hla:        "#1f497d",
+  rpl_couple:         "#8e44ad",
+  single_rpl:         "#9b59b6",
+  single_locus:       "#16a085",
+  hla_c:              "#2c6baa",
+  transplant_donor:   "#c0392b",
+  ngs_photo:          "#d35400",
+  loci11:             "#e67e22",
+  cdc_crossmatch:     "#2980b9",
+  dsa_crossmatch:     "#2471a3",
+  sab_class1:         "#27ae60",
+  sab_class2:         "#1e8449",
+  flow_crossmatch:    "#117a65",
+  luminex_typing:     "#b7950b",
+  kir_genotyping:     "#7d3c98",
+  pra_class1:         "#a04000",
+  pra_class2:         "#ba4a00",
+  mixed_pra:          "#935116",
+};
+function rtypeColor(rtype) { return RTYPE_COLORS[rtype] || "#7f8c8d"; }
+
 const HLA_LOCI = ["A", "B", "C", "DRB1", "DQB1", "DPB1", "DRB3", "DPA1", "DQA1"];
 const HLA_LOCUS_LABELS = { DRB3: "DRB3/4/5" };
 // DRB3/DRB4/DRB5 are shown as THREE separate allele rows for every template
@@ -362,13 +386,22 @@ const PAT_FIELDS = [
   ["remarks", "Remarks", ""],
 ];
 
-function buildPatientInfoCard(prefix, fieldsRef) {
+// HLA-C's report layout depends on the specimen text — backend checks for
+// the substring "poc" (case-insensitive) to switch to the POC Result layout.
+const HLA_C_SPECIMEN_OPTIONS = ["Peripheral Blood", "DNA (POC)"];
+
+function buildPatientInfoCard(prefix, fieldsRef, rtype) {
   const card = el("div", { class: "card" }, [
     el("h3", {}, [el("i", { class: "fas fa-user" }), " Patient Information"]),
   ]);
   const grid = el("div", { class: "field-grid" });
   PAT_FIELDS.forEach(([key, label, def]) => {
-    const input = el("input", { type: "text", id: `${prefix}_${key}`, value: def, oninput: scheduleManualPreview });
+    const isHlaCSpecimen = rtype === "hla_c" && key === "specimen";
+    const input = isHlaCSpecimen
+      ? el("select", { id: `${prefix}_${key}`, onchange: scheduleManualPreview },
+          HLA_C_SPECIMEN_OPTIONS.map(o => el("option", { value: o }, o)))
+      : el("input", { type: "text", id: `${prefix}_${key}`, value: def, oninput: scheduleManualPreview });
+    if (isHlaCSpecimen) input.value = HLA_C_SPECIMEN_OPTIONS[0];
     fieldsRef[key] = input;
     const wrap = el("div", { class: "field" + (key === "remarks" ? " full" : "") }, [
       el("label", {}, label),
@@ -541,6 +574,34 @@ function _refreshLuminexInterp() {
   }
 }
 
+let _flowTLastAutoInterp = "";
+let _flowBLastAutoInterp = "";
+
+// T-CELLS MCS<45 NEGATIVE, 45-60 BORDERLINE, >60 POSITIVE
+// B-CELLS MCS<86 NEGATIVE, 86-116 BORDERLINE, >116 POSITIVE
+function _flowInterpFromMcs(raw, lowMax, highMax) {
+  const v = parseFloat(String(raw || "").replace(/[<>]/g, "").trim());
+  if (isNaN(v)) return null;
+  if (v < lowMax) return "Negative";
+  if (v <= highMax) return "Borderline";
+  return "Positive";
+}
+
+function _refreshFlowInterp() {
+  const r = manualSpecialFields.flow_results;
+  if (!r || !r.t_mcs || !r.t_interpretation) return;
+  const tAuto = _flowInterpFromMcs(r.t_mcs.value, 45, 60);
+  if (tAuto && (r.t_interpretation.value === "" || r.t_interpretation.value === _flowTLastAutoInterp)) {
+    r.t_interpretation.value = tAuto;
+    _flowTLastAutoInterp = tAuto;
+  }
+  const bAuto = _flowInterpFromMcs(r.b_mcs.value, 86, 116);
+  if (bAuto && (r.b_interpretation.value === "" || r.b_interpretation.value === _flowBLastAutoInterp)) {
+    r.b_interpretation.value = bAuto;
+    _flowBLastAutoInterp = bAuto;
+  }
+}
+
 function clearManualRefs() {
   manualFields = {};
   manualHlaFields = {};
@@ -560,7 +621,10 @@ const SPECIALIZED_RTYPES = [
 
 // Templates whose Donor Information section supports more than one donor
 // (hla_report_generator.py _add_manual_donor / _remove_manual_donor).
-const MULTI_DONOR_RTYPES = ["transplant_donor", "rpl_couple", "ngs_photo"];
+// loci11 shares the same backend builder/person-block loop as
+// transplant_donor (_build_transplant_donor iterates case["donors"] for
+// both), so it already supports donors — just needed the UI exposed.
+const MULTI_DONOR_RTYPES = ["transplant_donor", "rpl_couple", "ngs_photo", "loci11"];
 // Templates with a dedicated patient/donor Photo upload field
 // (hla_report_generator.py _upload_std_photo / _upload_cdc_photo / etc.).
 const PHOTO_RTYPES = ["ngs_photo", "cdc_crossmatch", "dsa_crossmatch", "flow_crossmatch", "luminex_typing"];
@@ -643,9 +707,12 @@ function addManualDonorCard(rtype, sectionTitle) {
   ];
   const grid = el("div", { class: "field-grid" });
   DONOR_FIELDS.forEach(([key, label, def]) => {
-    const input = el("input", { type: "text", value: def, oninput: scheduleManualPreview });
+    const isRemarks = key === "remarks";
+    const input = isRemarks
+      ? el("textarea", { oninput: scheduleManualPreview })
+      : el("input", { type: "text", value: def, oninput: scheduleManualPreview });
     df[key] = input;
-    grid.appendChild(el("div", { class: "field" }, [el("label", {}, label), input]));
+    grid.appendChild(el("div", { class: "field" + (isRemarks ? " full" : "") }, [el("label", {}, label), input]));
   });
   card.appendChild(grid);
 
@@ -674,7 +741,7 @@ function renderManualForm() {
   const rtype = state.rtype;
 
   if (!SPECIALIZED_RTYPES.includes(rtype)) {
-    col.appendChild(buildPatientInfoCard("man", manualFields));
+    col.appendChild(buildPatientInfoCard("man", manualFields, rtype));
   }
 
   if (rtype === "ngs_photo") {
@@ -791,12 +858,16 @@ function buildCrossmatchSection(col, rtype) {
   const donCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-user-friends" }), " Donor (Crossmatch)"])]);
   const donGrid = el("div", { class: "field-grid" });
   const DON_X_FIELDS = [["name", "Donor Name"], ["gender_age", "Gender / Age"], ["pin", "PIN"],
-  ["sample_number", "Sample Number"], ["relationship", "Relationship"], ["sample_type", "Sample Type"],
-  ["collection_date", "Collection Date"], ["receipt_date", "Receipt Date"], ["report_date", "Report Date"]];
+    ["sample_number", "Sample Number"], ["relationship", "Relationship"], ["sample_type", "Sample Type"],
+    ["collection_date", "Collection Date"], ["receipt_date", "Receipt Date"], ["report_date", "Report Date"],
+    ["remarks", "Remarks (optional)"]];
   DON_X_FIELDS.forEach(([k, l]) => {
-    const input = el("input", { type: "text", oninput: scheduleManualPreview });
+    const isRemarks = k === "remarks";
+    const input = isRemarks
+      ? el("textarea", { oninput: scheduleManualPreview })
+      : el("input", { type: "text", oninput: scheduleManualPreview });
     xf.donor[k] = input;
-    donGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), input]));
+    donGrid.appendChild(el("div", { class: "field" + (isRemarks ? " full" : "") }, [el("label", {}, l), input]));
   });
   donCard.appendChild(donGrid);
   donCard.appendChild(buildPhotoUploadField("Donor Photo", b64 => { xf.donorPhoto = b64; }));
@@ -808,13 +879,17 @@ function buildCrossmatchSection(col, rtype) {
   const resGrid = el("div", { class: "field-grid" });
   if (rtype === "cdc_crossmatch") {
     const r = {};
-    [["t_cell", "T-Cell Result"], ["b_cell", "B-Cell Result"], ["t_with_dtt", "T-Cell with DTT"],
-    ["b_with_dtt", "B-Cell with DTT"]].forEach(([k, l]) => {
+    [["t_cell", "T-Cell Result"], ["b_cell", "B-Cell Result"]].forEach(([k, l]) => {
       const sel = el("select", { onchange: scheduleManualPreview }, [
         el("option", { value: "Negative" }, "Negative"), el("option", { value: "Positive" }, "Positive"), el("option", { value: "Doubtful" }, "Doubtful"),
       ]);
       r[k] = sel;
       resGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), sel]));
+    });
+    [["t_with_dtt", "T-Cell Dead Cell %"], ["b_with_dtt", "B-Cell Dead Cell %"]].forEach(([k, l]) => {
+      const inp = el("input", { type: "text", placeholder: "<10% Dead cells", oninput: scheduleManualPreview });
+      r[k] = inp;
+      resGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), inp]));
     });
     manualSpecialFields.cdc_results = r;
   } else if (rtype === "dsa_crossmatch") {
@@ -893,11 +968,14 @@ function buildLuminexSection(col) {
 
   const lxRemCard = el("div", { class: "card" }, [el("h3", {}, "Remarks / Comments")]);
   const lxRemarksInput = el("textarea", { oninput: scheduleManualPreview });
+  const lxDonorRemarksInput = el("textarea", { oninput: scheduleManualPreview });
   const lxCommentsInput = el("textarea", { oninput: scheduleManualPreview });
   lx.patient.remarks = lxRemarksInput;
+  lx.donor.remarks = lxDonorRemarksInput;
   lx.patient.comments = lxCommentsInput;
   lxRemCard.appendChild(el("div", { class: "field-grid" }, [
     el("div", { class: "field full" }, [el("label", {}, "Remarks"), lxRemarksInput]),
+    el("div", { class: "field full" }, [el("label", {}, "Donor Remarks"), lxDonorRemarksInput]),
     el("div", { class: "field full" }, [el("label", {}, "Comments"), lxCommentsInput]),
   ]));
   col.appendChild(lxRemCard);
@@ -906,7 +984,13 @@ function buildLuminexSection(col) {
 }
 
 // ── KIR section ────────────────────────────────────────────────────────────
-const KIR_GENES = ["2DL1", "2DL2", "2DL3", "2DL4", "2DL5", "2DS1", "2DS2", "2DS3", "2DS4", "2DS5", "2DP1", "3DL1", "3DL2", "3DL3", "3DP1", "3DS1"];
+const KIR_GENES = ["2DL1","2DL2","2DL3","2DL4","2DL5","2DS1","2DS2","2DS3","2DS4","2DS5","2DP1","3DL1","3DL2","3DL3","3DP1","3DS1"];
+// Older drafts may have stored "Present"/"Absent" before the dropdowns switched to "+"/"-".
+function _normalizeKirGeneVal(v) {
+  if (v === "Present") return "+";
+  if (v === "Absent") return "-";
+  return v;
+}
 
 function buildKirSection(col) {
   const patCard = el("div", { class: "card" }, [el("h3", {}, "Patient")]);
@@ -923,11 +1007,11 @@ function buildKirSection(col) {
   patCard.appendChild(patGrid);
   col.appendChild(patCard);
 
-  const geneCard = el("div", { class: "card" }, [el("h3", {}, "KIR Genes (Present / Absent)")]);
+  const geneCard = el("div", { class: "card" }, [el("h3", {}, "KIR Genes (+ / -)")]);
   const geneGrid = el("div", { class: "field-grid cols-3" });
   KIR_GENES.forEach(g => {
     const sel = el("select", { onchange: scheduleManualPreview }, [
-      el("option", { value: "Absent" }, "Absent"), el("option", { value: "Present" }, "Present"),
+      el("option", { value: "-" }, "-"), el("option", { value: "+" }, "+"),
     ]);
     kir.genes[g] = sel;
     geneGrid.appendChild(el("div", { class: "field" }, [el("label", {}, "KIR" + g), sel]));
@@ -1179,6 +1263,7 @@ function collectManualCase() {
       sample_type: val(xf.donor.sample_type) || "Sodium Heparin Whole Blood",
       collection_date: val(xf.donor.collection_date), receipt_date: val(xf.donor.receipt_date),
       report_date: val(xf.donor.report_date), photo_bytes: xf.donorPhoto || null,
+      remarks: val(xf.donor.remarks),
     });
     donors = [donor];
     const c = { report_type: rtype, nabl, with_logo: state.withLogo, signature_stamp: stamp, patient, donors, rpl_reference: {} };
@@ -1189,6 +1274,7 @@ function collectManualCase() {
         t_with_dtt: val(r.t_with_dtt) || "<10% Dead cells", t_without_dtt: val(r.t_with_dtt) || "<10% Dead cells",
         b_with_dtt: val(r.b_with_dtt) || "<10% Dead cells", b_without_dtt: val(r.b_with_dtt) || "<10% Dead cells",
       };
+      // Note: t_without_dtt mirrors t_with_dtt (single entry covers both columns)
     } else if (rtype === "dsa_crossmatch") {
       const r = manualSpecialFields.dsa_results || {};
       c.dsa_results = {
@@ -1224,6 +1310,7 @@ function collectManualCase() {
       sample_number: val(lx.donor.sample_number) || "NA", relation: val(lx.donor.relation),
       sample_type: val(lx.donor.sample_type) || "EDTA Blood", collection_date: val(lx.donor.collection_date),
       hla: collectAlleles(lx.donHla),
+      remarks: val(lx.donor.remarks),
     });
     return {
       report_type: rtype, nabl, with_logo: state.withLogo, signature_stamp: stamp,
@@ -1363,6 +1450,7 @@ function collectManualCase() {
 function scheduleManualPreview() {
   _refreshNgsPhotoInterp();
   _refreshLuminexInterp();
+  _refreshFlowInterp();
   clearTimeout(state.previewTimer);
   state.previewTimer = setTimeout(refreshManualPreview, 600);
 }
@@ -1417,6 +1505,10 @@ async function generateManual() {
   const outputInput = document.getElementById("manualOutputInput");
   const dirHandle = outputInput && _dirHandles[outputInput.id];
   const outputDir = val(outputInput);
+  if (!dirHandle && !outputDir) {
+    showToast("Select an output folder before generating.", "error");
+    return;
+  }
   try {
     const resp = await apiPost("/hla/generate", { case: c, output_dir: dirHandle ? undefined : (outputDir || undefined) });
     if (dirHandle && resp.download_url) {
@@ -1486,7 +1578,7 @@ function showPickerModal(title, items) {
 // DRAFTS
 // ══════════════════════════════════════════════════════════════════════════
 async function saveDraft(scope) {
-  let defaultName = scope === "manual" ? "manual_draft" : "bulk_draft";
+  let defaultName = scope === "manual" ? "single_entry_draft" : "bulk_draft";
   if (scope === "manual") {
     try {
       const c = collectManualCase();
@@ -1543,6 +1635,7 @@ function populateManualForm(c) {
       set(xf.donor.sample_number, d.sample_number); set(xf.donor.relationship, d.relationship);
       set(xf.donor.sample_type, d.sample_type); set(xf.donor.collection_date, d.collection_date);
       set(xf.donor.receipt_date, d.receipt_date); set(xf.donor.report_date, d.report_date);
+      set(xf.donor.remarks, d.remarks);
       if (d.photo_bytes) xf.donorPhoto = d.photo_bytes;
     }
     if (rtype === "cdc_crossmatch" && c.cdc_results && manualSpecialFields.cdc_results) {
@@ -1559,6 +1652,8 @@ function populateManualForm(c) {
       set(r.t_mcs, src.t_mcs); set(r.t_interpretation, src.t_interpretation);
       set(r.b_mcs, src.b_mcs); set(r.b_interpretation, src.b_interpretation);
       set(r.interpretation, src.interpretation);
+      _flowTLastAutoInterp = src.t_interpretation || "";
+      _flowBLastAutoInterp = src.b_interpretation || "";
     }
     scheduleManualPreview();
     return;
@@ -1579,6 +1674,7 @@ function populateManualForm(c) {
       set(lx.donor.name, d.name); set(lx.donor.gender_age, d.gender_age); set(lx.donor.pin, d.pin);
       set(lx.donor.sample_number, d.sample_number); set(lx.donor.relation, d.relation);
       set(lx.donor.sample_type, d.sample_type); set(lx.donor.collection_date, d.collection_date);
+      set(lx.donor.remarks, d.remarks);
       if (c.luminex_don_photo || d.photo_bytes) lx.donPhoto = c.luminex_don_photo || d.photo_bytes;
       if (d.hla) Object.entries(lx.donHla).forEach(([locus, [a1, a2]]) => { const pair = d.hla[locus] || ["", ""]; a1.value = pair[0] || ""; a2.value = pair[1] || ""; });
       if (lx.matchScore) set(lx.matchScore, c.luminex_match_score || "");
@@ -1597,7 +1693,7 @@ function populateManualForm(c) {
       set(kir.patient.specimen, p.specimen); set(kir.patient.hospital_clinic, p.hospital_clinic);
       set(kir.patient.collection_date, p.collection_date); set(kir.patient.receipt_date, p.receipt_date);
       set(kir.patient.report_date, p.report_date); set(kir.patient.remarks, p.remarks); set(kir.patient.comments, p.comments);
-      if (c.kir_genes) Object.entries(kir.genes).forEach(([g, sel]) => { if (c.kir_genes[g]) sel.value = c.kir_genes[g]; });
+      if (c.kir_genes) Object.entries(kir.genes).forEach(([g, sel]) => { if (c.kir_genes[g]) sel.value = _normalizeKirGeneVal(c.kir_genes[g]); });
       if (kir.genotypeOverride && c.kir_genotype_override) kir.genotypeOverride.value = c.kir_genotype_override;
       if (kir.interpretation) set(kir.interpretation, c.kir_interpretation);
     }
@@ -1844,6 +1940,7 @@ function initBulkTab() {
 
 async function importSabToManual(sabFileInput, sabKitSelect) {
   if (!sabFileInput.files.length) return;
+  const fileName = sabFileInput.files[0].name;
   const statusEl = document.getElementById("bulkSabImportStatus");
   statusEl.textContent = "Parsing…";
   try {
@@ -1866,16 +1963,21 @@ async function importSabToManual(sabFileInput, sabKitSelect) {
     if (manualSpecialFields.sab) {
       applySabImportData(manualSpecialFields.sab, data);
     }
-    statusEl.textContent = "Imported: " + sabFileInput.files[0].name;
-    showToast("SAB Excel imported into manual form.", "success");
+    statusEl.textContent = "Imported: " + fileName;
+    showToast("SAB Excel imported into Single Entry form.", "success");
   } catch (e) {
     statusEl.textContent = "";
     showToast("SAB import error: " + e.message, "error");
+  } finally {
+    // Reset the hidden file input so re-selecting the same file (e.g. after a
+    // failed parse) reliably re-fires "change" in every browser.
+    sabFileInput.value = "";
   }
 }
 
 async function importBulkSabExcel(sabFileInput, sabKitSelect) {
   if (!sabFileInput.files.length) return;
+  const fileName = sabFileInput.files[0].name;
   const statusEl = document.getElementById("bulkSabImportStatus");
   statusEl.textContent = "Parsing…";
   try {
@@ -1919,11 +2021,13 @@ async function importBulkSabExcel(sabFileInput, sabKitSelect) {
     state.bulkCurrentIndex = -1;
     renderBulkList();
     selectBulkCase(0);
-    statusEl.textContent = "Imported: " + sabFileInput.files[0].name;
+    statusEl.textContent = "Imported: " + fileName;
     showToast("SAB case loaded into bulk list.", "success");
   } catch (e) {
     statusEl.textContent = "";
     showToast("SAB import error: " + e.message, "error");
+  } finally {
+    sabFileInput.value = "";
   }
 }
 
@@ -1978,8 +2082,18 @@ function renderBulkList() {
     chk.type = "checkbox";
     chk.checked = state.bulkSelected.has(i);
     chk.addEventListener("click", (e) => { e.stopPropagation(); toggleBulkSelect(i, e.target.checked); });
-    const item = el("div", { class: "case-item" + (i === state.bulkCurrentIndex ? " selected" : ""), onclick: () => selectBulkCase(i) }, [
+    const color = rtypeColor(c.report_type);
+    const dot = el("span", {
+      class: "ci-dot", title: RTYPE_TO_TEMPLATE_NAME[c.report_type] || c.report_type,
+      style: `background:${color};`,
+    });
+    const item = el("div", {
+      class: "case-item" + (i === state.bulkCurrentIndex ? " selected" : ""),
+      style: `border-left: 3px solid ${color}; background: ${color}14;`,
+      onclick: () => selectBulkCase(i),
+    }, [
       chk,
+      dot,
       el("span", { class: "ci-name" }, displayName),
     ]);
     listEl.appendChild(item);
@@ -2059,6 +2173,11 @@ function renderBulkCrossmatchEditor(editCol, c, i) {
     donGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), inp]));
   });
   donCard.appendChild(donGrid);
+  const donRemarksTA = el("textarea", { value: d.remarks || "" });
+  donRemarksTA.addEventListener("input", () => { d.remarks = donRemarksTA.value; refresh(); });
+  donCard.appendChild(el("div", { class: "field-grid" }, [
+    el("div", { class: "field full" }, [el("label", {}, "Donor Remarks"), donRemarksTA]),
+  ]));
   donCard.appendChild(buildPhotoUploadField("Donor Photo",
     b64 => { d.photo_bytes = b64; refresh(); }, d.photo_bytes || null));
   editCol.appendChild(donCard);
@@ -2067,8 +2186,7 @@ function renderBulkCrossmatchEditor(editCol, c, i) {
   const resGrid = el("div", { class: "field-grid" });
   if (c.report_type === "cdc_crossmatch") {
     const r = c.cdc_results || {};
-    [["t_cell", "T-Cell Result"], ["b_cell", "B-Cell Result"],
-    ["t_with_dtt", "T with DTT"], ["b_with_dtt", "B with DTT"]].forEach(([k, l]) => {
+    [["t_cell","T-Cell Result"],["b_cell","B-Cell Result"]].forEach(([k,l]) => {
       const sel = el("select", {}, [
         el("option", { value: "Negative" }, "Negative"),
         el("option", { value: "Positive" }, "Positive"),
@@ -2077,6 +2195,14 @@ function renderBulkCrossmatchEditor(editCol, c, i) {
       sel.value = r[k] || "Negative";
       sel.addEventListener("change", () => { r[k] = sel.value; c.cdc_results = r; refresh(); });
       resGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), sel]));
+    });
+    [["t_with_dtt","T Dead Cell %"],["b_with_dtt","B Dead Cell %"]].forEach(([k,l]) => {
+      const inp = el("input",{type:"text",placeholder:"<10% Dead cells",value:r[k]||""});
+      inp.addEventListener("input",()=>{
+        r[k]=inp.value; r[k.replace("with","without")]=inp.value;
+        c.cdc_results=r; refresh();
+      });
+      resGrid.appendChild(el("div",{class:"field"},[el("label",{},l),inp]));
     });
   } else if (c.report_type === "dsa_crossmatch") {
     const r = c.dsa_results || {};
@@ -2088,12 +2214,31 @@ function renderBulkCrossmatchEditor(editCol, c, i) {
     });
   } else {
     const r = c.flow_results || {};
-    [["t_mcs", "T-Cells MCS"], ["t_interpretation", "T-Cells Interpretation"],
-    ["b_mcs", "B-Cells MCS"], ["b_interpretation", "B-Cells Interpretation"]].forEach(([k, l]) => {
-      const inp = el("input", { type: "text", value: r[k] || "" });
-      inp.addEventListener("input", () => { r[k] = inp.value; c.flow_results = r; refresh(); });
-      resGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), inp]));
+    const tInterpInp = el("input",{type:"text",value:r.t_interpretation||""});
+    const bInterpInp = el("input",{type:"text",value:r.b_interpretation||""});
+    const tMcsInp = el("input",{type:"text",value:r.t_mcs||""});
+    const bMcsInp = el("input",{type:"text",value:r.b_mcs||""});
+    tMcsInp.addEventListener("input",()=>{
+      r.t_mcs = tMcsInp.value;
+      const auto = _flowInterpFromMcs(tMcsInp.value, 45, 60);
+      if (auto && (tInterpInp.value === "" || tInterpInp.value === r._tAuto)) { tInterpInp.value = auto; r._tAuto = auto; }
+      r.t_interpretation = tInterpInp.value;
+      c.flow_results = r; refresh();
     });
+    tInterpInp.addEventListener("input",()=>{ r.t_interpretation = tInterpInp.value; c.flow_results = r; refresh(); });
+    bMcsInp.addEventListener("input",()=>{
+      r.b_mcs = bMcsInp.value;
+      const auto = _flowInterpFromMcs(bMcsInp.value, 86, 116);
+      if (auto && (bInterpInp.value === "" || bInterpInp.value === r._bAuto)) { bInterpInp.value = auto; r._bAuto = auto; }
+      r.b_interpretation = bInterpInp.value;
+      c.flow_results = r; refresh();
+    });
+    bInterpInp.addEventListener("input",()=>{ r.b_interpretation = bInterpInp.value; c.flow_results = r; refresh(); });
+    resGrid.appendChild(el("div",{class:"field"},[el("label",{},"T-Cells MCS"),tMcsInp]));
+    resGrid.appendChild(el("div",{class:"field"},[el("label",{},"T-Cells Interpretation"),tInterpInp]));
+    resGrid.appendChild(el("div",{class:"field"},[el("label",{},"B-Cells MCS"),bMcsInp]));
+    resGrid.appendChild(el("div",{class:"field"},[el("label",{},"B-Cells Interpretation"),bInterpInp]));
+    c.flow_results = r;
   }
   resCard.appendChild(resGrid);
   editCol.appendChild(resCard);
@@ -2206,11 +2351,14 @@ function renderBulkLuminexEditor(editCol, c, i) {
   const lxRemarksTA = el("textarea", { value: p.remarks || "" });
   lxRemarksTA.value = p.remarks || "";
   lxRemarksTA.addEventListener("input", () => { p.remarks = lxRemarksTA.value; refresh(); });
+  const lxDonorRemarksTA = el("textarea", { value: don.remarks || "" });
+  lxDonorRemarksTA.addEventListener("input", () => { don.remarks = lxDonorRemarksTA.value; refresh(); });
   const lxCommentsTA = el("textarea", {});
   lxCommentsTA.value = p.comments || "";
   lxCommentsTA.addEventListener("input", () => { p.comments = lxCommentsTA.value; refresh(); });
   lxRemCard.appendChild(el("div", { class: "field-grid" }, [
     el("div", { class: "field full" }, [el("label", {}, "Remarks"), lxRemarksTA]),
+    el("div", { class: "field full" }, [el("label", {}, "Donor Remarks"), lxDonorRemarksTA]),
     el("div", { class: "field full" }, [el("label", {}, "Comments"), lxCommentsTA]),
   ]));
   editCol.appendChild(lxRemCard);
@@ -2231,8 +2379,8 @@ function renderBulkKirEditor(editCol, c, i) {
   const geneGrid = el("div", { class: "field-grid cols-3" });
   const genes = c.kir_genes || {};
   KIR_GENES.forEach(g => {
-    const sel = el("select", {}, [el("option", { value: "Absent" }, "Absent"), el("option", { value: "Present" }, "Present")]);
-    sel.value = genes[g] || "Absent";
+    const sel = el("select", {}, [el("option",{value:"-"},"-"),el("option",{value:"+"},"+")]);
+    sel.value = _normalizeKirGeneVal(genes[g]) || "-";
     sel.addEventListener("change", () => { genes[g] = sel.value; c.kir_genes = genes; refresh(); });
     geneGrid.appendChild(el("div", { class: "field" }, [el("label", {}, "KIR" + g), sel]));
   });
@@ -2522,12 +2670,19 @@ function renderBulkEditor(i) {
   PAT_FIELDS.forEach(([key, label]) => {
     const pk = key === "patient_name" ? "name" : key;
     const isRemarks = key === "remarks";
-    const input = isRemarks
-      ? el("textarea", { style: "resize:vertical; min-height:48px;" })
-      : el("input", { type: "text", value: p[pk] || "" });
-    if (isRemarks) input.value = p[pk] || "";
+    const isHlaCSpecimen = c.report_type === "hla_c" && key === "specimen";
+    let input;
+    if (isHlaCSpecimen) {
+      input = el("select", {}, HLA_C_SPECIMEN_OPTIONS.map(o => el("option", { value: o }, o)));
+      input.value = HLA_C_SPECIMEN_OPTIONS.includes(p[pk]) ? p[pk] : HLA_C_SPECIMEN_OPTIONS[0];
+    } else if (isRemarks) {
+      input = el("textarea", { style: "resize:vertical; min-height:48px;" });
+      input.value = p[pk] || "";
+    } else {
+      input = el("input", { type: "text", value: p[pk] || "" });
+    }
     fields[pk] = input;
-    input.addEventListener("input", () => { p[pk] = input.value; scheduleBulkPreview(i); });
+    input.addEventListener(isHlaCSpecimen ? "change" : "input", () => { p[pk] = input.value; scheduleBulkPreview(i); });
     grid.appendChild(el("div", { class: "field" + (isRemarks ? " full" : "") }, [el("label", {}, label), input]));
   });
   card.appendChild(grid);
@@ -2562,10 +2717,27 @@ function renderBulkEditor(i) {
     }
     dCard.appendChild(dHdr);
     const dgrid = el("div", { class: "field-grid" });
-    ["name", "gender_age", "relationship", "pin", "sample_number", "match"].forEach(key => {
-      const input = el("input", { type: "text", value: d[key] || "" });
+    // Mirrors the manual tab's DONOR_FIELDS so bulk-edited donors expose the
+    // same fields as the patient editor (e.g. remarks, match score), not just
+    // a minimal subset.
+    const DONOR_BULK_FIELDS = [
+      ["name", "Donor Name"], ["gender_age", "Gender / Age"],
+      ["relationship", "Relationship"], ["hospital_mr_no", "Hospital MR No."],
+      ["diagnosis", "Diagnosis"], ["referred_by", "Referred By"],
+      ["hospital_clinic", "Hospital / Clinic"], ["pin", "PIN"],
+      ["sample_number", "Sample Number"], ["specimen", "Specimen"],
+      ["collection_date", "Collection Date"], ["receipt_date", "Sample Receipt Date"],
+      ["report_date", "Report Date"], ["match", "Match (e.g. '6 of 12 at High Resolution')"],
+      ["remarks", "Remarks"],
+    ];
+    DONOR_BULK_FIELDS.forEach(([key, label]) => {
+      const isRemarks = key === "remarks";
+      const input = isRemarks
+        ? el("textarea", { style: "resize:vertical; min-height:48px;" })
+        : el("input", { type: "text" });
+      input.value = d[key] || "";
       input.addEventListener("input", () => { d[key] = input.value; scheduleBulkPreview(i); });
-      dgrid.appendChild(el("div", { class: "field" }, [el("label", {}, key.replace("_", " ")), input]));
+      dgrid.appendChild(el("div", { class: "field" + (isRemarks ? " full" : "") }, [el("label", {}, label), input]));
     });
     dCard.appendChild(dgrid);
     if (d.hla) {
@@ -2681,6 +2853,10 @@ async function generateBulk(mode) {
   const outputInput = document.getElementById("bulkOutputInput");
   const dirHandle = outputInput && _dirHandles[outputInput.id];
   const outputDir = val(outputInput);
+  if (!dirHandle && !outputDir) {
+    showToast("Select an output folder before generating.", "error");
+    return;
+  }
   const withLogo = checked(document.getElementById("bulkLogoChk"));
   const stamp = checked(document.getElementById("globalStampChk"));
 

@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin — Anderson Clinical Genetics</title>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" crossorigin="anonymous" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
+      background: #F4F5F7;
+      color: #111827;
+      min-height: 100vh;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    body.loaded { opacity: 1; }
+
+    /* ── Sidebar (matches index.html) ── */
+    .sidebar {
+      position: fixed; top: 0; left: 0; width: 220px; height: 100vh;
+      background: #111827; z-index: 300; display: flex; flex-direction: column;
+    }
+    .sidebar-brand {
+      height: 68px; flex-shrink: 0; display: flex; align-items: center;
+      padding: 0 10px; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.07);
+      overflow: hidden;
+    }
+    .sidebar-brand-logo {
+      width: 100%; height: 100%; max-height: 56px; object-fit: contain;
+      background: #fff; border-radius: 6px; padding: 4px 10px;
+    }
+    .sidebar-brand-icon {
+      width: 30px; height: 30px; background: #4F46E5; border-radius: 8px;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+    }
+    .sidebar-brand-icon i { font-size: 13px; color: #fff; }
+    .sidebar-brand-name { font-size: 13.5px; font-weight: 700; color: #F9FAFB; letter-spacing: -0.2px; line-height: 1.25; }
+    .sidebar-brand-sub { font-size: 10px; color: rgba(255,255,255,0.3); font-weight: 400; }
+    .sidebar-body { flex: 1; padding: 22px 10px 16px; display: flex; flex-direction: column; gap: 2px; }
+    .sidebar-section-label {
+      font-size: 9.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.8px;
+      color: rgba(255,255,255,0.22); padding: 0 10px; margin-bottom: 8px;
+    }
+    .sidebar-nav-item {
+      display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px;
+      font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.46); cursor: pointer;
+      transition: all 0.15s ease; border: none; background: transparent; font-family: inherit;
+      width: 100%; text-align: left; text-decoration: none;
+    }
+    .sidebar-nav-item i { font-size: 13px; width: 16px; text-align: center; flex-shrink: 0; transition: color 0.15s; }
+    .sidebar-nav-item.active { background: rgba(79,70,229,0.18); color: #A5B4FC; font-weight: 600; }
+    .sidebar-nav-item.active i { color: #818CF8; }
+    .sidebar-nav-item:not(.active):hover { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.72); }
+    .sidebar-footer {
+      padding: 14px 18px; border-top: 1px solid rgba(255,255,255,0.06);
+      display: flex; align-items: center; gap: 8px;
+    }
+    .sidebar-footer-dot { width: 6px; height: 6px; border-radius: 50%; background: #10B981; flex-shrink: 0; }
+    .sidebar-footer-text { font-size: 11px; color: rgba(255,255,255,0.28); font-weight: 500; }
+
+    /* ── Header ── */
+    .app-header {
+      position: fixed; top: 0; left: 220px; right: 0; height: 58px; background: #fff;
+      border-bottom: 1px solid #E5E7EB; display: flex; align-items: center;
+      justify-content: space-between; padding: 0 28px; z-index: 200;
+    }
+    .header-title { font-size: 18px; font-weight: 700; color: #111827; letter-spacing: -0.4px; }
+    .header-user { font-size: 12.5px; color: #6B7280; font-weight: 500; }
+
+    /* ── Page ── */
+    .page { margin-left: 220px; padding-top: 58px; min-height: 100vh; }
+    .page-inner { padding: 28px 32px; max-width: 1100px; }
+    .page-intro { margin-bottom: 22px; display: flex; align-items: center; justify-content: space-between; }
+    .page-intro h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.4px; }
+    .page-intro p { font-size: 13px; color: #6B7280; margin-top: 4px; }
+
+    .btn {
+      display: inline-flex; align-items: center; gap: 7px; padding: 9px 16px; border-radius: 9px;
+      font-size: 13px; font-weight: 600; border: 1px solid transparent; cursor: pointer;
+      font-family: inherit; transition: all 0.15s;
+    }
+    .btn-primary { background: #4F46E5; color: #fff; }
+    .btn-primary:hover { background: #4338CA; }
+    .btn-outline { background: #fff; color: #374151; border-color: #D1D5DB; }
+    .btn-outline:hover { background: #F9FAFB; }
+    .btn-danger { background: #fff; color: #DC2626; border-color: #FCA5A5; }
+    .btn-danger:hover { background: #FEF2F2; }
+    .btn-sm { padding: 6px 11px; font-size: 12px; }
+
+    .banner {
+      display: none; align-items: flex-start; gap: 10px; padding: 14px 16px; border-radius: 10px;
+      margin-bottom: 20px; font-size: 13px; line-height: 1.5;
+    }
+    .banner.show { display: flex; }
+    .banner-warn { background: #FFFBEB; border: 1px solid #FDE68A; color: #92400E; }
+    .banner-error { background: #FEF2F2; border: 1px solid #FECACA; color: #B91C1C; }
+    .banner i { margin-top: 2px; }
+
+    .card {
+      background: #fff; border: 1px solid #E5E7EB; border-radius: 14px; overflow: hidden;
+    }
+
+    /* ── Report Automation tab — module grid (matches index.html) ── */
+    .module-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+    .module-card {
+      background: #fff; border: 1px solid #E5E7EB; border-radius: 16px; padding: 24px 22px 20px;
+      text-decoration: none; color: inherit; display: flex; flex-direction: column; cursor: pointer;
+      position: relative; transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.05); outline: none;
+    }
+    .module-card:hover {
+      transform: translateY(-4px); border-color: var(--accent, #6B7280);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #6B7280) 15%, transparent),
+                  0 16px 40px rgba(0,0,0,0.13), 0 4px 12px rgba(0,0,0,0.07);
+    }
+    .module-icon {
+      width: 46px; height: 46px; border-radius: 12px; background: var(--accent-bg, #F3F4F6);
+      display: flex; align-items: center; justify-content: center; margin-bottom: 18px; transition: background 0.2s ease;
+    }
+    .module-card:hover .module-icon { background: var(--accent, #6B7280); }
+    .module-icon i { font-size: 20px; color: var(--accent, #6B7280); transition: color 0.2s ease; }
+    .module-card:hover .module-icon i { color: #fff; }
+    .module-name { font-size: 14.5px; font-weight: 700; color: #111827; letter-spacing: -0.2px; margin-bottom: 5px; }
+    .module-desc { font-size: 12px; color: #9CA3AF; line-height: 1.55; flex: 1; }
+    .module-footer { margin-top: 20px; display: flex; align-items: center; justify-content: space-between; }
+    .module-link-text {
+      font-size: 12px; font-weight: 600; color: var(--accent, #6B7280); opacity: 0;
+      transform: translateX(-4px); transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+    .module-card:hover .module-link-text { opacity: 1; transform: translateX(0); }
+    .module-arrow {
+      width: 28px; height: 28px; border-radius: 50%; background: var(--accent-bg, #F3F4F6);
+      display: flex; align-items: center; justify-content: center; color: var(--accent, #6B7280); font-size: 11px;
+    }
+    .admin-pill {
+      display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px;
+      background: #EEF2FF; color: #4F46E5; font-size: 11px; font-weight: 700; margin-bottom: 16px;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead th {
+      text-align: left; padding: 11px 16px; background: #F9FAFB; border-bottom: 1px solid #E5E7EB;
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #6B7280;
+    }
+    tbody td { padding: 12px 16px; border-bottom: 1px solid #F1F2F4; }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: #FAFAFB; }
+    .pill {
+      display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 999px;
+      font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px;
+    }
+    .pill-admin { background: #EEF2FF; color: #4F46E5; }
+    .pill-user { background: #F3F4F6; color: #4B5563; }
+    .report-tag { font-size: 12.5px; color: #374151; }
+    .report-tag.none { color: #9CA3AF; font-style: italic; }
+    .row-actions { display: flex; gap: 6px; }
+    .empty-row { text-align: center; padding: 40px 16px; color: #9CA3AF; font-size: 13px; }
+
+    /* ── Modal ── */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(17,24,39,0.5); z-index: 500;
+      display: none; align-items: center; justify-content: center; padding: 20px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: #fff; border-radius: 16px; padding: 28px; width: 100%; max-width: 420px;
+      box-shadow: 0 24px 64px rgba(0,0,0,0.18);
+    }
+    .modal-box h3 { font-size: 17px; font-weight: 800; margin-bottom: 18px; }
+    .field { margin-bottom: 14px; }
+    .field label { display: block; font-size: 12px; font-weight: 600; color: #374151; margin-bottom: 6px; }
+    .field input, .field select {
+      width: 100%; padding: 10px 12px; border: 1px solid #D1D5DB; border-radius: 8px;
+      font-size: 13.5px; font-family: inherit; color: #111827; background: #F9FAFB; outline: none;
+    }
+    .field input:focus, .field select:focus { border-color: #4F46E5; background: #fff; }
+    .field-hint { font-size: 11px; color: #9CA3AF; margin-top: 4px; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+
+    .toast {
+      position: fixed; bottom: 24px; right: 24px; z-index: 600; display: flex; flex-direction: column; gap: 8px;
+    }
+    .toast-item {
+      padding: 11px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; color: #fff;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.15); animation: toastIn 0.2s ease;
+    }
+    .toast-item.success { background: #059669; }
+    .toast-item.error { background: #DC2626; }
+    @keyframes toastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  </style>
+</head>
+<body>
+
+  <nav class="sidebar">
+    <div class="sidebar-brand">
+      <img src="/static/anderson-logo.png" alt="Anderson Diagnostics &amp; Labs" class="sidebar-brand-logo" />
+    </div>
+    <div class="sidebar-body">
+      <div class="sidebar-section-label">Administration</div>
+      <button class="sidebar-nav-item active" id="navConfig" onclick="switchTab('config')">
+        <i class="fas fa-user-shield"></i>
+        Configuration
+      </button>
+      <button class="sidebar-nav-item" id="navReports" onclick="switchTab('reports')">
+        <i class="fas fa-file-medical"></i>
+        Report Automation
+      </button>
+    </div>
+    <div class="sidebar-footer">
+      <span class="sidebar-footer-dot"></span>
+      <span class="sidebar-footer-text">All systems operational</span>
+    </div>
+  </nav>
+
+  <header class="app-header">
+    <span class="header-title" id="pageHeaderTitle">Configuration</span>
+    <span class="header-user" id="headerUser"></span>
+  </header>
+
+  <div class="page">
+    <div class="page-inner" id="tab-config">
+
+      <div class="page-intro">
+        <div>
+          <h1>Users</h1>
+          <p>Each non-admin user can access exactly one report. Admins can access all reports and this page.</p>
+        </div>
+        <button class="btn btn-primary" id="addUserBtn"><i class="fas fa-user-plus"></i> Add User</button>
+      </div>
+
+      <div class="banner banner-warn" id="notConfiguredBanner">
+        <i class="fas fa-triangle-exclamation"></i>
+        <span>
+          MySQL is not configured yet, so users can't be loaded or saved. Ask IT for
+          <code>MYSQL_HOST</code> / <code>MYSQL_USER</code> / <code>MYSQL_PASSWORD</code> /
+          <code>MYSQL_DATABASE</code>, set them in the backend <code>.env</code> file, then restart the server.
+        </span>
+      </div>
+      <div class="banner banner-error" id="errorBanner">
+        <i class="fas fa-circle-exclamation"></i>
+        <span id="errorBannerText"></span>
+      </div>
+
+      <div class="card">
+        <table>
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Role</th>
+              <th>Report Access</th>
+              <th style="text-align:right;">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="usersBody">
+            <tr><td colspan="4" class="empty-row">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+    </div>
+
+    <div class="page-inner" id="tab-reports" style="display:none;">
+      <span class="admin-pill"><i class="fas fa-shield-halved"></i> Admin access — all reports unlocked</span>
+      <div class="page-intro">
+        <div>
+          <h1>Select a Report Module</h1>
+          <p>As an admin, you have access to every report below.</p>
+        </div>
+      </div>
+
+      <div class="module-grid">
+        <a class="module-card" href="tera.html" style="--accent:#059669; --accent-bg:#ECFDF5;">
+          <div class="module-icon"><i class="fas fa-dna"></i></div>
+          <div class="module-name">TERA Report</div>
+          <div class="module-desc">Endometrial Receptivity Analysis</div>
+          <div class="module-footer">
+            <span class="module-link-text">Open tool</span>
+            <div class="module-arrow"><i class="fas fa-arrow-right"></i></div>
+          </div>
+        </a>
+        <a class="module-card" href="pgta.html" style="--accent:#7C3AED; --accent-bg:#F5F3FF;">
+          <div class="module-icon"><i class="fas fa-microscope"></i></div>
+          <div class="module-name">PGTA Report</div>
+          <div class="module-desc">Preimplantation Genetic Testing</div>
+          <div class="module-footer">
+            <span class="module-link-text">Open tool</span>
+            <div class="module-arrow"><i class="fas fa-arrow-right"></i></div>
+          </div>
+        </a>
+        <a class="module-card" href="karyotype.html" style="--accent:#2563EB; --accent-bg:#EFF6FF;">
+          <div class="module-icon"><i class="fas fa-th"></i></div>
+          <div class="module-name">Karyotyping</div>
+          <div class="module-desc">Chromosomal Analysis Report</div>
+          <div class="module-footer">
+            <span class="module-link-text">Open tool</span>
+            <div class="module-arrow"><i class="fas fa-arrow-right"></i></div>
+          </div>
+        </a>
+        <a class="module-card" href="nipt.html" style="--accent:#E11D48; --accent-bg:#FFF1F2;">
+          <div class="module-icon"><i class="fas fa-baby"></i></div>
+          <div class="module-name">NIPT</div>
+          <div class="module-desc">Non-Invasive Prenatal Testing</div>
+          <div class="module-footer">
+            <span class="module-link-text">Open tool</span>
+            <div class="module-arrow"><i class="fas fa-arrow-right"></i></div>
+          </div>
+        </a>
+        <a class="module-card" href="hla.html" style="--accent:#D97706; --accent-bg:#FFFBEB;">
+          <div class="module-icon"><i class="fas fa-fingerprint"></i></div>
+          <div class="module-name">HLA Typing</div>
+          <div class="module-desc">Human Leukocyte Antigen Report</div>
+          <div class="module-footer">
+            <span class="module-link-text">Open tool</span>
+            <div class="module-arrow"><i class="fas fa-arrow-right"></i></div>
+          </div>
+        </a>
+        <a class="module-card" href="billing.html" style="--accent:#0D9488; --accent-bg:#ECFDF5;">
+          <div class="module-icon"><i class="fas fa-file-invoice-dollar"></i></div>
+          <div class="module-name">Billing</div>
+          <div class="module-desc">Sample &amp; Service Billing Invoices</div>
+          <div class="module-footer">
+            <span class="module-link-text">Open tool</span>
+            <div class="module-arrow"><i class="fas fa-arrow-right"></i></div>
+          </div>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Add/Edit User Modal ── -->
+  <div class="modal-overlay" id="userModal">
+    <div class="modal-box">
+      <h3 id="userModalTitle">Add User</h3>
+      <form id="userForm">
+        <div class="field">
+          <label>Username</label>
+          <input type="text" id="f_username" required autocomplete="off" />
+        </div>
+        <div class="field">
+          <label id="f_password_label">Password</label>
+          <input type="text" id="f_password" autocomplete="off" />
+          <div class="field-hint" id="f_password_hint">Required for new users. Leave blank when editing to keep the current password.</div>
+        </div>
+        <div class="field">
+          <label>Role</label>
+          <select id="f_role">
+            <option value="user">User (single report)</option>
+            <option value="admin">Admin (all reports + this page)</option>
+          </select>
+        </div>
+        <div class="field" id="f_report_field">
+          <label>Report Access</label>
+          <select id="f_report"></select>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-outline" id="userModalCancel">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="userModalSave">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="toast" id="toastWrap"></div>
+
+  <script>
+    const REPORT_LABELS = { tera: "TERA", pgta: "PGTA", karyotype: "Karyotyping", nipt: "NIPT", hla: "HLA Typing", billing: "Billing" };
+    // Default to every known report key so the "Report Access" dropdown is
+    // never empty, even before /access/users has returned (e.g. while MySQL
+    // isn't configured yet) — overwritten with the server's list once it loads.
+    let REPORT_KEYS = Object.keys(REPORT_LABELS);
+    let editingUserId = null;
+
+    // ── Guard: admin only ──────────────────────────────────────────────────
+    // While MySQL isn't configured yet (arc_access_control !== 'true'), the
+    // access-control layer isn't operational — anyone authenticated can
+    // reach this page to configure it (matches the fail-open behavior on
+    // index.html and the report pages).
+    const _accessControlActive = localStorage.getItem('arc_access_control') === 'true';
+    const _role = localStorage.getItem('arc_role');
+    const _username = localStorage.getItem('arc_username');
+    if (localStorage.getItem('arc_authenticated') !== 'true') {
+      window.location.replace('/login.html');
+    } else if (_accessControlActive && _role !== 'admin') {
+      document.documentElement.innerHTML = `
+        <body style="margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;
+          font-family:'Inter',sans-serif;background:#F4F5F7;">
+          <div style="text-align:center;max-width:420px;padding:40px;">
+            <div style="font-size:48px;color:#DC2626;margin-bottom:16px;"><i class="fas fa-ban"></i></div>
+            <h1 style="font-size:20px;font-weight:800;color:#111827;margin-bottom:8px;">Access Denied</h1>
+            <p style="font-size:13.5px;color:#6B7280;margin-bottom:20px;">
+              This page is restricted to administrators only.
+            </p>
+            <a href="/index.html" style="display:inline-block;padding:10px 20px;background:#4F46E5;color:#fff;
+              border-radius:9px;text-decoration:none;font-size:13px;font-weight:600;">Back to Dashboard</a>
+          </div>
+        </body>`;
+      throw new Error("Access denied — admin only");
+    }
+    document.getElementById('headerUser').textContent = _username ? `Signed in as ${_username}` : '';
+    document.body.classList.add('loaded');
+
+    function switchTab(tab) {
+      document.getElementById('tab-config').style.display = tab === 'config' ? '' : 'none';
+      document.getElementById('tab-reports').style.display = tab === 'reports' ? '' : 'none';
+      document.getElementById('navConfig').classList.toggle('active', tab === 'config');
+      document.getElementById('navReports').classList.toggle('active', tab === 'reports');
+      document.getElementById('pageHeaderTitle').textContent = tab === 'config' ? 'Configuration' : 'Report Automation';
+      sessionStorage.setItem('arc_admin_tab', tab);
+    }
+    switchTab(sessionStorage.getItem('arc_admin_tab') || 'config');
+
+    function toast(msg, type) {
+      const el = document.createElement('div');
+      el.className = 'toast-item ' + (type || 'success');
+      el.textContent = msg;
+      document.getElementById('toastWrap').appendChild(el);
+      setTimeout(() => el.remove(), 3500);
+    }
+
+    async function apiGet(path) {
+      const r = await fetch(path);
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.detail || ('Request failed (' + r.status + ')'));
+      return d;
+    }
+    async function apiSend(method, path, body) {
+      const r = await fetch(path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.detail || ('Request failed (' + r.status + ')'));
+      return d;
+    }
+
+    function reportSelectOptions(selected) {
+      return REPORT_KEYS.map(k =>
+        `<option value="${k}" ${k === selected ? 'selected' : ''}>${REPORT_LABELS[k] || k}</option>`
+      ).join('');
+    }
+
+    function renderUsers(users) {
+      const body = document.getElementById('usersBody');
+      if (!users.length) {
+        body.innerHTML = '<tr><td colspan="4" class="empty-row">No users yet — click "Add User" to create one.</td></tr>';
+        return;
+      }
+      body.innerHTML = users.map(u => `
+        <tr>
+          <td><strong>${esc(u.username)}</strong></td>
+          <td><span class="pill ${u.role === 'admin' ? 'pill-admin' : 'pill-user'}">${u.role}</span></td>
+          <td>
+            ${u.role === 'admin'
+              ? '<span class="report-tag none">All reports</span>'
+              : `<span class="report-tag">${esc(REPORT_LABELS[u.report] || u.report || '—')}</span>`}
+          </td>
+          <td>
+            <div class="row-actions" style="justify-content:flex-end;">
+              <button class="btn btn-outline btn-sm" onclick="openEditModal('${u.id}')"><i class="fas fa-pen"></i></button>
+              <button class="btn btn-danger btn-sm" onclick="confirmDelete('${u.id}','${esc(u.username)}')"><i class="fas fa-trash"></i></button>
+            </div>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+    let _allUsers = [];
+
+    async function loadUsers() {
+      try {
+        const d = await apiGet('/access/users');
+        REPORT_KEYS = d.report_keys || [];
+        document.getElementById('f_report').innerHTML = reportSelectOptions();
+        _allUsers = d.users || [];
+        document.getElementById('notConfiguredBanner').classList.remove('show');
+        document.getElementById('errorBanner').classList.remove('show');
+        renderUsers(_allUsers);
+      } catch (e) {
+        if (String(e.message).toLowerCase().includes('mysql is not configured')) {
+          document.getElementById('notConfiguredBanner').classList.add('show');
+          document.getElementById('usersBody').innerHTML = '<tr><td colspan="4" class="empty-row">—</td></tr>';
+        } else {
+          document.getElementById('errorBannerText').textContent = e.message;
+          document.getElementById('errorBanner').classList.add('show');
+        }
+      }
+    }
+
+    function toggleReportField() {
+      const isAdmin = document.getElementById('f_role').value === 'admin';
+      document.getElementById('f_report_field').style.display = isAdmin ? 'none' : '';
+    }
+    document.getElementById('f_role').addEventListener('change', toggleReportField);
+
+    function openAddModal() {
+      editingUserId = null;
+      document.getElementById('userModalTitle').textContent = 'Add User';
+      document.getElementById('f_username').value = '';
+      document.getElementById('f_password').value = '';
+      document.getElementById('f_password_hint').textContent = 'Required for new users.';
+      document.getElementById('f_role').value = 'user';
+      document.getElementById('f_report').innerHTML = reportSelectOptions();
+      toggleReportField();
+      document.getElementById('userModal').classList.add('open');
+      document.getElementById('f_username').focus();
+    }
+
+    function openEditModal(id) {
+      const u = _allUsers.find(x => x.id === id);
+      if (!u) return;
+      editingUserId = id;
+      document.getElementById('userModalTitle').textContent = 'Edit User';
+      document.getElementById('f_username').value = u.username;
+      document.getElementById('f_password').value = '';
+      document.getElementById('f_password_hint').textContent = 'Leave blank to keep the current password.';
+      document.getElementById('f_role').value = u.role;
+      document.getElementById('f_report').innerHTML = reportSelectOptions(u.report);
+      toggleReportField();
+      document.getElementById('userModal').classList.add('open');
+      document.getElementById('f_username').focus();
+    }
+
+    function closeModal() { document.getElementById('userModal').classList.remove('open'); }
+    document.getElementById('addUserBtn').addEventListener('click', openAddModal);
+    document.getElementById('userModalCancel').addEventListener('click', closeModal);
+    document.getElementById('userModal').addEventListener('click', e => { if (e.target.id === 'userModal') closeModal(); });
+
+    document.getElementById('userForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const username = document.getElementById('f_username').value.trim();
+      const password = document.getElementById('f_password').value;
+      const role = document.getElementById('f_role').value;
+      const report = document.getElementById('f_report').value;
+      if (!username) { toast('Username is required.', 'error'); return; }
+      if (!editingUserId && !password) { toast('Password is required for new users.', 'error'); return; }
+
+      const payload = { username, role, report: role === 'admin' ? null : report };
+      if (password) payload.password = password;
+
+      try {
+        if (editingUserId) {
+          await apiSend('PUT', '/access/users/' + editingUserId, payload);
+          toast('User updated.', 'success');
+        } else {
+          await apiSend('POST', '/access/users', payload);
+          toast('User created.', 'success');
+        }
+        closeModal();
+        loadUsers();
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    });
+
+    async function confirmDelete(id, username) {
+      if (!window.confirm(`Delete user "${username}"? This cannot be undone.`)) return;
+      try {
+        await apiSend('DELETE', '/access/users/' + id);
+        toast('User deleted.', 'success');
+        loadUsers();
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    }
+
+    loadUsers();
+  </script>
+</body>
+</html>

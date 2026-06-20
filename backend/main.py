@@ -93,6 +93,14 @@ except Exception as _hla_err:
     _hla_ok = False
     print(f"[HLA] router not loaded: {_hla_err}")
 
+# ── Access control (Admin page + per-report login) router ─────────────────────
+try:
+    from access_api import router as access_router
+    _access_ok = True
+except Exception as _access_err:
+    _access_ok = False
+    print(f"[Access] router not loaded: {_access_err}")
+
 # ── MySQL database ─────────────────────────────────────────────────────────────
 _mysql_enabled = False
 upload_pdf = upload_pgta_file = save_report = None
@@ -153,6 +161,11 @@ def login_page(): return _serve("login.html")
 @app.get("/otp.html")
 @app.get("/otp")
 def otp_page(): return _serve("otp.html")
+
+
+@app.get("/admin.html")
+@app.get("/admin")
+def admin_page(): return _serve("admin.html")
 
 
 @app.get("/index.html")
@@ -276,9 +289,16 @@ def _upload_in_background(filepath: str, filename: str):
 
 @app.post("/preview")
 async def preview_report(data: dict):
-    file_id = str(uuid.uuid4()) + ".pdf"
-    filepath = os.path.join(TEMP_DIR, file_id)
     with_logo = data.get("logo_option", "without_logo") == "with_logo"
+    # Prefix with the same descriptive name /generate uses, so that if a
+    # browser ever saves this preview file directly (e.g. via its native PDF
+    # viewer's download button) it gets a sensible name instead of a bare UUID.
+    try:
+        fname = os.path.splitext(_build_tera_filename(data, with_logo))[0]
+    except Exception:
+        fname = "preview"
+    file_id = f"{fname}_{uuid.uuid4().hex[:8]}.pdf"
+    filepath = os.path.join(TEMP_DIR, file_id)
     gen = TERAReportGenerator(data, TEMP_DIR, with_logo=with_logo)
     gen.filepath = filepath
     gen.filename = file_id
@@ -501,7 +521,14 @@ def pgta_get_cnv_image(filename: str):
 async def pgta_preview(request: Request):
     try:
         data = await request.json()
-        file_id = str(uuid.uuid4()) + ".pdf"
+        # Prefix with a descriptive name (mirrors /pgta/generate's naming) so
+        # that if a browser ever saves this preview directly (e.g. via its
+        # native PDF viewer's download button) it gets a sensible name
+        # instead of a bare UUID.
+        patient_data = data.get("patient_data", {})
+        p_parts = [p for p in re.sub(r'[^a-zA-Z0-9 ]', '', str(patient_data.get("patient_name", "") or "")).strip().split() if p]
+        name_seg = p_parts[0].upper() if p_parts else "PREVIEW"
+        file_id = f"PGTA_{name_seg}_{uuid.uuid4().hex[:8]}.pdf"
         filepath = os.path.join(TEMP_DIR, file_id)
         embryos = data.get("embryos_data", [])
         embryos, tmp = _resolve_cnv_images(embryos)
@@ -1013,12 +1040,20 @@ async def nipt_preview(request: Request):
         return {"error": "NIPT generators not loaded on server"}
     try:
         data = await request.json()
-        file_id = str(uuid.uuid4()) + ".pdf"
-        filepath = os.path.join(TEMP_DIR, file_id)
         p_info = _norm_patient(dict(data.get("patient_data", {})))
+        show_logo = bool(data.get("show_logo", True))
+        # Prefix with the same descriptive name /nipt/generate uses, so that
+        # if a browser ever saves this preview directly (e.g. via its native
+        # PDF viewer's download button) it gets a sensible name instead of a
+        # bare UUID.
+        try:
+            fname = _nipt_base_filename(p_info.get("name", ""), show_logo)
+        except Exception:
+            fname = "preview"
+        file_id = f"{fname}_{uuid.uuid4().hex[:8]}.pdf"
+        filepath = os.path.join(TEMP_DIR, file_id)
         z_scores = {k: _safe_float(v)
                     for k, v in data.get("z_scores", {}).items()}
-        show_logo = bool(data.get("show_logo", True))
         NIPTReportTemplate(filepath).generate(
             p_info, z_scores, with_logo=show_logo)
         return {"preview_url": f"/nipt/preview-file/{file_id}"}
@@ -1388,6 +1423,11 @@ if _hla_ok:
     if os.path.isdir(_hla_fonts_dir):
         app.mount("/hla-fonts", StaticFiles(directory=_hla_fonts_dir), name="hla-fonts")
     print("[HLA] routes loaded")
+
+# ── Access control routes (Admin page + per-report login) ─────────────────────
+if _access_ok:
+    app.include_router(access_router)
+    print("[Access] routes loaded" + ("" if _mysql_enabled else " (MySQL not configured yet)"))
 
 
 @app.get("/hla")

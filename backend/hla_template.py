@@ -395,12 +395,12 @@ def _styles() -> dict:
         # ── Reference heading ─────────────────────────────────────────────────
         "ref_hdr": ParagraphStyle(
             "ref_hdr", fontName=F_CALI_BOLD, fontSize=14,
-            textColor=BLACK, leading=18, spaceBefore=4, spaceAfter=2
+            textColor=C_NGS_TITLE, leading=18, spaceBefore=4, spaceAfter=2
         ),
         # ── RPL section headings (BACKGROUND, DISCLAIMERS) ────────────────────
         "section_hdr": ParagraphStyle(
             "section_hdr", fontName=F_SEGOE_BOLD, fontSize=12,
-            textColor=BLACK, leading=15, spaceBefore=6, spaceAfter=2
+            textColor=C_NGS_TITLE, leading=15, spaceBefore=6, spaceAfter=2
         ),
         # ── RPL body/disclaimers ──────────────────────────────────────────────
         "justify": ParagraphStyle(
@@ -1541,11 +1541,21 @@ def _rpl_reference_section(rpl_ref: dict, patient: dict, donor: dict, S: dict,
 
 
 # ─── Methodology block (shared) ───────────────────────────────────────────────
-def _methodology_block(case: dict, S: dict) -> list:
+def _methodology_block(case: dict, S: dict, merge: bool = False) -> list:
     """
     IMGT → Remarks: → Coverage (: prefix lines) → Methodology → Typing Status
     Matches the exact format seen in all manual report PDFs.
     NO horizontal rules between sections - only one line before signatures.
+
+    By default returns [KeepTogether(coverage_block), KeepTogether(method_block)]
+    as two independent units. Pass merge=True to instead get the *raw*,
+    unwrapped flowables (coverage_block + method_block) — callers that need to
+    combine this with other content into a single KeepTogether (e.g. so
+    Coverage is never orphaned from Methodology/Signatures) must wrap the
+    *raw* flowables directly, never nest a KeepTogether inside another one:
+    nested KeepTogethers' wrap() always reports a huge sentinel height, which
+    makes the outer KeepTogether's fit-check wrongly conclude the content is
+    far too big and push it to a fresh page even when it would have fit.
     """
     nabl   = case.get("nabl", True)
     imgt   = case.get("imgt_release", "") or "3.56.0"  # Default IMGT version if not specified
@@ -1574,11 +1584,20 @@ def _methodology_block(case: dict, S: dict) -> list:
         ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
     ]))
 
-    coverage_block = [
-        Paragraph(f"<b>IMGT/HLA Release</b> {imgt}", S["body"]),
-        Paragraph("<b>Remarks:</b>", S["body"]),
-        cov_table,
-    ]
+    # The personal remarks are rendered below each person's locus table in
+    # _ngs_person_block, so this static "Remarks:" coverage label is only shown
+    # when there's actual remarks content somewhere — otherwise it renders as a
+    # blank, orphan label in the IMGT/Coverage section.
+    def _has_real_remarks(p):
+        v = str((p or {}).get("remarks", "") or "").strip()
+        return bool(v) and v not in ("—", "-", "NA", "N/A", "None", "null")
+    _patient_mb = case.get("patient", {})
+    _donors_mb  = case.get("donors", []) or []
+    _show_remarks_label = _has_real_remarks(_patient_mb) or any(_has_real_remarks(d) for d in _donors_mb)
+    coverage_block = [Paragraph(f"<b>IMGT/HLA Release</b> {imgt}", S["body"])]
+    if _show_remarks_label:
+        coverage_block.append(Paragraph("<b>Remarks:</b>", S["body"]))
+    coverage_block.append(cov_table)
 
     # Group 2: Methodology + HR + Typing Status (~40 pt)
     # 11-Loci's reference layout puts the "Methodology:" label on its own line,
@@ -1597,6 +1616,8 @@ def _methodology_block(case: dict, S: dict) -> list:
         Paragraph(f"<b>Typing Status:</b>  {status}", S["body"]),
     ]
 
+    if merge:
+        return coverage_block + method_block
     return [KeepTogether(coverage_block), KeepTogether(method_block)]
 
 
@@ -1725,7 +1746,12 @@ def _build_ngs_transplant(case: dict, S: dict) -> list:
     _post_extra, _inter_extra = 0.0, 0.0
     if _is_loci11:
         _scale, _extra = 1.5, 0.0
-    elif any_remarks or not donors:
+    # The 2x/4mm "spread" spacing below assumes a single patient+donor pair
+    # (per-block extra space compounds with each additional person), so with
+    # 2+ donors it eats up the room IMGT/Coverage+Methodology needs to fit on
+    # the same page — use the tight spacing whenever there's more than one
+    # donor, regardless of remarks/match.
+    elif any_remarks or not donors or len(donors) >= 2:
         _scale, _extra = 1.0, 0.0
         # Transplant Donor (6-locus table, no DRB3/4/5 wrap) has much more page-1
         # headroom than 11-Loci even with remarks+match present, so it can afford
@@ -1753,20 +1779,19 @@ def _build_ngs_transplant(case: dict, S: dict) -> list:
                                        spacing_scale=_scale, extra_inner_gap=_extra, no_compact=True,
                                        nabl=case.get("nabl", True), separate_drb=_sep_drb))
 
-    # Drop the trailing inter-block Spacer left by the last person block — if it
-    # doesn't fit on the current page, ReportLab defers it onto the next page,
-    # which then counts as "non-empty" by the time PageBreakIfNotEmpty below is
-    # reached (even though nothing visible was drawn), causing it to force a
-    # second, truly blank page instead of recognizing we're already at the top.
+    # Drop the trailing inter-block Spacer left by the last person block so it
+    # doesn't add unwanted gap before the IMGT/Coverage block that follows.
     while elems and isinstance(elems[-1], Spacer):
         elems.pop()
 
-    # IMGT/HLA Release + Coverage always starts on a fresh page. PageBreakIfNotEmpty
-    # (unlike a bare PageBreak()) is a no-op when the frame is already empty — so it
-    # won't advance an extra blank page if the patient/donor content already
-    # overflowed onto a new page on its own.
-    elems.append(PageBreakIfNotEmpty())
-    elems.extend(_methodology_block(case, S))
+    # IMGT/Coverage and Methodology are kept as one block (raw flowables,
+    # wrapped in a single non-nested KeepTogether — see _methodology_block's
+    # merge=True docstring) so Coverage never gets orphaned alone on a page
+    # with Methodology spilling to the next one. Signatures are a separate
+    # block so they can flow onto whatever page has room on their own,
+    # without dragging the (often larger) Coverage + Methodology block down
+    # with them when only the signatures don't fit.
+    elems.append(KeepTogether(_methodology_block(case, S, merge=True)))
     sig_items = _signature_block(signatories, S)
     if sig_items:
         elems.append(KeepTogether(sig_items))
@@ -2036,7 +2061,10 @@ def _build_ngs_photo(case: dict, S: dict) -> list:
     # Keep the Interpretation together with the methodology block so it never sits
     # orphaned at the foot of page 1 while the methodology spills onto page 2 — the
     # two move to the next page together when they don't both fit below the tables.
-    elems.append(KeepTogether(interp_block + _methodology_block(case, S)))
+    # merge=True avoids nesting a KeepTogether inside this outer one (which would
+    # make ReportLab's fit-check wrongly see a near-infinite height and always
+    # defer to a fresh page — see _methodology_block's docstring).
+    elems.append(KeepTogether(interp_block + _methodology_block(case, S, merge=True)))
 
     sig_items = _signature_block(signatories, S)
     if sig_items:
@@ -2597,6 +2625,7 @@ def _build_hla_c(case: dict, S: dict) -> list:
     else:
         # ── Typing Result ────────────────────────────────────────────────────
         elems.extend(_sec("Typing Result"))
+        elems.append(Spacer(1, 3 * mm))
 
         _col_w = [CONTENT_W * 0.18, CONTENT_W * 0.18, CONTENT_W * 0.18]
 
@@ -2622,12 +2651,16 @@ def _build_hla_c(case: dict, S: dict) -> list:
         elems.append(Spacer(1, 2 * mm))
 
         # ── Remarks ──────────────────────────────────────────────────────────
+        # Structural field (Maternal/Paternal HLA-C Type), not free-text
+        # commentary — always shown for the Peripheral Blood layout, with a
+        # "—" placeholder when empty, matching the desktop app exactly.
         elems.extend(_sec("Remarks"))
+        elems.append(Spacer(1, 3 * mm))
 
         _rem_w = [CONTENT_W * 0.40]
         rem_t = Table([
             [Paragraph(f"<b>{_parent_label} HLA-C Type</b>", _val_c_s)],
-            [Paragraph(_clean_display(remark) or "—", _val_c_s)],
+            [Paragraph(remark or "—", _val_c_s)],
         ], colWidths=_rem_w)
         rem_t.hAlign = "CENTER"
         rem_t.setStyle(TableStyle([
@@ -2640,15 +2673,15 @@ def _build_hla_c(case: dict, S: dict) -> list:
         elems.append(rem_t)
 
     # ── Disclaimer + Reference + Signatures ─────────────────────────────────
-    # POC's Result table is much shorter than the standard Typing Result +
-    # Remarks tables, leaving plenty of room — let Disclaimer flow onto the
-    # same page instead of forcing a page break.
-    if not is_poc:
-        elems.append(PageBreak())
-    else:
-        elems.append(Spacer(1, 4 * mm))
-    elems.extend(_sec("Disclaimer"))
-    elems.append(Paragraph(HLA_C_DISCLAIMER, _body_s))
+    # Typing Result + Remarks is short enough to leave plenty of room on
+    # page 1 — let Disclaimer flow naturally instead of forcing a page break;
+    # it only spills to page 2 if content genuinely doesn't fit. Heading and
+    # body are kept together so the heading never gets orphaned on page 1
+    # while its (short) text gets pushed alone onto page 2.
+    elems.append(Spacer(1, 4 * mm))
+    elems.append(KeepTogether(
+        _sec("Disclaimer") + [Paragraph(HLA_C_DISCLAIMER, _body_s)]
+    ))
     elems.append(Spacer(1, 2 * mm))
 
     elems.extend(_sec("Reference"))
@@ -3153,7 +3186,8 @@ def _build_cdc_report(case: dict, S: dict) -> list:
                                 textColor=BLACK, alignment=TA_CENTER, leading=13)
 
     _cdc_rmk = patient.get("remarks", "").strip()
-    _row_pad  = 4 if _cdc_rmk else 3
+    _cdc_donor_rmk = (donor.get("remarks", "") or "").strip()
+    _row_pad  = 4 if (_cdc_rmk or _cdc_donor_rmk) else 3
 
     dtt_t = Table([
         [Paragraph("<b>Cells</b>",                dtt_hdr_s),
@@ -3184,6 +3218,12 @@ def _build_cdc_report(case: dict, S: dict) -> list:
                            leading=14, spaceBefore=4, spaceAfter=4)
         )
     ] if _cdc_rmk else [])
+    if _cdc_donor_rmk:
+        _cdc_rmk_items.append(Paragraph(
+            f"<b>Donor Remarks : </b>{_clean_display(_cdc_donor_rmk)}",
+            ParagraphStyle("_cdc_drmk", fontName=F_BOLD, fontSize=10,
+                           leading=14, spaceBefore=4, spaceAfter=4)
+        ))
 
     elems.append(KeepTogether([
         Paragraph("<b>Result</b>", ParagraphStyle("_cdc_sec",
@@ -3451,7 +3491,7 @@ def _build_dsa_report(case: dict, S: dict) -> list:
     _det_para = Paragraph(
         f"<u><b>{_det_heading}</b></u>",
         ParagraphStyle("_dsa_det", fontName=F_BOLD, fontSize=11,
-                       textColor=BLACK, alignment=TA_CENTER, leading=15,
+                       textColor=C_NGS_TITLE, alignment=TA_CENTER, leading=15,
                        spaceAfter=4 if _rmk else 5)
     )
 
@@ -3505,8 +3545,9 @@ def _build_dsa_report(case: dict, S: dict) -> list:
          "", "", ""],
     ]
     _rmk = patient.get("remarks", "").strip()
+    _donor_rmk = (donor.get("remarks", "") or "").strip()
     # Use tighter row padding when remarks is present so the whole block fits on page 1
-    _row_pad = 4 if _rmk else 5
+    _row_pad = 4 if (_rmk or _donor_rmk) else 5
 
     dsa_t = Table(dsa_data, colWidths=_dsa_col_w)
     dsa_t.setStyle(TableStyle([
@@ -3528,6 +3569,12 @@ def _build_dsa_report(case: dict, S: dict) -> list:
         ParagraphStyle("_dsa_rmk", fontName=F_BOLD, fontSize=10,
                        leading=14, spaceBefore=6)
     )] if _rmk else [])
+    if _donor_rmk:
+        _rmk_para.append(Paragraph(
+            f"<b>Donor Remarks : </b>{_clean_display(_donor_rmk)}",
+            ParagraphStyle("_dsa_drmk", fontName=F_BOLD, fontSize=10,
+                           leading=14, spaceBefore=6)
+        ))
 
     elems.append(KeepTogether([_det_para, dsa_t] + _rmk_para))
 
@@ -3828,12 +3875,16 @@ def _build_luminex_report(case: dict, S: dict) -> list:
         elems.append(Paragraph(_interp_text, _body_s))
     elems.append(Spacer(1, _section_gap))
 
-    _lx_remarks  = _clean_display(patient.get("remarks", "")) or ""
-    _lx_comments = _clean_display(patient.get("comments", "")) or ""
-    if _lx_remarks:
+    _lx_remarks       = (patient.get("remarks", "") or "").strip()
+    _lx_donor_remarks = (donor.get("remarks", "") or "").strip()
+    _lx_comments      = (patient.get("comments", "") or "").strip()
+    if _lx_remarks or _lx_donor_remarks:
         elems.append(Paragraph("<b>Remarks</b>", _sec_s))
         elems.append(HRFlowable(width=CONTENT_W, thickness=0.8, color=colors.grey, spaceAfter=_rule_gap))
-        elems.append(Paragraph(_lx_remarks, _body_s))
+        if _lx_remarks:
+            elems.append(Paragraph(_lx_remarks, _body_s))
+        if _lx_donor_remarks:
+            elems.append(Paragraph(f"<b>Donor Remarks : </b>{_lx_donor_remarks}", _body_s))
         elems.append(Spacer(1, _section_gap))
     if _lx_comments:
         elems.append(Paragraph("<b>Comments</b>", _sec_s))
@@ -4012,7 +4063,7 @@ def _build_sab_report(case: dict, S: dict) -> list:
     low_alleles  = [(a, m) for a, m in alleles if int(m) <  1000]
 
     _cls_hdr_s = ParagraphStyle("_sab_ch", fontName=F_BOLD, fontSize=11,
-                                 textColor=BLACK, leading=14, spaceAfter=4)
+                                 textColor=C_NGS_TITLE, leading=14, spaceAfter=4)
     _sub_s     = ParagraphStyle("_sab_sb", fontName=F_REG,  fontSize=10,
                                  leading=13, spaceAfter=3)
     _th_s      = ParagraphStyle("_sab_th", fontName=F_BOLD, fontSize=11,
@@ -4064,7 +4115,7 @@ def _build_sab_report(case: dict, S: dict) -> list:
     if chart_b:
         elems.append(PageBreak())
         _ct_s = ParagraphStyle("_sab_ct", fontName=F_BOLD, fontSize=12,
-                                textColor=BLACK, alignment=TA_CENTER, leading=16)
+                                textColor=C_NGS_TITLE, alignment=TA_CENTER, leading=16)
         try:
             img = Image(io.BytesIO(chart_b))
             # The source chart is landscape, so a true-aspect fit at full width
@@ -4256,7 +4307,7 @@ def _build_pra_report(case: dict, S: dict) -> list:
     elems.append(_res_t)
     elems.append(Spacer(1, 6*mm))
 
-    _pra_rmk = _clean_display(patient.get("remarks", "")) or ""
+    _pra_rmk = (patient.get("remarks", "") or "").strip()
 
     # ── Interpretation (reference bands) ───────────────────────────────────────
     _section("Interpretation")
@@ -4285,7 +4336,7 @@ def _build_pra_report(case: dict, S: dict) -> list:
     _section("Comments")
     for _i, _c in enumerate(PRA_COMMENTS, 1):
         elems.append(Paragraph(f"{_i}. {_c}", _num_s))
-    _pra_user_comment = _clean_display(patient.get("comments", "")) or ""
+    _pra_user_comment = (patient.get("comments", "") or "").strip()
     if _pra_user_comment:
         elems.append(Paragraph(f"{len(PRA_COMMENTS) + 1}. {_pra_user_comment}", _num_s))
     elems.append(Spacer(1, 5*mm))
@@ -4729,6 +4780,18 @@ def _build_flow_report(case: dict, S: dict) -> list:
             _body_s))
     elems.append(Spacer(1, 3*mm))
 
+    # ── Remarks (patient + donor, only if present) ──────────────────────────────
+    _flow_pat_rmk   = (patient.get("remarks", "") or "").strip()
+    _flow_donor_rmk = (donor.get("remarks", "") or "").strip()
+    if _flow_pat_rmk or _flow_donor_rmk:
+        elems.append(Paragraph("<b>Remarks</b>", _head_l_s))
+        elems.append(HRFlowable(width=CONTENT_W, thickness=0.8, color=colors.grey, spaceAfter=6))
+        if _flow_pat_rmk:
+            elems.append(Paragraph(f"<b>Remarks : </b>{_flow_pat_rmk}", _body_s))
+        if _flow_donor_rmk:
+            elems.append(Paragraph(f"<b>Donor Remarks : </b>{_flow_donor_rmk}", _body_s))
+        elems.append(Spacer(1, 3*mm))
+
     # ── Comments ──────────────────────────────────────────────────────────────
     elems.append(Paragraph("<b>Comments</b>", _head_l_s))
     elems.append(HRFlowable(width=CONTENT_W, thickness=0.8, color=colors.grey, spaceAfter=6))
@@ -4887,8 +4950,8 @@ def _build_kir_report(case: dict, S: dict) -> list:
         elems.append(Paragraph(para, _body_s))
         elems.append(Spacer(1, 3*mm))
 
-    _kir_remarks  = _clean_display(patient.get("remarks", "")) or ""
-    _kir_comments = _clean_display(patient.get("comments", "")) or ""
+    _kir_remarks  = (patient.get("remarks", "") or "").strip()
+    _kir_comments = (patient.get("comments", "") or "").strip()
     if _kir_remarks:
         elems.append(Paragraph("<b>Remarks</b>", _sec_s))
         elems.append(HRFlowable(width=cw, thickness=0.8, color=colors.grey, spaceAfter=4))

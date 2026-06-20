@@ -34,13 +34,23 @@
     }
 
     .sidebar-brand {
-      height: 58px;
+      height: 68px;
       flex-shrink: 0;
       display: flex;
       align-items: center;
-      padding: 0 18px;
+      padding: 0 10px;
       gap: 10px;
       border-bottom: 1px solid rgba(255,255,255,0.07);
+      overflow: hidden;
+    }
+    .sidebar-brand-logo {
+      width: 100%;
+      height: 100%;
+      max-height: 56px;
+      object-fit: contain;
+      background: #fff;
+      border-radius: 6px;
+      padding: 4px 10px;
     }
     .sidebar-brand-icon {
       width: 30px; height: 30px;
@@ -256,6 +266,14 @@
                   0 4px 12px rgba(0,0,0,0.07);
     }
 
+    /* Tiles the signed-in user has no access to */
+    .module-card.locked { opacity: 0.5; cursor: not-allowed; filter: grayscale(0.4); }
+    .module-card.locked:hover { transform: none; box-shadow: 0 2px 8px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.05); border-color: #E5E7EB; }
+    .module-lock-badge {
+      position: absolute; top: 14px; right: 14px; width: 24px; height: 24px; border-radius: 50%;
+      background: #F3F4F6; color: #9CA3AF; display: flex; align-items: center; justify-content: center; font-size: 10px;
+    }
+
     .module-icon {
       width: 46px; height: 46px;
       border-radius: 12px;
@@ -425,11 +443,7 @@
   <!-- ── Sidebar ── -->
   <nav class="sidebar">
     <div class="sidebar-brand">
-      <div class="sidebar-brand-icon"><i class="fas fa-dna"></i></div>
-      <div>
-        <div class="sidebar-brand-name">Anderson</div>
-        <div class="sidebar-brand-sub">Clinical Genetics</div>
-      </div>
+      <img src="/static/anderson-logo.png" alt="Anderson Diagnostics &amp; Labs" class="sidebar-brand-logo" />
     </div>
 
     <div class="sidebar-body">
@@ -440,6 +454,10 @@
       </button>
     </div>
 
+    <a class="sidebar-nav-item" id="sidebarAdminBtn" href="/admin.html" style="display:none; margin:0 10px 4px;">
+      <i class="fas fa-user-shield"></i>
+      Admin
+    </a>
     <div class="sidebar-footer">
       <span class="sidebar-footer-dot"></span>
       <span class="sidebar-footer-text">All systems operational</span>
@@ -464,7 +482,7 @@
       <div class="module-grid">
 
         <!-- TERA -->
-        <a class="module-card" href="tera.html"
+        <a class="module-card" href="tera.html" data-report="tera"
            style="--accent:#059669; --accent-bg:#ECFDF5;">
           <div class="module-icon"><i class="fas fa-dna"></i></div>
           <div class="module-name">TERA Report</div>
@@ -476,7 +494,7 @@
         </a>
 
         <!-- PGTA -->
-        <a class="module-card" href="pgta.html"
+        <a class="module-card" href="pgta.html" data-report="pgta"
            style="--accent:#7C3AED; --accent-bg:#F5F3FF;">
           <div class="module-icon"><i class="fas fa-microscope"></i></div>
           <div class="module-name">PGTA Report</div>
@@ -488,7 +506,7 @@
         </a>
 
         <!-- Karyotyping -->
-        <a class="module-card" href="karyotype.html"
+        <a class="module-card" href="karyotype.html" data-report="karyotype"
            style="--accent:#2563EB; --accent-bg:#EFF6FF;">
           <div class="module-icon"><i class="fas fa-th"></i></div>
           <div class="module-name">Karyotyping</div>
@@ -500,7 +518,7 @@
         </a>
 
         <!-- NIPT -->
-        <a class="module-card" href="nipt.html"
+        <a class="module-card" href="nipt.html" data-report="nipt"
            style="--accent:#E11D48; --accent-bg:#FFF1F2;">
           <div class="module-icon"><i class="fas fa-baby"></i></div>
           <div class="module-name">NIPS</div>
@@ -512,7 +530,7 @@
         </a>
 
         <!-- HLA Typing -->
-        <a class="module-card" href="hla.html"
+        <a class="module-card" href="hla.html" data-report="hla"
            style="--accent:#D97706; --accent-bg:#FFFBEB;">
           <div class="module-icon"><i class="fas fa-fingerprint"></i></div>
           <div class="module-name">HLA Typing</div>
@@ -524,7 +542,7 @@
         </a>
 
         <!-- Billing -->
-        <a class="module-card" href="billing.html"
+        <a class="module-card" href="billing.html" data-report="billing"
            style="--accent:#0D9488; --accent-bg:#ECFDF5;">
           <div class="module-icon"><i class="fas fa-file-invoice-dollar"></i></div>
           <div class="module-name">Billing</div>
@@ -546,7 +564,7 @@
       <div class="modal-icon-wrap"><i class="fas" id="modalIcon"></i></div>
       <h3 id="modalTitle"></h3>
       <p id="modalSub"></p>
-      <span class="modal-badge">Coming Soon</span>
+      <span class="modal-badge" id="modalBadge">Coming Soon</span>
     </div>
   </div>
 
@@ -556,10 +574,48 @@
     }
     document.body.classList.add('loaded');
 
+    // ── Per-report access control ───────────────────────────────────────────
+    // Interim client-side check against the username/role/report set at
+    // login (see login.html / access_api.py) — a stand-in for IT's real
+    // username + password + OTP system. While MySQL isn't configured yet
+    // (arc_access_control !== 'true'), the access-control layer isn't
+    // operational, so fail OPEN — full access for everyone, same as before
+    // this feature existed — instead of locking everyone out.
+    const _accessControlActive = localStorage.getItem('arc_access_control') === 'true';
+    const _role   = localStorage.getItem('arc_role');
+    const _report = localStorage.getItem('arc_report');
+    const _isAdmin = !_accessControlActive || _role === 'admin';
+
+    if (_isAdmin) {
+      document.getElementById('sidebarAdminBtn').style.display = '';
+    }
+
+    document.querySelectorAll('.module-card[data-report]').forEach(card => {
+      const allowed = _isAdmin || card.dataset.report === _report;
+      if (!allowed) {
+        card.classList.add('locked');
+        card.insertAdjacentHTML('beforeend', '<span class="module-lock-badge"><i class="fas fa-lock"></i></span>');
+        card.addEventListener('click', e => {
+          e.preventDefault();
+          showAccessDenied(card.querySelector('.module-name').textContent);
+        });
+      }
+    });
+
+    function showAccessDenied(reportName) {
+      document.getElementById('modalIcon').className = 'fas fa-ban';
+      document.getElementById('modalTitle').textContent = 'Access Denied';
+      document.getElementById('modalSub').textContent =
+        `Your account doesn't have access to ${reportName}. Contact an administrator if you need this report.`;
+      document.getElementById('modalBadge').style.display = 'none';
+      document.getElementById('modal').classList.add('open');
+    }
+
     function showComingSoon(title, sub, icon) {
       document.getElementById('modalTitle').textContent = title;
       document.getElementById('modalSub').textContent = sub + ' report generation is currently under development and will be available soon.';
       document.getElementById('modalIcon').className = 'fas ' + icon;
+      document.getElementById('modalBadge').style.display = '';
       document.getElementById('modal').classList.add('open');
     }
     function closeModal() {

@@ -1303,6 +1303,32 @@
 </head>
 
 <body>
+  <script>
+    // Interim client-side access guard — stand-in for IT's real
+    // username + password + OTP system. See access_api.py / login.html.
+    (function () {
+      if (localStorage.getItem('arc_authenticated') !== 'true') {
+        window.location.replace('/login.html');
+        return;
+      }
+      var accessControlActive = localStorage.getItem('arc_access_control') === 'true';
+      var role = localStorage.getItem('arc_role');
+      var report = localStorage.getItem('arc_report');
+      if (accessControlActive && role !== 'admin' && report !== 'nipt') {
+        document.open();
+        document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Access Denied</title>' +
+          '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">' +
+          '<style>body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:#F4F5F7;display:flex;align-items:center;justify-content:center;min-height:100vh;}</style>' +
+          '</head><body><div style="text-align:center;max-width:420px;padding:40px;">' +
+          '<div style="font-size:48px;color:#DC2626;margin-bottom:16px;"><i class="fas fa-ban"></i></div>' +
+          '<h1 style="font-size:20px;font-weight:800;color:#111827;margin-bottom:8px;">Access Denied</h1>' +
+          '<p style="font-size:13.5px;color:#6B7280;margin-bottom:20px;">Your account doesn\'t have access to this report. Contact an administrator if you need it.</p>' +
+          '<a href="/index.html" style="display:inline-block;padding:10px 20px;background:#4F46E5;color:#fff;border-radius:9px;text-decoration:none;font-size:13px;font-weight:600;">Back to Dashboard</a>' +
+          '</div></body></html>');
+        document.close();
+      }
+    })();
+  </script>
   <div class="main">
 
     <!-- ── Page Header ── -->
@@ -1314,8 +1340,8 @@
         </div>
       </div>
       <div class="tab-bar">
-        <button class="tab active" onclick="switchTab('manual',this)"><i class="fas fa-edit"
-            style="margin-right:5px;"></i>Manual Entry</button>
+        <button class="tab active" onclick="switchTab('manual',this)"><i class="fas fa-user-edit"
+            style="margin-right:5px;"></i>Single Entry</button>
         <button class="tab" onclick="switchTab('batch',this)"><i class="fas fa-list" style="margin-right:5px;"></i>Batch
           Upload</button>
         <button class="tab" onclick="switchTab('compare',this)"><i class="fas fa-sync-alt"
@@ -1632,7 +1658,7 @@
         </div>
 
         <div class="guide-card">
-          <h3>1. Manual Entry Tab</h3>
+          <h3>1. Single Entry Tab</h3>
           <p>Fill in patient demographics and Z-scores. The <strong>right pane</strong> shows a live PDF
             preview that auto-refreshes <strong>1 second</strong> after you stop typing.</p>
           <ul>
@@ -2071,6 +2097,10 @@
     // ══════════════════════════════════════════════════════════════
     async function generateManual() {
       if (!_serverUp) { showResult('manualResult', 'error', SERVER_REQUIRED_MSG); return; }
+      if (!_niptDirHandle && !document.getElementById('outFolder').value.trim()) {
+        showResult('manualResult', 'error', 'Select an output folder before generating.');
+        return;
+      }
       const { p, z } = collectManual();
       saveSettings();
       const formats = [];
@@ -2592,6 +2622,10 @@
 
     async function generateAllBatch() {
       if (!_serverUp) { showResult('batchResult', 'error', SERVER_REQUIRED_MSG); return; }
+      if (!_niptDirHandle && !document.getElementById('batchOutFolder').value.trim()) {
+        showResult('batchResult', 'error', 'Select an output folder before generating.');
+        return;
+      }
       if (currentBatchIdx >= 0) saveBatchEditor(currentBatchIdx);
       if (!batchPatients.length) { alert('Load an Excel file first.'); return; }
       const formats = [];

@@ -146,7 +146,10 @@
     .field-grid .full { grid-column: 1/-1; }
 
     .field { display: flex; flex-direction: column; gap: 4px; }
-    .field label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
+    /* Reserve room for a 2-line label (e.g. long Match/placeholder text) so a
+       wrapped label in one cell doesn't push its input out of line with the
+       single-line label/input pair beside it in the same grid row. */
+    .field label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; line-height: 1.3; min-height: 28px; display: flex; align-items: flex-end; }
     .field label .req { color: var(--danger); }
 
     .field input, .field textarea, .field select {
@@ -266,8 +269,12 @@
     .case-item {
       padding: 8px 10px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 11.5px; display: flex; align-items: center; gap: 6px;
     }
-    .case-item:hover { background: #f4f6fb; }
-    .case-item.selected { background: rgba(31,73,125,0.10); border-left: 3px solid var(--primary); }
+    .case-item:hover { filter: brightness(0.97); }
+    /* Per-template border/background color comes from an inline style (see
+       rtypeColor() in hla.js) — .selected uses an inset ring instead of
+       border-left/background so it doesn't get overridden by that. */
+    .case-item.selected { box-shadow: inset 0 0 0 2px var(--primary); }
+    .case-item .ci-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
     .case-item .ci-name { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
     .select-row { display: flex; gap: 6px; margin-bottom: 8px; }
@@ -348,6 +355,32 @@
 </head>
 
 <body>
+  <script>
+    // Interim client-side access guard — stand-in for IT's real
+    // username + password + OTP system. See access_api.py / login.html.
+    (function () {
+      if (localStorage.getItem('arc_authenticated') !== 'true') {
+        window.location.replace('/login.html');
+        return;
+      }
+      var accessControlActive = localStorage.getItem('arc_access_control') === 'true';
+      var role = localStorage.getItem('arc_role');
+      var report = localStorage.getItem('arc_report');
+      if (accessControlActive && role !== 'admin' && report !== 'hla') {
+        document.open();
+        document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Access Denied</title>' +
+          '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">' +
+          '<style>body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:#F4F5F7;display:flex;align-items:center;justify-content:center;min-height:100vh;}</style>' +
+          '</head><body><div style="text-align:center;max-width:420px;padding:40px;">' +
+          '<div style="font-size:48px;color:#DC2626;margin-bottom:16px;"><i class="fas fa-ban"></i></div>' +
+          '<h1 style="font-size:20px;font-weight:800;color:#111827;margin-bottom:8px;">Access Denied</h1>' +
+          '<p style="font-size:13.5px;color:#6B7280;margin-bottom:20px;">Your account doesn\'t have access to this report. Contact an administrator if you need it.</p>' +
+          '<a href="/index.html" style="display:inline-block;padding:10px 20px;background:#4F46E5;color:#fff;border-radius:9px;text-decoration:none;font-size:13px;font-weight:600;">Back to Dashboard</a>' +
+          '</div></body></html>');
+        document.close();
+      }
+    })();
+  </script>
   <div class="main">
     <!-- ── Header ── -->
     <div class="page-hdr">
@@ -358,7 +391,7 @@
         </div>
       </div>
       <div class="tab-bar">
-        <div class="tab active" data-tab="manual"><i class="fas fa-edit"></i> Manual Entry</div>
+        <div class="tab active" data-tab="manual"><i class="fas fa-user-edit"></i> Single Entry</div>
         <div class="tab" data-tab="bulk"><i class="fas fa-layer-group"></i> Bulk Upload</div>
         <div class="tab" data-tab="settings"><i class="fas fa-cog"></i> Settings</div>
         <div class="tab" data-tab="guide"><i class="fas fa-info-circle"></i> User Guide</div>
@@ -389,7 +422,7 @@
       </div>
     </div>
 
-    <!-- ══════════════ TAB 1: MANUAL ENTRY ══════════════ -->
+    <!-- ══════════════ TAB 1: SINGLE ENTRY ══════════════ -->
     <div class="tab-content active" id="tab-manual">
       <div class="split-layout">
         <div class="form-col" id="manualFormCol">
@@ -542,11 +575,11 @@
           <tr><td>CDC Crossmatch</td><td>Bulk: file name has <code>CDC</code></td><td>2</td></tr>
           <tr><td>DSA Crossmatch</td><td>Bulk: file name has <code>DSA</code></td><td>2</td></tr>
           <tr><td>Flow Crossmatch</td><td>Bulk: file name has <code>FLOW</code></td><td>2</td></tr>
-          <tr><td>PRA Class I / II</td><td>Bulk: file name contains <code>PRA</code>, or Manual Entry</td><td>2</td></tr>
-          <tr><td>KIR Genotyping</td><td>Bulk: file name contains <code>KIR</code>, or Manual Entry</td><td>1–2</td></tr>
+          <tr><td>PRA Class I / II</td><td>Bulk: file name contains <code>PRA</code>, or Single Entry</td><td>2</td></tr>
+          <tr><td>KIR Genotyping</td><td>Bulk: file name contains <code>KIR</code>, or Single Entry</td><td>1–2</td></tr>
         </table>
 
-        <h3>Manual Entry</h3>
+        <h3>Single Entry</h3>
         <p>Choose the <b>Template</b> at the top — the form adapts to the selected report type. For HLA typing,
           fill the Patient Information form and enter alleles in the <b>HLA Results</b> section (one row per locus);
           enable Donor Information for transplant or RPL cases.</p>
@@ -562,6 +595,6 @@
 
   <div class="toast" id="toast"></div>
 
-  <script src="/hla.js?v=38"></script>
+  <script src="/hla.js?v=49"></script>
 </body>
 </html>

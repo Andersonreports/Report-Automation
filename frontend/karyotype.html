@@ -294,6 +294,32 @@
   </style>
 </head>
 <body>
+  <script>
+    // Interim client-side access guard — stand-in for IT's real
+    // username + password + OTP system. See access_api.py / login.html.
+    (function () {
+      if (localStorage.getItem('arc_authenticated') !== 'true') {
+        window.location.replace('/login.html');
+        return;
+      }
+      var accessControlActive = localStorage.getItem('arc_access_control') === 'true';
+      var role = localStorage.getItem('arc_role');
+      var report = localStorage.getItem('arc_report');
+      if (accessControlActive && role !== 'admin' && report !== 'karyotype') {
+        document.open();
+        document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Access Denied</title>' +
+          '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">' +
+          '<style>body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:#F4F5F7;display:flex;align-items:center;justify-content:center;min-height:100vh;}</style>' +
+          '</head><body><div style="text-align:center;max-width:420px;padding:40px;">' +
+          '<div style="font-size:48px;color:#DC2626;margin-bottom:16px;"><i class="fas fa-ban"></i></div>' +
+          '<h1 style="font-size:20px;font-weight:800;color:#111827;margin-bottom:8px;">Access Denied</h1>' +
+          '<p style="font-size:13.5px;color:#6B7280;margin-bottom:20px;">Your account doesn\'t have access to this report. Contact an administrator if you need it.</p>' +
+          '<a href="/index.html" style="display:inline-block;padding:10px 20px;background:#4F46E5;color:#fff;border-radius:9px;text-decoration:none;font-size:13px;font-weight:600;">Back to Dashboard</a>' +
+          '</div></body></html>');
+        document.close();
+      }
+    })();
+  </script>
 
   <div class="topbar">
     <div class="topbar-left">
@@ -303,7 +329,7 @@
       </div>
     </div>
     <div class="tabs">
-      <button class="tab active" data-tab="manual"><i class="fas fa-user-edit"></i> Manual Entry</button>
+      <button class="tab active" data-tab="manual"><i class="fas fa-user-edit"></i> Single Entry</button>
       <button class="tab" data-tab="bulk"><i class="fas fa-table"></i> Bulk Upload</button>
       <button class="tab" data-tab="compare"><i class="fas fa-balance-scale"></i> Report Comparison</button>
       <button class="tab" data-tab="guide"><i class="fas fa-info-circle"></i> User Guide</button>
@@ -500,7 +526,7 @@
       <div class="guide-card">
         <h3>1. Quick Start</h3>
         <ul>
-          <li><b>Manual Entry</b> &mdash; Select a <b>Report Type</b>, click <i>Apply Template</i>, fill in patient details, then click <b>Generate Report</b>.</li>
+          <li><b>Single Entry</b> &mdash; Select a <b>Report Type</b>, click <i>Apply Template</i>, fill in patient details, then click <b>Generate Report</b>.</li>
           <li><b>Bulk Upload</b> &mdash; Load an Excel file (optionally with a folder of karyogram images), review / edit each patient in the inline editor, then click <b>Generate All</b>.</li>
         </ul>
       </div>
@@ -980,6 +1006,7 @@
   $("m_selectdir").addEventListener("click", function(){ selectOutputFolder("m_outdir"); });
 
   $("m_gen").addEventListener("click", function(){
+    if(!$("m_outdir").value.trim()){ toast("Select an output folder before generating.","err"); return; }
     var p=m_payload();
     if(!(p.data.NAME||"").trim()){ toast("Patient Name is required.","err"); return; }
     var btn=$("m_gen"); var old=btn.innerHTML; btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Generating...';
@@ -1247,6 +1274,7 @@
   }
 
   function runBulk(indices){
+    if(!$("b_outdir").value.trim()){ toast("Select an output folder before generating.","err"); return; }
     if(B_current>=0) saveEditorToRow(B_current,false);
     if(!indices.length){ toast("No rows selected.","err"); return; }
     var patients=indices.map(function(i){
