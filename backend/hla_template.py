@@ -2606,6 +2606,7 @@ def _build_hla_c(case: dict, S: dict) -> list:
     else:
         # ── Typing Result ────────────────────────────────────────────────────
         elems.extend(_sec("Typing Result"))
+        elems.append(Spacer(1, 3 * mm))
 
         _col_w = [CONTENT_W * 0.18, CONTENT_W * 0.18, CONTENT_W * 0.18]
 
@@ -2650,13 +2651,10 @@ def _build_hla_c(case: dict, S: dict) -> list:
             elems.append(rem_t)
 
     # ── Disclaimer + Reference + Signatures ─────────────────────────────────
-    # POC's Result table is much shorter than the standard Typing Result +
-    # Remarks tables, leaving plenty of room — let Disclaimer flow onto the
-    # same page instead of forcing a page break.
-    if not is_poc:
-        elems.append(PageBreak())
-    else:
-        elems.append(Spacer(1, 4 * mm))
+    # Typing Result (+ Remarks, when present) is short enough to leave plenty
+    # of room on page 1 — let Disclaimer flow naturally instead of forcing a
+    # page break; it only spills to page 2 if content genuinely doesn't fit.
+    elems.append(Spacer(1, 4 * mm))
     elems.extend(_sec("Disclaimer"))
     elems.append(Paragraph(HLA_C_DISCLAIMER, _body_s))
     elems.append(Spacer(1, 2 * mm))
