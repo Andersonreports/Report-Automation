@@ -104,42 +104,6 @@
       background: #fff; border: 1px solid #E5E7EB; border-radius: 14px; overflow: hidden;
     }
 
-    /* ── Report Automation tab — module grid (matches index.html) ── */
-    .module-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
-    .module-card {
-      background: #fff; border: 1px solid #E5E7EB; border-radius: 16px; padding: 24px 22px 20px;
-      text-decoration: none; color: inherit; display: flex; flex-direction: column; cursor: pointer;
-      position: relative; transition: box-shadow 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.05); outline: none;
-    }
-    .module-card:hover {
-      transform: translateY(-4px); border-color: var(--accent, #6B7280);
-      box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent, #6B7280) 15%, transparent),
-                  0 16px 40px rgba(0,0,0,0.13), 0 4px 12px rgba(0,0,0,0.07);
-    }
-    .module-icon {
-      width: 46px; height: 46px; border-radius: 12px; background: var(--accent-bg, #F3F4F6);
-      display: flex; align-items: center; justify-content: center; margin-bottom: 18px; transition: background 0.2s ease;
-    }
-    .module-card:hover .module-icon { background: var(--accent, #6B7280); }
-    .module-icon i { font-size: 20px; color: var(--accent, #6B7280); transition: color 0.2s ease; }
-    .module-card:hover .module-icon i { color: #fff; }
-    .module-name { font-size: 14.5px; font-weight: 700; color: #111827; letter-spacing: -0.2px; margin-bottom: 5px; }
-    .module-desc { font-size: 12px; color: #9CA3AF; line-height: 1.55; flex: 1; }
-    .module-footer { margin-top: 20px; display: flex; align-items: center; justify-content: space-between; }
-    .module-link-text {
-      font-size: 12px; font-weight: 600; color: var(--accent, #6B7280); opacity: 0;
-      transform: translateX(-4px); transition: opacity 0.18s ease, transform 0.18s ease;
-    }
-    .module-card:hover .module-link-text { opacity: 1; transform: translateX(0); }
-    .module-arrow {
-      width: 28px; height: 28px; border-radius: 50%; background: var(--accent-bg, #F3F4F6);
-      display: flex; align-items: center; justify-content: center; color: var(--accent, #6B7280); font-size: 11px;
-    }
-    .admin-pill {
-      display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px;
-      background: #EEF2FF; color: #4F46E5; font-size: 11px; font-weight: 700; margin-bottom: 16px;
-    }
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
     thead th {
       text-align: left; padding: 11px 16px; background: #F9FAFB; border-bottom: 1px solid #E5E7EB;
@@ -199,14 +163,15 @@
       <img src="/static/anderson-logo.png" alt="Anderson Diagnostics &amp; Labs" class="sidebar-brand-logo" />
     </div>
     <div class="sidebar-body">
-      <div class="sidebar-section-label">Administration</div>
-      <button class="sidebar-nav-item active" id="navConfig" onclick="switchTab('config')">
-        <i class="fas fa-user-shield"></i>
-        Configuration
-      </button>
-      <button class="sidebar-nav-item" id="navReports" onclick="switchTab('reports')">
+      <div class="sidebar-section-label">Workspace</div>
+      <a class="sidebar-nav-item" href="/index.html">
         <i class="fas fa-file-medical"></i>
         Report Automation
+      </a>
+      <div class="sidebar-section-label" style="margin-top:18px;">Administration</div>
+      <button class="sidebar-nav-item active">
+        <i class="fas fa-user-shield"></i>
+        Configuration
       </button>
     </div>
     <div class="sidebar-footer">
@@ -216,12 +181,12 @@
   </nav>
 
   <header class="app-header">
-    <span class="header-title" id="pageHeaderTitle">Configuration</span>
+    <span class="header-title">Configuration</span>
     <span class="header-user" id="headerUser"></span>
   </header>
 
   <div class="page">
-    <div class="page-inner" id="tab-config">
+    <div class="page-inner">
 
       <div class="page-intro">
         <div>
@@ -260,73 +225,6 @@
         </table>
       </div>
 
-    </div>
-
-    <div class="page-inner" id="tab-reports" style="display:none;">
-      <span class="admin-pill"><i class="fas fa-shield-halved"></i> Admin access — all reports unlocked</span>
-      <div class="page-intro">
-        <div>
-          <h1>Select a Report Module</h1>
-          <p>As an admin, you have access to every report below.</p>
-        </div>
-      </div>
-
-      <div class="module-grid">
-        <a class="module-card" href="tera.html" style="--accent:#059669; --accent-bg:#ECFDF5;">
-          <div class="module-icon"><i class="fas fa-dna"></i></div>
-          <div class="module-name">TERA Report</div>
-          <div class="module-desc">Endometrial Receptivity Analysis</div>
-          <div class="module-footer">
-            <span class="module-link-text">Open tool</span>
-            <div class="module-arrow"><i class="fas fa-arrow-right"></i></div>
-          </div>
-        </a>
-        <a class="module-card" href="pgta.html" style="--accent:#7C3AED; --accent-bg:#F5F3FF;">
-          <div class="module-icon"><i class="fas fa-microscope"></i></div>
-          <div class="module-name">PGTA Report</div>
-          <div class="module-desc">Preimplantation Genetic Testing</div>
-          <div class="module-footer">
-            <span class="module-link-text">Open tool</span>
-            <div class="module-arrow"><i class="fas fa-arrow-right"></i></div>
-          </div>
-        </a>
-        <a class="module-card" href="karyotype.html" style="--accent:#2563EB; --accent-bg:#EFF6FF;">
-          <div class="module-icon"><i class="fas fa-th"></i></div>
-          <div class="module-name">Karyotyping</div>
-          <div class="module-desc">Chromosomal Analysis Report</div>
-          <div class="module-footer">
-            <span class="module-link-text">Open tool</span>
-            <div class="module-arrow"><i class="fas fa-arrow-right"></i></div>
-          </div>
-        </a>
-        <a class="module-card" href="nipt.html" style="--accent:#E11D48; --accent-bg:#FFF1F2;">
-          <div class="module-icon"><i class="fas fa-baby"></i></div>
-          <div class="module-name">NIPT</div>
-          <div class="module-desc">Non-Invasive Prenatal Testing</div>
-          <div class="module-footer">
-            <span class="module-link-text">Open tool</span>
-            <div class="module-arrow"><i class="fas fa-arrow-right"></i></div>
-          </div>
-        </a>
-        <a class="module-card" href="hla.html" style="--accent:#D97706; --accent-bg:#FFFBEB;">
-          <div class="module-icon"><i class="fas fa-fingerprint"></i></div>
-          <div class="module-name">HLA Typing</div>
-          <div class="module-desc">Human Leukocyte Antigen Report</div>
-          <div class="module-footer">
-            <span class="module-link-text">Open tool</span>
-            <div class="module-arrow"><i class="fas fa-arrow-right"></i></div>
-          </div>
-        </a>
-        <a class="module-card" href="billing.html" style="--accent:#0D9488; --accent-bg:#ECFDF5;">
-          <div class="module-icon"><i class="fas fa-file-invoice-dollar"></i></div>
-          <div class="module-name">Billing</div>
-          <div class="module-desc">Sample &amp; Service Billing Invoices</div>
-          <div class="module-footer">
-            <span class="module-link-text">Open tool</span>
-            <div class="module-arrow"><i class="fas fa-arrow-right"></i></div>
-          </div>
-        </a>
-      </div>
     </div>
   </div>
 
@@ -401,16 +299,6 @@
     }
     document.getElementById('headerUser').textContent = _username ? `Signed in as ${_username}` : '';
     document.body.classList.add('loaded');
-
-    function switchTab(tab) {
-      document.getElementById('tab-config').style.display = tab === 'config' ? '' : 'none';
-      document.getElementById('tab-reports').style.display = tab === 'reports' ? '' : 'none';
-      document.getElementById('navConfig').classList.toggle('active', tab === 'config');
-      document.getElementById('navReports').classList.toggle('active', tab === 'reports');
-      document.getElementById('pageHeaderTitle').textContent = tab === 'config' ? 'Configuration' : 'Report Automation';
-      sessionStorage.setItem('arc_admin_tab', tab);
-    }
-    switchTab(sessionStorage.getItem('arc_admin_tab') || 'config');
 
     function toast(msg, type) {
       const el = document.createElement('div');
