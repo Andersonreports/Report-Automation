@@ -2632,28 +2632,30 @@ def _build_hla_c(case: dict, S: dict) -> list:
         elems.append(Spacer(1, 2 * mm))
 
         # ── Remarks ──────────────────────────────────────────────────────────
-        if remark:
-            elems.extend(_sec("Remarks"))
+        # Structural field (Maternal/Paternal HLA-C Type), not free-text
+        # commentary — always shown for the Peripheral Blood layout, with a
+        # "—" placeholder when empty, matching the desktop app exactly.
+        elems.extend(_sec("Remarks"))
 
-            _rem_w = [CONTENT_W * 0.40]
-            rem_t = Table([
-                [Paragraph(f"<b>{_parent_label} HLA-C Type</b>", _val_c_s)],
-                [Paragraph(remark, _val_c_s)],
-            ], colWidths=_rem_w)
-            rem_t.hAlign = "CENTER"
-            rem_t.setStyle(TableStyle([
-                ("BACKGROUND",    (0, 0), (-1, -1), WHITE),
-                ("GRID",          (0, 0), (-1, -1), 0.5, colors.grey),
-                ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
-                ("TOPPADDING",    (0, 0), (-1, -1), 5),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
-            ]))
-            elems.append(rem_t)
+        _rem_w = [CONTENT_W * 0.40]
+        rem_t = Table([
+            [Paragraph(f"<b>{_parent_label} HLA-C Type</b>", _val_c_s)],
+            [Paragraph(remark or "—", _val_c_s)],
+        ], colWidths=_rem_w)
+        rem_t.hAlign = "CENTER"
+        rem_t.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, -1), WHITE),
+            ("GRID",          (0, 0), (-1, -1), 0.5, colors.grey),
+            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING",    (0, 0), (-1, -1), 5),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ]))
+        elems.append(rem_t)
 
     # ── Disclaimer + Reference + Signatures ─────────────────────────────────
-    # Typing Result (+ Remarks, when present) is short enough to leave plenty
-    # of room on page 1 — let Disclaimer flow naturally instead of forcing a
-    # page break; it only spills to page 2 if content genuinely doesn't fit.
+    # Typing Result + Remarks is short enough to leave plenty of room on
+    # page 1 — let Disclaimer flow naturally instead of forcing a page break;
+    # it only spills to page 2 if content genuinely doesn't fit.
     elems.append(Spacer(1, 4 * mm))
     elems.extend(_sec("Disclaimer"))
     elems.append(Paragraph(HLA_C_DISCLAIMER, _body_s))
