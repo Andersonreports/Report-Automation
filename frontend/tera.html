@@ -534,17 +534,6 @@
       transition: 0.2s;
     }
     .btn-gen-selected:hover { background: var(--primary-hover); }
-    .btn-save-changes {
-      padding: 5px 14px;
-      background: var(--primary);
-      color: #fff;
-      border: none;
-      border-radius: 5px;
-      font-size: 11px;
-      font-weight: 600;
-      cursor: pointer;
-      font-family: 'Inter', sans-serif;
-    }
     .bulk-download-links { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 8px; }
 
     /* ── Compare Tab ── */
@@ -1000,17 +989,17 @@
               <div class="bulk-editor-scroll">
 
                 <div class="bulk-editor-section-title">Patient Details</div>
-                <div class="bulk-editor-field"><label>Patient Name</label><input type="text" id="edit_patient_name"></div>
-                <div class="bulk-editor-field"><label>Age (Years)</label><input type="number" id="edit_age"></div>
-                <div class="bulk-editor-field"><label>Sample ID</label><input type="text" id="edit_sample_id"></div>
-                <div class="bulk-editor-field"><label>Lab No.</label><input type="text" id="edit_lab_no"></div>
-                <div class="bulk-editor-field"><label>Biopsy No.</label><input type="text" id="edit_biopsy_no"></div>
-                <div class="bulk-editor-field"><label>Doctor Name</label><input type="text" id="edit_doctor_name"></div>
-                <div class="bulk-editor-field"><label>Center / Hospital</label><input type="text" id="edit_center"></div>
+                <div class="bulk-editor-field"><label>Patient Name</label><input type="text" id="edit_patient_name" oninput="_readEditorIntoPatient()"></div>
+                <div class="bulk-editor-field"><label>Age (Years)</label><input type="number" id="edit_age" oninput="_readEditorIntoPatient()"></div>
+                <div class="bulk-editor-field"><label>Sample ID</label><input type="text" id="edit_sample_id" oninput="_readEditorIntoPatient()"></div>
+                <div class="bulk-editor-field"><label>Lab No.</label><input type="text" id="edit_lab_no" oninput="_readEditorIntoPatient()"></div>
+                <div class="bulk-editor-field"><label>Biopsy No.</label><input type="text" id="edit_biopsy_no" oninput="_readEditorIntoPatient()"></div>
+                <div class="bulk-editor-field"><label>Doctor Name</label><input type="text" id="edit_doctor_name" oninput="_readEditorIntoPatient()"></div>
+                <div class="bulk-editor-field"><label>Center / Hospital</label><input type="text" id="edit_center" oninput="_readEditorIntoPatient()"></div>
 
                 <div class="bulk-editor-section-title" style="margin-top:10px;">Cycle &amp; Timing</div>
                 <div class="bulk-editor-field"><label>Cycle Type</label>
-                  <select id="edit_cycle_type">
+                  <select id="edit_cycle_type" onchange="_readEditorIntoPatient()">
                     <option>HRT</option>
                     <option>Modified Natural Cycle</option>
                     <option>Natural Cycle</option>
@@ -1018,27 +1007,22 @@
                     <option>Stimulated</option>
                   </select>
                 </div>
-                <div class="bulk-editor-field"><label>P+ Day (Biopsy)</label><input type="text" id="edit_pday"></div>
-                <div class="bulk-editor-field"><label>P4/hCG Date &amp; Time</label><input type="text" id="edit_p4_date"></div>
-                <div class="bulk-editor-field"><label>Biopsy Date &amp; Time</label><input type="text" id="edit_biopsy_date"></div>
-                <div class="bulk-editor-field"><label>P+ Hours</label><input type="text" id="edit_phours"></div>
+                <div class="bulk-editor-field"><label>P+ Day (Biopsy)</label><input type="text" id="edit_pday" oninput="_readEditorIntoPatient()"></div>
+                <div class="bulk-editor-field"><label>P4/hCG Date &amp; Time</label><input type="text" id="edit_p4_date" oninput="_readEditorIntoPatient()"></div>
+                <div class="bulk-editor-field"><label>Biopsy Date &amp; Time</label><input type="text" id="edit_biopsy_date" oninput="_readEditorIntoPatient()"></div>
+                <div class="bulk-editor-field"><label>P+ Hours</label><input type="text" id="edit_phours" oninput="_readEditorIntoPatient()"></div>
 
                 <div class="bulk-editor-section-title" style="margin-top:10px;">Results</div>
                 <div class="bulk-editor-field"><label>TERA Result</label>
-                  <select id="edit_result">
+                  <select id="edit_result" onchange="_readEditorIntoPatient()">
                     <option>Receptive</option>
                     <option>Pre-receptive</option>
                     <option>Post-receptive</option>
                   </select>
                 </div>
-                <div class="bulk-editor-field"><label>Time for Report</label><input type="text" id="edit_time_report"></div>
-                <div class="bulk-editor-field"><label>Date Received</label><input type="text" id="edit_date_received"></div>
-                <div class="bulk-editor-field"><label>Report Date</label><input type="text" id="edit_report_date"></div>
-
-                <div class="bulk-editor-btns">
-                  <button class="btn-save-changes" onclick="saveChanges()">Save Changes</button>
-                  <button class="btn-bulk-draft muted" onclick="saveBulkDraft()">Save as Draft</button>
-                </div>
+                <div class="bulk-editor-field"><label>Time for Report</label><input type="text" id="edit_time_report" oninput="_readEditorIntoPatient()"></div>
+                <div class="bulk-editor-field"><label>Date Received</label><input type="text" id="edit_date_received" oninput="_readEditorIntoPatient()"></div>
+                <div class="bulk-editor-field"><label>Report Date</label><input type="text" id="edit_report_date" oninput="_readEditorIntoPatient()"></div>
 
               </div>
             </div>
@@ -1064,8 +1048,11 @@
           <!-- Bottom Controls Bar -->
           <div class="bulk-bottom-controls">
             <div class="bulk-bottom-row">
-              <button class="btn-bulk-draft" onclick="saveAllBulkDraft()">Save Draft</button>
-              <button class="btn-bulk-draft muted" onclick="loadBulkDraft()">Load Draft</button>
+              <button class="btn-bulk-draft muted" onclick="triggerBulkDraftLoad()">Load Draft</button>
+              <input type="file" id="bulkDraftFileInput" accept=".json" style="display:none;" onchange="onBulkDraftFileSelected(this)">
+              <div class="bulk-bottom-divider"></div>
+              <button class="btn-bulk-draft" onclick="saveAllBulkDraft()"><i class="fas fa-user"></i> Save Individual Draft</button>
+              <button class="btn-bulk-draft" style="border-color:#6366f1;color:#6366f1;" onclick="saveBulkAllDraft()"><i class="fas fa-users"></i> Save Bulk Draft</button>
               <div class="bulk-bottom-divider"></div>
               <span class="fr-label">Branding:</span>
               <label class="fr-radio">
@@ -1568,31 +1555,73 @@
   </script>
 
   <script>
-    function saveBulkDraft() {
-        if (selectedPatientIndex === null || selectedPatientIndex < 0) {
-            showToast("No patient selected.", "error"); return;
-        }
-        const row = patients[selectedPatientIndex];
-        const key = buildDraftKey(row);
-        localStorage.setItem(key, JSON.stringify(row));
-        showToast("Draft saved: " + key);
+    function saveBulkAllDraft() {
+        if (!patients.length) { showToast("No patients loaded.", "error"); return; }
+        _readEditorIntoPatient();
+        const blob = new Blob([JSON.stringify(patients, null, 2)], { type: "application/json" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "TERA_Bulk_Draft.json";
+        a.click();
+        showToast(patients.length + " patients saved to bulk draft.");
     }
 
     function saveAllBulkDraft() {
-        if (!patients.length) { showToast("No patients loaded.", "error"); return; }
-        localStorage.setItem("tera_bulk_draft", JSON.stringify(patients));
-        showToast(patients.length + " patients saved to draft.");
+        if (selectedPatientIndex === null || selectedPatientIndex < 0) {
+            showToast("Select a patient first.", "error"); return;
+        }
+        // Sync editor into patient object before saving
+        _readEditorIntoPatient();
+        const p = patients[selectedPatientIndex];
+        const name = (p["Patient Name"] || "Patient").replace(/[^a-zA-Z0-9 ]/g, "").trim().replace(/ +/g, "_");
+        const blob = new Blob([JSON.stringify(p, null, 2)], { type: "application/json" });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `Draft_${name}_TERA.json`;
+        a.click();
+        showToast("Draft saved for " + (p["Patient Name"] || "patient") + ".");
     }
 
-    function loadBulkDraft() {
-        const local = localStorage.getItem("tera_bulk_draft");
-        if (local) {
-            patients = JSON.parse(local);
-            renderPatientTable(patients);
-            showToast(patients.length + " patients restored from draft.");
-        } else {
-            showToast("No bulk draft found.", "error");
-        }
+    function triggerBulkDraftLoad() {
+        const inp = document.getElementById("bulkDraftFileInput");
+        inp.value = "";
+        inp.click();
+    }
+
+    function onBulkDraftFileSelected(input) {
+        const file = input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = e => {
+            try {
+                const parsed = JSON.parse(e.target.result);
+                if (parsed && !Array.isArray(parsed) && parsed["Patient Name"]) {
+                    if (selectedPatientIndex !== null && selectedPatientIndex >= 0) {
+                        // A row is selected — overwrite it with draft data
+                        patients[selectedPatientIndex] = { ...patients[selectedPatientIndex], ...parsed };
+                        renderPatientTable(patients);
+                        loadPatient(selectedPatientIndex);
+                    } else {
+                        // No row selected — append as a new patient and select it
+                        patients.push(parsed);
+                        renderPatientTable(patients);
+                        loadPatient(patients.length - 1);
+                    }
+                    showToast("Draft loaded: " + parsed["Patient Name"]);
+                } else if (Array.isArray(parsed) && parsed.length > 0) {
+                    // Bulk draft file — restore all patients
+                    patients = parsed;
+                    selectedPatientIndex = null;
+                    renderPatientTable(patients);
+                    showToast(patients.length + " patients restored from bulk draft.");
+                } else {
+                    showToast("Invalid draft file.", "error");
+                }
+            } catch (ex) {
+                showToast("Failed to load draft: " + ex.message, "error");
+            }
+        };
+        reader.readAsText(file);
     }
 
     async function generateAllReports() {

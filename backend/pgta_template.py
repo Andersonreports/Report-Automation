@@ -405,8 +405,6 @@ class PGTAReportTemplate:
         
         # Page 1: Cover with patient info and results summary
         story.extend(self._build_cover_page(patient_data, embryos_data))
-        # No PageBreak here to allow Methodology to flow immediately after Results
-        
         # Methodology content (includes PGDIS note if any mosaic embryo)
         story.extend(self._build_methodology_page(embryos_data))
         
@@ -739,13 +737,9 @@ class PGTAReportTemplate:
         elements.append(Paragraph(self.METHODOLOGY_TEXT, self.styles['PGTABodyText']))
         elements.append(Spacer(1, 12))
 
-        # Mosaicism section — keep heading + intro paragraph together so the
-        # heading doesn't get orphaned at the bottom of the previous page
-        elements.append(KeepTogether([
-            self._create_section_header("Conditions for reporting mosaicism"),
-            Spacer(1, 8),
-            Paragraph(self.MOSAICISM_TEXT, self.styles['PGTABodyText']),
-        ]))
+        elements.append(self._create_section_header("Conditions for reporting mosaicism"))
+        elements.append(Spacer(1, 8))
+        elements.append(Paragraph(self.MOSAICISM_TEXT, self.styles['PGTABodyText']))
         elements.append(Spacer(1, 6))
         for bullet in self.MOSAICISM_BULLETS:
             elements.append(Paragraph(f"• {bullet}", self.styles['PGTABulletText']))

@@ -216,7 +216,7 @@
       background: var(--primary-hover);
     }
 
-    /* ── TRF Verification ── */
+    /* ── CNV Chart Upload card ── */
     .trf-card {
       margin-top: 0;
     }
@@ -2959,22 +2959,18 @@
               </div>
             </div>
 
-            <!-- TRF VERIFICATION -->
+            <!-- CNV CHART UPLOAD -->
             <div class="card trf-card">
-              <h3> TRF Verification (Optional)</h3>
+              <h3> Upload CNV Charts</h3>
               <div class="trf-upload-row">
-                <span class="trf-status-text" id="trfStatusText">No TRF uploaded</span>
-                <input type="file" id="trfFileInput" accept=".pdf,image/*" style="display:none;"
-                  onchange="onTRFFileSelected(this)">
-                <button class="trf-upload-btn" onclick="document.getElementById('trfFileInput').click()">
-                   Upload TRF
-                </button>
-                <button class="trf-verify-btn" id="trfVerifyBtn" onclick="verifyTRF()" disabled>
-                   Verify
+                <span class="trf-status-text" id="cnvUploadStatusText">No images selected</span>
+                <input type="file" id="cnvBulkInput" accept=".png,.jpg,.jpeg" multiple style="display:none;"
+                  onchange="handleManualCnvBulkUpload(this.files)">
+                <button class="trf-upload-btn" onclick="document.getElementById('cnvBulkInput').click()">
+                   Upload CNV Images
                 </button>
               </div>
-              <div class="trf-placeholder" id="trfPlaceholder">Upload a TRF (image or PDF) to verify patient details</div>
-              <div id="trfExtractedData" class="trf-extracted" style="display:none;"></div>
+              <div class="trf-placeholder" id="cnvUploadPlaceholder">Select one or more CNV chart images — they will be assigned to embryos in order</div>
             </div>
 
             <!-- RESULTS SUMMARY -->
@@ -3024,7 +3020,6 @@
               <div class="manual-action-bar">
                 <button class="btn-action btn-draft" onclick="saveDraft()"> Save Draft</button>
                 <button class="btn-action btn-draft" onclick="loadDraft()"> Load Draft</button>
-                <button class="btn-action btn-save-data" onclick="saveData()"> Save Data</button>
                 <button class="btn-action btn-clear" onclick="clearForm()"> Clear Form</button>
                 <span id="draftStatusInline" class="info-text" style="font-size:11px;margin-left:4px;"></span>
               </div>
@@ -4242,44 +4237,21 @@
     // ═══════════════════════════════════════════════
     // TRF VERIFICATION
     // ═══════════════════════════════════════════════
-    function onTRFFileSelected(input) {
-      if (!input.files || !input.files[0]) return;
-      document.getElementById("trfStatusText").textContent = input.files[0].name;
-      document.getElementById("trfVerifyBtn").disabled = false;
-      document.getElementById("trfPlaceholder").style.display = "none";
-    }
-
-    async function verifyTRF() {
-      const input = document.getElementById("trfFileInput");
-      if (!input.files || !input.files[0]) return;
-      const btn = document.getElementById("trfVerifyBtn");
-      btn.disabled = true;
-      btn.innerHTML = ' Verifying...';
-      const fd = new FormData();
-      fd.append("file", input.files[0]);
-      try {
-        const res = await fetch(`${BASE}/pgta/verify-trf`, { method: "POST", body: fd });
-        const data = await res.json();
-        if (data.error) throw new Error(data.error);
-        const ext = data.extracted_data || {};
-        const div = document.getElementById("trfExtractedData");
-        div.innerHTML = `<strong> Extracted:</strong> ` +
-          Object.entries(ext).map(([k, v]) => `<span style="margin-left:8px;"><b>${k.replace(/_/g,' ')}:</b> ${v}</span>`).join("");
-        div.style.display = "";
-        // Pre-fill patient form fields
-        if (ext.patient_name) document.getElementById("f_patient_name").value = ext.patient_name;
-        if (ext.biopsy_date) document.getElementById("f_biopsy_date").value = ext.biopsy_date;
-        if (ext.clinician) document.getElementById("f_referring_clinician").value = ext.clinician;
-        if (ext.sample_id) document.getElementById("f_sample_number").value = ext.sample_id;
-        btn.innerHTML = ' Verify';
-        btn.disabled = false;
-        showToast("TRF verified — fields pre-filled", "success");
-        schedulePreview();
-      } catch (err) {
-        btn.innerHTML = ' Verify';
-        btn.disabled = false;
-        showToast("TRF verification failed: " + err.message, "error");
+    async function handleManualCnvBulkUpload(files) {
+      if (!files || files.length === 0) return;
+      const imgFiles = Array.from(files).filter(f => /\.(png|jpe?g)$/i.test(f.name));
+      if (imgFiles.length === 0) { showToast("No PNG/JPG images found", "error"); return; }
+      const statusEl = document.getElementById("cnvUploadStatusText");
+      const placeholder = document.getElementById("cnvUploadPlaceholder");
+      statusEl.textContent = "Uploading...";
+      if (placeholder) placeholder.style.display = "none";
+      let count = 0;
+      for (let i = 0; i < imgFiles.length && i < state.embryoForms.length; i++) {
+        await handleCnvUpload(i, imgFiles[i]);
+        count++;
       }
+      statusEl.textContent = `${count} image${count !== 1 ? 's' : ''} uploaded`;
+      showToast(`Uploaded ${count} CNV chart${count !== 1 ? 's' : ''}`, "success");
     }
 
     // ═══════════════════════════════════════════════

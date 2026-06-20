@@ -12,9 +12,14 @@ __pycache__/
 backend/reports/
 backend/reports-pgta/
 backend/reports-karyotype/
+backend/reports-nipt/
+backend/reports-hla/
 backend/temp/
 backend/drafts/
 backend/uploads/
+
+# Patient draft files saved locally during testing
+Draft_*.json
 
 # Editor / tooling (local only)
 .vscode/
