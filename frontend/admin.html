@@ -27,6 +27,11 @@
     .sidebar-brand {
       height: 58px; flex-shrink: 0; display: flex; align-items: center;
       padding: 0 18px; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.07);
+      overflow: hidden;
+    }
+    .sidebar-brand-logo {
+      max-height: 38px; max-width: 184px; width: auto; height: auto; object-fit: contain;
+      background: #fff; border-radius: 6px; padding: 4px 10px;
     }
     .sidebar-brand-icon {
       width: 30px; height: 30px; background: #4F46E5; border-radius: 8px;
@@ -191,11 +196,7 @@
 
   <nav class="sidebar">
     <div class="sidebar-brand">
-      <div class="sidebar-brand-icon"><i class="fas fa-dna"></i></div>
-      <div>
-        <div class="sidebar-brand-name">Anderson</div>
-        <div class="sidebar-brand-sub">Clinical Genetics</div>
-      </div>
+      <img src="/static/andersan.png" alt="Anderson Diagnostics &amp; Labs" class="sidebar-brand-logo" />
     </div>
     <div class="sidebar-body">
       <div class="sidebar-section-label">Administration</div>
@@ -365,16 +366,21 @@
   <div class="toast" id="toastWrap"></div>
 
   <script>
-    const REPORT_LABELS = { tera: "TERA", pgta: "PGTA", karyotype: "Karyotyping", nipt: "NIPT", hla: "HLA Typing" };
+    const REPORT_LABELS = { tera: "TERA", pgta: "PGTA", karyotype: "Karyotyping", nipt: "NIPT", hla: "HLA Typing", billing: "Billing" };
     let REPORT_KEYS = [];
     let editingUserId = null;
 
     // ── Guard: admin only ──────────────────────────────────────────────────
+    // While MySQL isn't configured yet (arc_access_control !== 'true'), the
+    // access-control layer isn't operational — anyone authenticated can
+    // reach this page to configure it (matches the fail-open behavior on
+    // index.html and the report pages).
+    const _accessControlActive = localStorage.getItem('arc_access_control') === 'true';
     const _role = localStorage.getItem('arc_role');
     const _username = localStorage.getItem('arc_username');
     if (localStorage.getItem('arc_authenticated') !== 'true') {
       window.location.replace('/login.html');
-    } else if (_role !== 'admin') {
+    } else if (_accessControlActive && _role !== 'admin') {
       document.documentElement.innerHTML = `
         <body style="margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;
           font-family:'Inter',sans-serif;background:#F4F5F7;">

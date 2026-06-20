@@ -216,6 +216,19 @@
         });
         const data = await res.json().catch(() => ({}));
 
+        if (res.status === 503) {
+          // MySQL isn't configured yet — the access-control layer isn't
+          // operational, so fall back to unrestricted access (matches the
+          // pre-access-control behavior) instead of locking everyone out.
+          localStorage.setItem('arc_authenticated', 'true');
+          localStorage.setItem('arc_access_control', 'false');
+          localStorage.removeItem('arc_username');
+          localStorage.removeItem('arc_role');
+          localStorage.removeItem('arc_report');
+          window.location.href = '/index.html';
+          return;
+        }
+
         if (!res.ok) {
           showError(data.detail || 'Invalid username or password.');
           return;
@@ -230,6 +243,7 @@
         }
 
         localStorage.setItem('arc_authenticated', 'true');
+        localStorage.setItem('arc_access_control', 'true');
         localStorage.setItem('arc_username', data.username);
         localStorage.setItem('arc_role', data.role);
         localStorage.setItem('arc_report', data.report || '');

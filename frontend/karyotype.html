@@ -302,9 +302,10 @@
         window.location.replace('/login.html');
         return;
       }
+      var accessControlActive = localStorage.getItem('arc_access_control') === 'true';
       var role = localStorage.getItem('arc_role');
       var report = localStorage.getItem('arc_report');
-      if (role !== 'admin' && report !== 'karyotype') {
+      if (accessControlActive && role !== 'admin' && report !== 'karyotype') {
         document.open();
         document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Access Denied</title>' +
           '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">' +

@@ -8,7 +8,7 @@ _pool = None
 # Report keys must match each app's own identifier (used by the per-page
 # access guard script embedded in tera.html / pgta.html / nipt.html /
 # karyotype.html / hla.html).
-USER_REPORT_KEYS = ["tera", "pgta", "karyotype", "nipt", "hla"]
+USER_REPORT_KEYS = ["tera", "pgta", "karyotype", "nipt", "hla", "billing"]
 _DEFAULT_ADMIN_USERNAME = "admin"
 _DEFAULT_ADMIN_PASSWORD = "admin123"  # CHANGE THIS via the Admin page immediately.
 

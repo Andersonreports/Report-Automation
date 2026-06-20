@@ -224,6 +224,7 @@
       sessionStorage.removeItem('arc_pending_user');
       localStorage.setItem('arc_authenticated', 'true');
       if (pending) {
+        localStorage.setItem('arc_access_control', 'true');
         localStorage.setItem('arc_username', pending.username);
         localStorage.setItem('arc_role', pending.role);
         localStorage.setItem('arc_report', pending.report || '');

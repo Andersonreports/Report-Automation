@@ -41,6 +41,17 @@
       padding: 0 18px;
       gap: 10px;
       border-bottom: 1px solid rgba(255,255,255,0.07);
+      overflow: hidden;
+    }
+    .sidebar-brand-logo {
+      max-height: 38px;
+      max-width: 184px;
+      width: auto;
+      height: auto;
+      object-fit: contain;
+      background: #fff;
+      border-radius: 6px;
+      padding: 4px 10px;
     }
     .sidebar-brand-icon {
       width: 30px; height: 30px;
@@ -433,11 +444,7 @@
   <!-- ── Sidebar ── -->
   <nav class="sidebar">
     <div class="sidebar-brand">
-      <div class="sidebar-brand-icon"><i class="fas fa-dna"></i></div>
-      <div>
-        <div class="sidebar-brand-name">Anderson</div>
-        <div class="sidebar-brand-sub">Clinical Genetics</div>
-      </div>
+      <img src="/static/andersan.png" alt="Anderson Diagnostics &amp; Labs" class="sidebar-brand-logo" />
     </div>
 
     <div class="sidebar-body">
@@ -536,7 +543,7 @@
         </a>
 
         <!-- Billing -->
-        <a class="module-card" href="billing.html"
+        <a class="module-card" href="billing.html" data-report="billing"
            style="--accent:#0D9488; --accent-bg:#ECFDF5;">
           <div class="module-icon"><i class="fas fa-file-invoice-dollar"></i></div>
           <div class="module-name">Billing</div>
@@ -571,10 +578,14 @@
     // ── Per-report access control ───────────────────────────────────────────
     // Interim client-side check against the username/role/report set at
     // login (see login.html / access_api.py) — a stand-in for IT's real
-    // username + password + OTP system.
+    // username + password + OTP system. While MySQL isn't configured yet
+    // (arc_access_control !== 'true'), the access-control layer isn't
+    // operational, so fail OPEN — full access for everyone, same as before
+    // this feature existed — instead of locking everyone out.
+    const _accessControlActive = localStorage.getItem('arc_access_control') === 'true';
     const _role   = localStorage.getItem('arc_role');
     const _report = localStorage.getItem('arc_report');
-    const _isAdmin = _role === 'admin';
+    const _isAdmin = !_accessControlActive || _role === 'admin';
 
     if (_isAdmin) {
       document.getElementById('sidebarAdminBtn').style.display = '';
