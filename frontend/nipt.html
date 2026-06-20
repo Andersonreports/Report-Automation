@@ -2118,6 +2118,10 @@
     // ══════════════════════════════════════════════════════════════
     async function generateManual() {
       if (!_serverUp) { showResult('manualResult', 'error', SERVER_REQUIRED_MSG); return; }
+      if (!_niptDirHandle && !document.getElementById('outFolder').value.trim()) {
+        showResult('manualResult', 'error', 'Select an output folder before generating.');
+        return;
+      }
       const { p, z } = collectManual();
       saveSettings();
       const formats = [];
@@ -2639,6 +2643,10 @@
 
     async function generateAllBatch() {
       if (!_serverUp) { showResult('batchResult', 'error', SERVER_REQUIRED_MSG); return; }
+      if (!_niptDirHandle && !document.getElementById('batchOutFolder').value.trim()) {
+        showResult('batchResult', 'error', 'Select an output folder before generating.');
+        return;
+      }
       if (currentBatchIdx >= 0) saveBatchEditor(currentBatchIdx);
       if (!batchPatients.length) { alert('Load an Excel file first.'); return; }
       const formats = [];

@@ -980,6 +980,7 @@
   $("m_selectdir").addEventListener("click", function(){ selectOutputFolder("m_outdir"); });
 
   $("m_gen").addEventListener("click", function(){
+    if(!$("m_outdir").value.trim()){ toast("Select an output folder before generating.","err"); return; }
     var p=m_payload();
     if(!(p.data.NAME||"").trim()){ toast("Patient Name is required.","err"); return; }
     var btn=$("m_gen"); var old=btn.innerHTML; btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Generating...';
@@ -1247,6 +1248,7 @@
   }
 
   function runBulk(indices){
+    if(!$("b_outdir").value.trim()){ toast("Select an output folder before generating.","err"); return; }
     if(B_current>=0) saveEditorToRow(B_current,false);
     if(!indices.length){ toast("No rows selected.","err"); return; }
     var patients=indices.map(function(i){

@@ -287,7 +287,14 @@ async def preview(request_body: dict):
             if "rayvathy" in s["name"].lower():
                 s["seal_b64"] = hla_assets.SEAL_REVATHY_B64
 
-    file_id  = f"{uuid.uuid4()}.pdf"
+    # Prefix with the same descriptive name /generate uses, so that if a
+    # browser ever saves this preview file directly (e.g. via its native PDF
+    # viewer's download button) it gets a sensible name instead of a bare UUID.
+    try:
+        fname = make_filename(c)
+    except Exception:
+        fname = "preview"
+    file_id  = f"{fname}_{uuid.uuid4().hex[:8]}.pdf"
     tmp_path = os.path.join(HLA_TEMP_DIR, file_id)
 
     try:

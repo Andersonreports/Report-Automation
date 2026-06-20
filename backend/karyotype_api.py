@@ -455,7 +455,8 @@ def register_karyotype_routes(app):
         if not _clean(data.get("NAME", "")):
             return JSONResponse({"error": "Patient Name is required"}, status_code=400)
         try:
-            file_id = f"karyo_preview_{uuid.uuid4().hex[:10]}.pdf"
+            _name_seg = re.sub(r'[^a-zA-Z0-9]+', '_', _clean(data.get("NAME", "")) or "preview").strip("_") or "preview"
+            file_id = f"karyo_{_name_seg}_{uuid.uuid4().hex[:8]}.pdf"
             gen = KaryotypeReportGenerator(data, images, KARYO_TEMP_DIR, include_logo=with_logo)
             gen.filepath = os.path.join(KARYO_TEMP_DIR, file_id)
             gen.filename = file_id

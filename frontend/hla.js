@@ -1505,6 +1505,10 @@ async function generateManual() {
   const outputInput = document.getElementById("manualOutputInput");
   const dirHandle = outputInput && _dirHandles[outputInput.id];
   const outputDir = val(outputInput);
+  if (!dirHandle && !outputDir) {
+    showToast("Select an output folder before generating.", "error");
+    return;
+  }
   try {
     const resp = await apiPost("/hla/generate", { case: c, output_dir: dirHandle ? undefined : (outputDir || undefined) });
     if (dirHandle && resp.download_url) {
@@ -2849,6 +2853,10 @@ async function generateBulk(mode) {
   const outputInput = document.getElementById("bulkOutputInput");
   const dirHandle = outputInput && _dirHandles[outputInput.id];
   const outputDir = val(outputInput);
+  if (!dirHandle && !outputDir) {
+    showToast("Select an output folder before generating.", "error");
+    return;
+  }
   const withLogo = checked(document.getElementById("bulkLogoChk"));
   const stamp = checked(document.getElementById("globalStampChk"));
 

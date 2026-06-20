@@ -276,9 +276,16 @@ def _upload_in_background(filepath: str, filename: str):
 
 @app.post("/preview")
 async def preview_report(data: dict):
-    file_id = str(uuid.uuid4()) + ".pdf"
-    filepath = os.path.join(TEMP_DIR, file_id)
     with_logo = data.get("logo_option", "without_logo") == "with_logo"
+    # Prefix with the same descriptive name /generate uses, so that if a
+    # browser ever saves this preview file directly (e.g. via its native PDF
+    # viewer's download button) it gets a sensible name instead of a bare UUID.
+    try:
+        fname = os.path.splitext(_build_tera_filename(data, with_logo))[0]
+    except Exception:
+        fname = "preview"
+    file_id = f"{fname}_{uuid.uuid4().hex[:8]}.pdf"
+    filepath = os.path.join(TEMP_DIR, file_id)
     gen = TERAReportGenerator(data, TEMP_DIR, with_logo=with_logo)
     gen.filepath = filepath
     gen.filename = file_id
@@ -501,7 +508,14 @@ def pgta_get_cnv_image(filename: str):
 async def pgta_preview(request: Request):
     try:
         data = await request.json()
-        file_id = str(uuid.uuid4()) + ".pdf"
+        # Prefix with a descriptive name (mirrors /pgta/generate's naming) so
+        # that if a browser ever saves this preview directly (e.g. via its
+        # native PDF viewer's download button) it gets a sensible name
+        # instead of a bare UUID.
+        patient_data = data.get("patient_data", {})
+        p_parts = [p for p in re.sub(r'[^a-zA-Z0-9 ]', '', str(patient_data.get("patient_name", "") or "")).strip().split() if p]
+        name_seg = p_parts[0].upper() if p_parts else "PREVIEW"
+        file_id = f"PGTA_{name_seg}_{uuid.uuid4().hex[:8]}.pdf"
         filepath = os.path.join(TEMP_DIR, file_id)
         embryos = data.get("embryos_data", [])
         embryos, tmp = _resolve_cnv_images(embryos)
@@ -1013,12 +1027,20 @@ async def nipt_preview(request: Request):
         return {"error": "NIPT generators not loaded on server"}
     try:
         data = await request.json()
-        file_id = str(uuid.uuid4()) + ".pdf"
-        filepath = os.path.join(TEMP_DIR, file_id)
         p_info = _norm_patient(dict(data.get("patient_data", {})))
+        show_logo = bool(data.get("show_logo", True))
+        # Prefix with the same descriptive name /nipt/generate uses, so that
+        # if a browser ever saves this preview directly (e.g. via its native
+        # PDF viewer's download button) it gets a sensible name instead of a
+        # bare UUID.
+        try:
+            fname = _nipt_base_filename(p_info.get("name", ""), show_logo)
+        except Exception:
+            fname = "preview"
+        file_id = f"{fname}_{uuid.uuid4().hex[:8]}.pdf"
+        filepath = os.path.join(TEMP_DIR, file_id)
         z_scores = {k: _safe_float(v)
                     for k, v in data.get("z_scores", {}).items()}
-        show_logo = bool(data.get("show_logo", True))
         NIPTReportTemplate(filepath).generate(
             p_info, z_scores, with_logo=show_logo)
         return {"preview_url": f"/nipt/preview-file/{file_id}"}

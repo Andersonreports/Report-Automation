@@ -1322,6 +1322,10 @@
     }
 
     async function downloadReport() {
+        if (!_dirHandles["manualExportDisplay"] && !document.getElementById("manualExportDisplay").value.trim()) {
+            showToast("Select an output folder before generating.", "error");
+            return;
+        }
         const data = collectManualData();
         if (!data["Patient Name"] || !data["Patient Name"].trim()) {
             showToast("Patient Name is required.", "error");
@@ -1441,6 +1445,10 @@
 
   <script>
     async function generateSelected(rows) {
+        if (!_dirHandles["bulkExportDisplay"] && !document.getElementById("bulkExportDisplay").value.trim()) {
+            showToast("Select an output folder before generating.", "error");
+            return;
+        }
         if (!rows || rows.length === 0) { showToast("No patients selected.", "error"); return; }
         const logoOption = document.querySelector('input[name="bulkLogoOption"]:checked')?.value || "with_logo";
         const rowsWithLogo = rows.map(r => ({ ...r, logo_option: logoOption }));
@@ -1562,6 +1570,10 @@
     }
 
     async function generateAllReports() {
+        if (!_dirHandles["bulkExportDisplay"] && !document.getElementById("bulkExportDisplay").value.trim()) {
+            showToast("Select an output folder before generating.", "error");
+            return;
+        }
         const logoOption = document.querySelector('input[name="bulkLogoOption"]:checked')?.value || "with_logo";
         const rows = patients.map(r => ({ ...r, logo_option: logoOption }));
         try {
