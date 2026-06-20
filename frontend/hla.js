@@ -597,7 +597,10 @@ const SPECIALIZED_RTYPES = [
 
 // Templates whose Donor Information section supports more than one donor
 // (hla_report_generator.py _add_manual_donor / _remove_manual_donor).
-const MULTI_DONOR_RTYPES = ["transplant_donor", "rpl_couple", "ngs_photo"];
+// loci11 shares the same backend builder/person-block loop as
+// transplant_donor (_build_transplant_donor iterates case["donors"] for
+// both), so it already supports donors — just needed the UI exposed.
+const MULTI_DONOR_RTYPES = ["transplant_donor", "rpl_couple", "ngs_photo", "loci11"];
 // Templates with a dedicated patient/donor Photo upload field
 // (hla_report_generator.py _upload_std_photo / _upload_cdc_photo / etc.).
 const PHOTO_RTYPES = ["ngs_photo", "cdc_crossmatch", "dsa_crossmatch", "flow_crossmatch", "luminex_typing"];
