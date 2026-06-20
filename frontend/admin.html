@@ -367,7 +367,10 @@
 
   <script>
     const REPORT_LABELS = { tera: "TERA", pgta: "PGTA", karyotype: "Karyotyping", nipt: "NIPT", hla: "HLA Typing", billing: "Billing" };
-    let REPORT_KEYS = [];
+    // Default to every known report key so the "Report Access" dropdown is
+    // never empty, even before /access/users has returned (e.g. while MySQL
+    // isn't configured yet) — overwritten with the server's list once it loads.
+    let REPORT_KEYS = Object.keys(REPORT_LABELS);
     let editingUserId = null;
 
     // ── Guard: admin only ──────────────────────────────────────────────────
