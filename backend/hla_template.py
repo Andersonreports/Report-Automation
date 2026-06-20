@@ -1762,19 +1762,14 @@ def _build_ngs_transplant(case: dict, S: dict) -> list:
                                        spacing_scale=_scale, extra_inner_gap=_extra, no_compact=True,
                                        nabl=case.get("nabl", True), separate_drb=_sep_drb))
 
-    # Drop the trailing inter-block Spacer left by the last person block — if it
-    # doesn't fit on the current page, ReportLab defers it onto the next page,
-    # which then counts as "non-empty" by the time PageBreakIfNotEmpty below is
-    # reached (even though nothing visible was drawn), causing it to force a
-    # second, truly blank page instead of recognizing we're already at the top.
+    # Drop the trailing inter-block Spacer left by the last person block so it
+    # doesn't add unwanted gap before the IMGT/Coverage block that follows.
     while elems and isinstance(elems[-1], Spacer):
         elems.pop()
 
-    # IMGT/HLA Release + Coverage always starts on a fresh page for transplant_donor.
-    # For loci11, let content flow naturally — the table is compact enough to share
-    # a page with IMGT when there are only a few rows.
-    if not _is_loci11:
-        elems.append(PageBreakIfNotEmpty())
+    # IMGT/HLA Release + Coverage flows naturally onto the same page when there's
+    # room (for both transplant_donor and loci11), instead of always forcing a
+    # fresh page regardless of how short the locus table content is.
     elems.extend(_methodology_block(case, S))
     sig_items = _signature_block(signatories, S)
     if sig_items:
