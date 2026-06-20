@@ -1541,11 +1541,21 @@ def _rpl_reference_section(rpl_ref: dict, patient: dict, donor: dict, S: dict,
 
 
 # ─── Methodology block (shared) ───────────────────────────────────────────────
-def _methodology_block(case: dict, S: dict) -> list:
+def _methodology_block(case: dict, S: dict, merge: bool = False) -> list:
     """
     IMGT → Remarks: → Coverage (: prefix lines) → Methodology → Typing Status
     Matches the exact format seen in all manual report PDFs.
     NO horizontal rules between sections - only one line before signatures.
+
+    By default returns [KeepTogether(coverage_block), KeepTogether(method_block)]
+    as two independent units. Pass merge=True to instead get the *raw*,
+    unwrapped flowables (coverage_block + method_block) — callers that need to
+    combine this with other content into a single KeepTogether (e.g. so
+    Coverage is never orphaned from Methodology/Signatures) must wrap the
+    *raw* flowables directly, never nest a KeepTogether inside another one:
+    nested KeepTogethers' wrap() always reports a huge sentinel height, which
+    makes the outer KeepTogether's fit-check wrongly conclude the content is
+    far too big and push it to a fresh page even when it would have fit.
     """
     nabl   = case.get("nabl", True)
     imgt   = case.get("imgt_release", "") or "3.56.0"  # Default IMGT version if not specified
@@ -1606,6 +1616,8 @@ def _methodology_block(case: dict, S: dict) -> list:
         Paragraph(f"<b>Typing Status:</b>  {status}", S["body"]),
     ]
 
+    if merge:
+        return coverage_block + method_block
     return [KeepTogether(coverage_block), KeepTogether(method_block)]
 
 
@@ -1772,12 +1784,14 @@ def _build_ngs_transplant(case: dict, S: dict) -> list:
     while elems and isinstance(elems[-1], Spacer):
         elems.pop()
 
-    # IMGT/Coverage and Methodology are kept as one block so Coverage never
-    # gets orphaned alone on a page with Methodology spilling to the next one.
-    # Signatures are a separate block so they can flow onto whatever page has
-    # room on their own, without dragging the (often larger) Coverage +
-    # Methodology block down with them when only the signatures don't fit.
-    elems.append(KeepTogether(_methodology_block(case, S)))
+    # IMGT/Coverage and Methodology are kept as one block (raw flowables,
+    # wrapped in a single non-nested KeepTogether — see _methodology_block's
+    # merge=True docstring) so Coverage never gets orphaned alone on a page
+    # with Methodology spilling to the next one. Signatures are a separate
+    # block so they can flow onto whatever page has room on their own,
+    # without dragging the (often larger) Coverage + Methodology block down
+    # with them when only the signatures don't fit.
+    elems.append(KeepTogether(_methodology_block(case, S, merge=True)))
     sig_items = _signature_block(signatories, S)
     if sig_items:
         elems.append(KeepTogether(sig_items))
@@ -2047,7 +2061,10 @@ def _build_ngs_photo(case: dict, S: dict) -> list:
     # Keep the Interpretation together with the methodology block so it never sits
     # orphaned at the foot of page 1 while the methodology spills onto page 2 — the
     # two move to the next page together when they don't both fit below the tables.
-    elems.append(KeepTogether(interp_block + _methodology_block(case, S)))
+    # merge=True avoids nesting a KeepTogether inside this outer one (which would
+    # make ReportLab's fit-check wrongly see a near-infinite height and always
+    # defer to a fresh page — see _methodology_block's docstring).
+    elems.append(KeepTogether(interp_block + _methodology_block(case, S, merge=True)))
 
     sig_items = _signature_block(signatories, S)
     if sig_items:
