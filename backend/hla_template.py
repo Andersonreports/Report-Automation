@@ -4909,9 +4909,8 @@ def _build_kir_report(case: dict, S: dict) -> list:
         elems.append(Paragraph(_kir_comments, _body_s))
         elems.append(Spacer(1, 4*mm))
 
-    # ── Test Details + Signatures ───────────────────────────────────────────────
-    # Flow naturally instead of forcing a page break — Method/Result/Interpretation
-    # are usually short enough that Test Details fits on page 1 too.
+    # ── Page 2: Test Details + Signatures ──────────────────────────────────────
+    elems.append(PageBreak())
     elems.append(Paragraph("<b>Test details</b>", _sec_s))
     elems.append(HRFlowable(width=cw, thickness=0.8, color=colors.grey, spaceAfter=4))
     for para in KIR_TEST_DETAILS.split("\n"):
