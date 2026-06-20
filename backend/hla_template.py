@@ -2656,10 +2656,13 @@ def _build_hla_c(case: dict, S: dict) -> list:
     # ── Disclaimer + Reference + Signatures ─────────────────────────────────
     # Typing Result + Remarks is short enough to leave plenty of room on
     # page 1 — let Disclaimer flow naturally instead of forcing a page break;
-    # it only spills to page 2 if content genuinely doesn't fit.
+    # it only spills to page 2 if content genuinely doesn't fit. Heading and
+    # body are kept together so the heading never gets orphaned on page 1
+    # while its (short) text gets pushed alone onto page 2.
     elems.append(Spacer(1, 4 * mm))
-    elems.extend(_sec("Disclaimer"))
-    elems.append(Paragraph(HLA_C_DISCLAIMER, _body_s))
+    elems.append(KeepTogether(
+        _sec("Disclaimer") + [Paragraph(HLA_C_DISCLAIMER, _body_s)]
+    ))
     elems.append(Spacer(1, 2 * mm))
 
     elems.extend(_sec("Reference"))
