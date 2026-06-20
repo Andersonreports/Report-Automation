@@ -671,9 +671,12 @@ function addManualDonorCard(rtype, sectionTitle) {
   ];
   const grid = el("div", { class: "field-grid" });
   DONOR_FIELDS.forEach(([key, label, def]) => {
-    const input = el("input", { type: "text", value: def, oninput: scheduleManualPreview });
+    const isRemarks = key === "remarks";
+    const input = isRemarks
+      ? el("textarea", { oninput: scheduleManualPreview })
+      : el("input", { type: "text", value: def, oninput: scheduleManualPreview });
     df[key] = input;
-    grid.appendChild(el("div", { class: "field" }, [el("label", {}, label), input]));
+    grid.appendChild(el("div", { class: "field" + (isRemarks ? " full" : "") }, [el("label", {}, label), input]));
   });
   card.appendChild(grid);
 
