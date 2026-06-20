@@ -1734,7 +1734,12 @@ def _build_ngs_transplant(case: dict, S: dict) -> list:
     _post_extra, _inter_extra = 0.0, 0.0
     if _is_loci11:
         _scale, _extra = 1.5, 0.0
-    elif any_remarks or not donors:
+    # The 2x/4mm "spread" spacing below assumes a single patient+donor pair
+    # (per-block extra space compounds with each additional person), so with
+    # 2+ donors it eats up the room IMGT/Coverage+Methodology needs to fit on
+    # the same page — use the tight spacing whenever there's more than one
+    # donor, regardless of remarks/match.
+    elif any_remarks or not donors or len(donors) >= 2:
         _scale, _extra = 1.0, 0.0
         # Transplant Donor (6-locus table, no DRB3/4/5 wrap) has much more page-1
         # headroom than 11-Loci even with remarks+match present, so it can afford
