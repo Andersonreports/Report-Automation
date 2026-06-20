@@ -120,12 +120,12 @@ function renderPdfToCanvas(arrayBuffer, host, token, tokenKey) {
   const lib = window['pdfjs-dist/build/pdf'];
   if (!lib) {
     if (host.dataset.blobUrl) URL.revokeObjectURL(host.dataset.blobUrl);
-    const u = URL.createObjectURL(new Blob([arrayBuffer], {type: "application/pdf"}));
+    const u = URL.createObjectURL(new Blob([arrayBuffer], { type: "application/pdf" }));
     host.dataset.blobUrl = u;
     host.innerHTML = `<iframe src="${u}#toolbar=0&navpanes=0" style="width:100%;flex:1;border:none;min-height:400px;"></iframe>`;
     return Promise.resolve();
   }
-  return lib.getDocument({data: arrayBuffer}).promise.then(doc => {
+  return lib.getDocument({ data: arrayBuffer }).promise.then(doc => {
     if (_pdfTokens[tokenKey] !== token) return;
     host.innerHTML = "";
     const containerW = Math.max((host.clientWidth || 440) - 24, 240);
@@ -137,15 +137,15 @@ function renderPdfToCanvas(arrayBuffer, host, token, tokenKey) {
         if (_pdfTokens[tokenKey] !== token) return;
         return doc.getPage(num).then(page => {
           if (_pdfTokens[tokenKey] !== token) return;
-          const vp = page.getViewport({scale: 1});
+          const vp = page.getViewport({ scale: 1 });
           const cssScale = Math.max(0.4, containerW / vp.width);
-          const svp = page.getViewport({scale: cssScale * dpr});
+          const svp = page.getViewport({ scale: cssScale * dpr });
           const canvas = document.createElement("canvas");
           canvas.className = "preview-page-canvas";
           canvas.width = svp.width;
           canvas.height = svp.height;
           host.appendChild(canvas);
-          return page.render({canvasContext: canvas.getContext("2d"), viewport: svp}).promise;
+          return page.render({ canvasContext: canvas.getContext("2d"), viewport: svp }).promise;
         });
       });
     }
@@ -156,7 +156,7 @@ function renderPdfToCanvas(arrayBuffer, host, token, tokenKey) {
 function praResultFor(pct) {
   const v = parseFloat(String(pct || "").replace("%", "").trim());
   if (isNaN(v)) return "";
-  if (v < 4)   return "Negative";
+  if (v < 4) return "Negative";
   if (v <= 10) return "Weak Positive";
   if (v <= 50) return "Moderate Positive";
   return "Strong Positive";
@@ -475,11 +475,13 @@ function buildGenBar(onGenerate) {
   const row2 = el("div", { class: "gen-bar" }, [
     el("button", { class: "btn-sm btn-outline", onclick: () => saveDraft("manual") }, [el("i", { class: "fas fa-save" }), " Save Draft"]),
     el("button", { class: "btn-sm btn-outline", onclick: () => loadDraft("manual") }, [el("i", { class: "fas fa-folder-open" }), " Load Draft"]),
-    el("button", { class: "btn-sm btn-danger-outline", onclick: () => {
-      renderManualForm();
-      const sabStatus = document.getElementById("bulkSabImportStatus");
-      if (sabStatus) sabStatus.textContent = "";
-    } }, [el("i", { class: "fas fa-eraser" }), " Clear Form"]),
+    el("button", {
+      class: "btn-sm btn-danger-outline", onclick: () => {
+        renderManualForm();
+        const sabStatus = document.getElementById("bulkSabImportStatus");
+        if (sabStatus) sabStatus.textContent = "";
+      }
+    }, [el("i", { class: "fas fa-eraser" }), " Clear Form"]),
   ]);
   return el("div", {}, [row1, row2]);
 }
@@ -592,8 +594,10 @@ function buildManualDonorsSection(rtype, col) {
   const outerCard = el("div", { class: "card" });
   const hdr = el("div", { style: "display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;" }, [
     el("h3", { style: "margin:0;" }, [el("i", { class: "fas fa-user-friends" }), " Donors"]),
-    el("button", { class: "btn-sm btn-outline", type: "button",
-      onclick: () => addManualDonorCard(rtype, sectionTitle) },
+    el("button", {
+      class: "btn-sm btn-outline", type: "button",
+      onclick: () => addManualDonorCard(rtype, sectionTitle)
+    },
       [el("i", { class: "fas fa-plus" }), " Add Donor"]),
   ]);
   outerCard.appendChild(hdr);
@@ -771,9 +775,9 @@ function buildCrossmatchSection(col, rtype) {
   const patCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-user" }), " Patient (Crossmatch)"])]);
   const patGrid = el("div", { class: "field-grid" });
   const PAT_X_FIELDS = [["name", "Patient Name"], ["gender_age", "Gender / Age"], ["pin", "PIN"],
-    ["sample_number", "Sample Number"], ["diagnosis", "Diagnosis"], ["hospital_clinic", "Hospital/Clinic"],
-    ["sample_type", "Sample Type"], ["collection_date", "Collection Date"], ["receipt_date", "Receipt Date"],
-    ["report_date", "Report Date"], ["remarks", "Remarks (optional)"], ["comments", "Additional Comments (optional)"]];
+  ["sample_number", "Sample Number"], ["diagnosis", "Diagnosis"], ["hospital_clinic", "Hospital/Clinic"],
+  ["sample_type", "Sample Type"], ["collection_date", "Collection Date"], ["receipt_date", "Receipt Date"],
+  ["report_date", "Report Date"], ["remarks", "Remarks (optional)"], ["comments", "Additional Comments (optional)"]];
   const xf = { patient: {}, donor: {}, patientPhoto: null, donorPhoto: null };
   PAT_X_FIELDS.forEach(([k, l]) => {
     const input = el("input", { type: "text", oninput: scheduleManualPreview });
@@ -787,8 +791,8 @@ function buildCrossmatchSection(col, rtype) {
   const donCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-user-friends" }), " Donor (Crossmatch)"])]);
   const donGrid = el("div", { class: "field-grid" });
   const DON_X_FIELDS = [["name", "Donor Name"], ["gender_age", "Gender / Age"], ["pin", "PIN"],
-    ["sample_number", "Sample Number"], ["relationship", "Relationship"], ["sample_type", "Sample Type"],
-    ["collection_date", "Collection Date"], ["receipt_date", "Receipt Date"], ["report_date", "Report Date"]];
+  ["sample_number", "Sample Number"], ["relationship", "Relationship"], ["sample_type", "Sample Type"],
+  ["collection_date", "Collection Date"], ["receipt_date", "Receipt Date"], ["report_date", "Report Date"]];
   DON_X_FIELDS.forEach(([k, l]) => {
     const input = el("input", { type: "text", oninput: scheduleManualPreview });
     xf.donor[k] = input;
@@ -805,7 +809,7 @@ function buildCrossmatchSection(col, rtype) {
   if (rtype === "cdc_crossmatch") {
     const r = {};
     [["t_cell", "T-Cell Result"], ["b_cell", "B-Cell Result"], ["t_with_dtt", "T-Cell with DTT"],
-     ["b_with_dtt", "B-Cell with DTT"]].forEach(([k, l]) => {
+    ["b_with_dtt", "B-Cell with DTT"]].forEach(([k, l]) => {
       const sel = el("select", { onchange: scheduleManualPreview }, [
         el("option", { value: "Negative" }, "Negative"), el("option", { value: "Positive" }, "Positive"), el("option", { value: "Doubtful" }, "Doubtful"),
       ]);
@@ -816,7 +820,7 @@ function buildCrossmatchSection(col, rtype) {
   } else if (rtype === "dsa_crossmatch") {
     const r = {};
     [["class1_result", "Class I Result"], ["class1_mfi", "Class I MFI"], ["class1_cutoff", "Class I Cutoff"],
-     ["class2_result", "Class II Result"], ["class2_mfi", "Class II MFI"], ["class2_cutoff", "Class II Cutoff"]].forEach(([k, l]) => {
+    ["class2_result", "Class II Result"], ["class2_mfi", "Class II MFI"], ["class2_cutoff", "Class II Cutoff"]].forEach(([k, l]) => {
       const input = el("input", { type: "text", oninput: scheduleManualPreview });
       r[k] = input;
       resGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), input]));
@@ -825,7 +829,7 @@ function buildCrossmatchSection(col, rtype) {
   } else if (rtype === "flow_crossmatch") {
     const r = {};
     [["t_mcs", "T-Cells MCS"], ["t_interpretation", "T-Cells Interpretation"],
-     ["b_mcs", "B-Cells MCS"], ["b_interpretation", "B-Cells Interpretation"]].forEach(([k, l]) => {
+    ["b_mcs", "B-Cells MCS"], ["b_interpretation", "B-Cells Interpretation"]].forEach(([k, l]) => {
       const input = el("input", { type: "text", oninput: scheduleManualPreview });
       r[k] = input;
       resGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), input]));
@@ -845,8 +849,8 @@ function buildLuminexSection(col) {
   const patGrid = el("div", { class: "field-grid" });
   const lx = { patient: {}, donor: {}, patHla: {}, donHla: {}, patPhoto: null, donPhoto: null };
   [["patient_name", "Patient Name"], ["gender_age", "Gender / Age"], ["pin", "PIN"], ["sample_number", "Sample Number"],
-   ["diagnosis", "Diagnosis"], ["hospital_clinic", "Hospital/Clinic"], ["relation", "Relation"],
-   ["sample_type", "Sample Type"], ["collection_date", "Collection Date"], ["receipt_date", "Receipt Date"], ["report_date", "Report Date"]
+  ["diagnosis", "Diagnosis"], ["hospital_clinic", "Hospital/Clinic"], ["relation", "Relation"],
+  ["sample_type", "Sample Type"], ["collection_date", "Collection Date"], ["receipt_date", "Receipt Date"], ["report_date", "Report Date"]
   ].forEach(([k, l]) => {
     const input = el("input", { type: "text", oninput: scheduleManualPreview });
     lx.patient[k] = input;
@@ -862,7 +866,7 @@ function buildLuminexSection(col) {
   const donCard = el("div", { class: "card" }, [el("h3", {}, "Donor")]);
   const donGrid = el("div", { class: "field-grid" });
   [["name", "Donor Name"], ["gender_age", "Gender / Age"], ["pin", "PIN"], ["sample_number", "Sample Number"],
-   ["relation", "Relation"], ["sample_type", "Sample Type"], ["collection_date", "Collection Date"]
+  ["relation", "Relation"], ["sample_type", "Sample Type"], ["collection_date", "Collection Date"]
   ].forEach(([k, l]) => {
     const input = el("input", { type: "text", oninput: scheduleManualPreview });
     lx.donor[k] = input;
@@ -902,15 +906,15 @@ function buildLuminexSection(col) {
 }
 
 // ── KIR section ────────────────────────────────────────────────────────────
-const KIR_GENES = ["2DL1","2DL2","2DL3","2DL4","2DL5","2DS1","2DS2","2DS3","2DS4","2DS5","2DP1","3DL1","3DL2","3DL3","3DP1","3DS1"];
+const KIR_GENES = ["2DL1", "2DL2", "2DL3", "2DL4", "2DL5", "2DS1", "2DS2", "2DS3", "2DS4", "2DS5", "2DP1", "3DL1", "3DL2", "3DL3", "3DP1", "3DS1"];
 
 function buildKirSection(col) {
   const patCard = el("div", { class: "card" }, [el("h3", {}, "Patient")]);
   const patGrid = el("div", { class: "field-grid" });
   const kir = { patient: {}, genes: {} };
   [["patient_name", "Patient Name"], ["gender_age", "Gender / Age"], ["pin", "PIN"], ["sample_number", "Sample Number"],
-   ["hospital_mr_no", "Hospital MR No."], ["specimen", "Specimen"], ["hospital_clinic", "Hospital/Clinic"],
-   ["collection_date", "Collection Date"], ["receipt_date", "Receipt Date"], ["report_date", "Report Date"]
+  ["hospital_mr_no", "Hospital MR No."], ["specimen", "Specimen"], ["hospital_clinic", "Hospital/Clinic"],
+  ["collection_date", "Collection Date"], ["receipt_date", "Receipt Date"], ["report_date", "Report Date"]
   ].forEach(([k, l]) => {
     const input = el("input", { type: "text", oninput: scheduleManualPreview });
     kir.patient[k] = input;
@@ -964,8 +968,8 @@ function buildPraSection(col, rtype) {
   const patGrid = el("div", { class: "field-grid" });
   const pra = { patient: {}, result: {} };
   [["patient_name", "Patient Name"], ["gender", "Gender"], ["age", "Age"], ["specimen", "Specimen"],
-   ["hospital_clinic", "Hospital/Clinic"], ["pin", "PIN"], ["sample_number", "Sample Number"],
-   ["collection_date", "Collection Date"], ["receipt_date", "Receipt Date"], ["report_date", "Report Date"]
+  ["hospital_clinic", "Hospital/Clinic"], ["pin", "PIN"], ["sample_number", "Sample Number"],
+  ["collection_date", "Collection Date"], ["receipt_date", "Receipt Date"], ["report_date", "Report Date"]
   ].forEach(([k, l]) => {
     const input = el("input", { type: "text", oninput: scheduleManualPreview });
     pra.patient[k] = input;
@@ -978,11 +982,15 @@ function buildPraSection(col, rtype) {
   const resGrid = el("div", { class: "field-grid" });
   if (rtype === "mixed_pra") {
     const pct1 = el("input", { type: "text", placeholder: "e.g. 25" });
-    const res1 = el("input", { type: "text", readonly: true,
-      style: "background:#f1f5f9; color:var(--text-muted); cursor:default;" });
+    const res1 = el("input", {
+      type: "text", readonly: true,
+      style: "background:#f1f5f9; color:var(--text-muted); cursor:default;"
+    });
     const pct2 = el("input", { type: "text", placeholder: "e.g. 10" });
-    const res2 = el("input", { type: "text", readonly: true,
-      style: "background:#f1f5f9; color:var(--text-muted); cursor:default;" });
+    const res2 = el("input", {
+      type: "text", readonly: true,
+      style: "background:#f1f5f9; color:var(--text-muted); cursor:default;"
+    });
 
     function syncResults() {
       res1.value = praResultFor(pct1.value);
@@ -996,11 +1004,11 @@ function buildPraSection(col, rtype) {
     pra.result.pra_percentage_2 = pct2; pra.result.pra_result_2 = res2;
 
     [["% PRA Class I", pct1], ["Result Class I", res1],
-     ["% PRA Class II", pct2], ["Result Class II", res2]].forEach(([l, inp]) => {
+    ["% PRA Class II", pct2], ["Result Class II", res2]].forEach(([l, inp]) => {
       resGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), inp]));
     });
   } else {
-    [["pra_percentage", "% PRA"], ["pra_result", "Result (blank = auto)"]].forEach(([k, l]) => {
+    [["pra_percentage", "% PRA"], ["pra_result", "Result"]].forEach(([k, l]) => {
       const input = el("input", { type: "text", oninput: scheduleManualPreview });
       pra.result[k] = input;
       resGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), input]));
@@ -1330,16 +1338,16 @@ function collectManualCase() {
   }
   if (rtype === "single_locus") {
     // Keys must match hla_template.py: case["locus"], case["sl_allele1"], case["sl_allele2"], case["sl_note"]
-    c.locus      = manualSpecialFields.sl_locus   ? manualSpecialFields.sl_locus.value.trim()   : "";
+    c.locus = manualSpecialFields.sl_locus ? manualSpecialFields.sl_locus.value.trim() : "";
     c.sl_allele1 = manualSpecialFields.sl_allele1 ? manualSpecialFields.sl_allele1.value.trim() : "";
     c.sl_allele2 = manualSpecialFields.sl_allele2 ? manualSpecialFields.sl_allele2.value.trim() : "";
-    c.sl_note    = manualSpecialFields.sl_note    ? manualSpecialFields.sl_note.value.trim()    : "";
+    c.sl_note = manualSpecialFields.sl_note ? manualSpecialFields.sl_note.value.trim() : "";
   }
   if (rtype === "hla_c") {
     // Keys must match hla_template.py: case["hlac_allele1"], case["hlac_allele2"], case["hlac_remark"]
     c.hlac_allele1 = manualSpecialFields.hc_allele1 ? manualSpecialFields.hc_allele1.value.trim() : "";
     c.hlac_allele2 = manualSpecialFields.hc_allele2 ? manualSpecialFields.hc_allele2.value.trim() : "";
-    c.hlac_remark  = manualSpecialFields.hc_remark  ? manualSpecialFields.hc_remark.value.trim()  : "";
+    c.hlac_remark = manualSpecialFields.hc_remark ? manualSpecialFields.hc_remark.value.trim() : "";
   }
   if (rtype === "ngs_photo") {
     c.ngs_photo_interpretation = manualSpecialFields.ngs_photo_interpretation
@@ -1388,7 +1396,7 @@ async function refreshManualPreview() {
     const resp = await apiPost("/hla/preview", { case: c });
     if (_pdfTokens["manual"] !== myTok) return;
     if (!resp.preview_url) throw new Error("No preview URL returned.");
-    const pdfResp = await fetch(resp.preview_url + "?t=" + Date.now(), {cache: "no-store"});
+    const pdfResp = await fetch(resp.preview_url + "?t=" + Date.now(), { cache: "no-store" });
     if (!pdfResp.ok) throw new Error("PDF not found (" + pdfResp.status + ")");
     const buf = await pdfResp.arrayBuffer();
     if (_pdfTokens["manual"] !== myTok) return;
@@ -2018,10 +2026,10 @@ function renderBulkCrossmatchEditor(editCol, c, i) {
   const p = c.patient || {};
   const d = (c.donors || [])[0] || {};
   const refresh = () => scheduleBulkPreview(i);
-  const PAT_X = [["patient_name","Patient Name"],["gender_age","Gender / Age"],["pin","PIN"],
-    ["sample_number","Sample Number"],["diagnosis","Diagnosis"],["hospital_clinic","Hospital/Clinic"],
-    ["sample_type","Sample Type"],["collection_date","Collection Date"],
-    ["receipt_date","Receipt Date"],["report_date","Report Date"]];
+  const PAT_X = [["patient_name", "Patient Name"], ["gender_age", "Gender / Age"], ["pin", "PIN"],
+  ["sample_number", "Sample Number"], ["diagnosis", "Diagnosis"], ["hospital_clinic", "Hospital/Clinic"],
+  ["sample_type", "Sample Type"], ["collection_date", "Collection Date"],
+  ["receipt_date", "Receipt Date"], ["report_date", "Report Date"]];
   const patCard = _buildBulkPatientCard(p, PAT_X, refresh);
   patCard.appendChild(buildPhotoUploadField("Patient Photo",
     b64 => { p.photo_bytes = b64; refresh(); }, p.photo_bytes || null));
@@ -2042,10 +2050,10 @@ function renderBulkCrossmatchEditor(editCol, c, i) {
 
   const donCard = el("div", { class: "card" }, [el("h3", {}, "Donor")]);
   const donGrid = el("div", { class: "field-grid" });
-  [["name","Donor Name"],["gender_age","Gender / Age"],["pin","PIN"],
-   ["sample_number","Sample Number"],["relationship","Relationship"],
-   ["sample_type","Sample Type"],["collection_date","Collection Date"],
-   ["receipt_date","Receipt Date"],["report_date","Report Date"]].forEach(([k,l]) => {
+  [["name", "Donor Name"], ["gender_age", "Gender / Age"], ["pin", "PIN"],
+  ["sample_number", "Sample Number"], ["relationship", "Relationship"],
+  ["sample_type", "Sample Type"], ["collection_date", "Collection Date"],
+  ["receipt_date", "Receipt Date"], ["report_date", "Report Date"]].forEach(([k, l]) => {
     const inp = el("input", { type: "text", value: d[k] || "" });
     inp.addEventListener("input", () => { d[k] = inp.value; refresh(); });
     donGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), inp]));
@@ -2059,32 +2067,32 @@ function renderBulkCrossmatchEditor(editCol, c, i) {
   const resGrid = el("div", { class: "field-grid" });
   if (c.report_type === "cdc_crossmatch") {
     const r = c.cdc_results || {};
-    [["t_cell","T-Cell Result"],["b_cell","B-Cell Result"],
-     ["t_with_dtt","T with DTT"],["b_with_dtt","B with DTT"]].forEach(([k,l]) => {
+    [["t_cell", "T-Cell Result"], ["b_cell", "B-Cell Result"],
+    ["t_with_dtt", "T with DTT"], ["b_with_dtt", "B with DTT"]].forEach(([k, l]) => {
       const sel = el("select", {}, [
-        el("option",{value:"Negative"},"Negative"),
-        el("option",{value:"Positive"},"Positive"),
-        el("option",{value:"Doubtful"},"Doubtful"),
+        el("option", { value: "Negative" }, "Negative"),
+        el("option", { value: "Positive" }, "Positive"),
+        el("option", { value: "Doubtful" }, "Doubtful"),
       ]);
       sel.value = r[k] || "Negative";
       sel.addEventListener("change", () => { r[k] = sel.value; c.cdc_results = r; refresh(); });
-      resGrid.appendChild(el("div",{class:"field"},[el("label",{},l),sel]));
+      resGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), sel]));
     });
   } else if (c.report_type === "dsa_crossmatch") {
     const r = c.dsa_results || {};
-    [["class1_result","Class I Result"],["class1_mfi","Class I MFI"],["class1_cutoff","Class I Cutoff"],
-     ["class2_result","Class II Result"],["class2_mfi","Class II MFI"],["class2_cutoff","Class II Cutoff"]].forEach(([k,l]) => {
-      const inp = el("input",{type:"text",value:r[k]||""});
-      inp.addEventListener("input",()=>{r[k]=inp.value; c.dsa_results=r; refresh();});
-      resGrid.appendChild(el("div",{class:"field"},[el("label",{},l),inp]));
+    [["class1_result", "Class I Result"], ["class1_mfi", "Class I MFI"], ["class1_cutoff", "Class I Cutoff"],
+    ["class2_result", "Class II Result"], ["class2_mfi", "Class II MFI"], ["class2_cutoff", "Class II Cutoff"]].forEach(([k, l]) => {
+      const inp = el("input", { type: "text", value: r[k] || "" });
+      inp.addEventListener("input", () => { r[k] = inp.value; c.dsa_results = r; refresh(); });
+      resGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), inp]));
     });
   } else {
     const r = c.flow_results || {};
-    [["t_mcs","T-Cells MCS"],["t_interpretation","T-Cells Interpretation"],
-     ["b_mcs","B-Cells MCS"],["b_interpretation","B-Cells Interpretation"]].forEach(([k,l]) => {
-      const inp = el("input",{type:"text",value:r[k]||""});
-      inp.addEventListener("input",()=>{r[k]=inp.value; c.flow_results=r; refresh();});
-      resGrid.appendChild(el("div",{class:"field"},[el("label",{},l),inp]));
+    [["t_mcs", "T-Cells MCS"], ["t_interpretation", "T-Cells Interpretation"],
+    ["b_mcs", "B-Cells MCS"], ["b_interpretation", "B-Cells Interpretation"]].forEach(([k, l]) => {
+      const inp = el("input", { type: "text", value: r[k] || "" });
+      inp.addEventListener("input", () => { r[k] = inp.value; c.flow_results = r; refresh(); });
+      resGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), inp]));
     });
   }
   resCard.appendChild(resGrid);
@@ -2097,10 +2105,10 @@ function renderBulkLuminexEditor(editCol, c, i) {
   const p = c.patient || {};
   const don = (c.donors || [])[0] || {};
   const refresh = () => scheduleBulkPreview(i);
-  const PAT_LX = [["patient_name","Patient Name"],["gender_age","Gender / Age"],["pin","PIN"],
-    ["sample_number","Sample Number"],["diagnosis","Diagnosis"],["hospital_clinic","Hospital/Clinic"],
-    ["relation","Relation"],["sample_type","Sample Type"],["collection_date","Collection Date"],
-    ["receipt_date","Receipt Date"],["report_date","Report Date"]];
+  const PAT_LX = [["patient_name", "Patient Name"], ["gender_age", "Gender / Age"], ["pin", "PIN"],
+  ["sample_number", "Sample Number"], ["diagnosis", "Diagnosis"], ["hospital_clinic", "Hospital/Clinic"],
+  ["relation", "Relation"], ["sample_type", "Sample Type"], ["collection_date", "Collection Date"],
+  ["receipt_date", "Receipt Date"], ["report_date", "Report Date"]];
   const patCard = _buildBulkPatientCard(p, PAT_LX, refresh);
   patCard.appendChild(buildPhotoUploadField("Patient Photo",
     b64 => { c.luminex_pat_photo = b64; refresh(); }, c.luminex_pat_photo || null));
@@ -2112,18 +2120,18 @@ function renderBulkLuminexEditor(editCol, c, i) {
     HLA_LOCI.forEach(locus => {
       if (locus === "DRB3") {
         const pair = mergeDrb345ForDisplay(p.hla);
-        const a1 = el("input",{type:"text",value:pair[0]||""});
-        const a2 = el("input",{type:"text",value:pair[1]||""});
-        a1.addEventListener("input",()=>{p.hla["DRB3"]=[a1.value,a2.value]; refresh();});
-        a2.addEventListener("input",()=>{p.hla["DRB3"]=[a1.value,a2.value]; refresh();});
-        phGrid.appendChild(el("div",{class:"allele-row"},[el("span",{class:"locus-lbl"},"DRB3/4/5"),a1,a2]));
+        const a1 = el("input", { type: "text", value: pair[0] || "" });
+        const a2 = el("input", { type: "text", value: pair[1] || "" });
+        a1.addEventListener("input", () => { p.hla["DRB3"] = [a1.value, a2.value]; refresh(); });
+        a2.addEventListener("input", () => { p.hla["DRB3"] = [a1.value, a2.value]; refresh(); });
+        phGrid.appendChild(el("div", { class: "allele-row" }, [el("span", { class: "locus-lbl" }, "DRB3/4/5"), a1, a2]));
       } else {
-        const pair = p.hla[locus] || ["",""];
-        const a1 = el("input",{type:"text",value:pair[0]||""});
-        const a2 = el("input",{type:"text",value:pair[1]||""});
-        a1.addEventListener("input",()=>{p.hla[locus]=[a1.value,a2.value]; refresh();});
-        a2.addEventListener("input",()=>{p.hla[locus]=[a1.value,a2.value]; refresh();});
-        phGrid.appendChild(el("div",{class:"allele-row"},[el("span",{class:"locus-lbl"},HLA_LOCUS_LABELS[locus]||locus),a1,a2]));
+        const pair = p.hla[locus] || ["", ""];
+        const a1 = el("input", { type: "text", value: pair[0] || "" });
+        const a2 = el("input", { type: "text", value: pair[1] || "" });
+        a1.addEventListener("input", () => { p.hla[locus] = [a1.value, a2.value]; refresh(); });
+        a2.addEventListener("input", () => { p.hla[locus] = [a1.value, a2.value]; refresh(); });
+        phGrid.appendChild(el("div", { class: "allele-row" }, [el("span", { class: "locus-lbl" }, HLA_LOCUS_LABELS[locus] || locus), a1, a2]));
       }
     });
     ph.appendChild(phGrid);
@@ -2132,12 +2140,12 @@ function renderBulkLuminexEditor(editCol, c, i) {
 
   const donCard = el("div", { class: "card" }, [el("h3", {}, "Donor")]);
   const donGrid = el("div", { class: "field-grid" });
-  [["name","Donor Name"],["gender_age","Gender / Age"],["pin","PIN"],
-   ["sample_number","Sample Number"],["relation","Relation"],
-   ["sample_type","Sample Type"],["collection_date","Collection Date"]].forEach(([k,l]) => {
-    const inp = el("input",{type:"text",value:don[k]||""});
-    inp.addEventListener("input",()=>{don[k]=inp.value; refresh();});
-    donGrid.appendChild(el("div",{class:"field"},[el("label",{},l),inp]));
+  [["name", "Donor Name"], ["gender_age", "Gender / Age"], ["pin", "PIN"],
+  ["sample_number", "Sample Number"], ["relation", "Relation"],
+  ["sample_type", "Sample Type"], ["collection_date", "Collection Date"]].forEach(([k, l]) => {
+    const inp = el("input", { type: "text", value: don[k] || "" });
+    inp.addEventListener("input", () => { don[k] = inp.value; refresh(); });
+    donGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), inp]));
   });
   donCard.appendChild(donGrid);
   donCard.appendChild(buildPhotoUploadField("Donor Photo",
@@ -2150,18 +2158,18 @@ function renderBulkLuminexEditor(editCol, c, i) {
     HLA_LOCI.forEach(locus => {
       if (locus === "DRB3") {
         const pair = mergeDrb345ForDisplay(don.hla);
-        const a1 = el("input",{type:"text",value:pair[0]||""});
-        const a2 = el("input",{type:"text",value:pair[1]||""});
-        a1.addEventListener("input",()=>{don.hla["DRB3"]=[a1.value,a2.value]; refresh();});
-        a2.addEventListener("input",()=>{don.hla["DRB3"]=[a1.value,a2.value]; refresh();});
-        dhGrid.appendChild(el("div",{class:"allele-row"},[el("span",{class:"locus-lbl"},"DRB3/4/5"),a1,a2]));
+        const a1 = el("input", { type: "text", value: pair[0] || "" });
+        const a2 = el("input", { type: "text", value: pair[1] || "" });
+        a1.addEventListener("input", () => { don.hla["DRB3"] = [a1.value, a2.value]; refresh(); });
+        a2.addEventListener("input", () => { don.hla["DRB3"] = [a1.value, a2.value]; refresh(); });
+        dhGrid.appendChild(el("div", { class: "allele-row" }, [el("span", { class: "locus-lbl" }, "DRB3/4/5"), a1, a2]));
       } else {
-        const pair = don.hla[locus]||["",""];
-        const a1 = el("input",{type:"text",value:pair[0]||""});
-        const a2 = el("input",{type:"text",value:pair[1]||""});
-        a1.addEventListener("input",()=>{don.hla[locus]=[a1.value,a2.value]; refresh();});
-        a2.addEventListener("input",()=>{don.hla[locus]=[a1.value,a2.value]; refresh();});
-        dhGrid.appendChild(el("div",{class:"allele-row"},[el("span",{class:"locus-lbl"},HLA_LOCUS_LABELS[locus]||locus),a1,a2]));
+        const pair = don.hla[locus] || ["", ""];
+        const a1 = el("input", { type: "text", value: pair[0] || "" });
+        const a2 = el("input", { type: "text", value: pair[1] || "" });
+        a1.addEventListener("input", () => { don.hla[locus] = [a1.value, a2.value]; refresh(); });
+        a2.addEventListener("input", () => { don.hla[locus] = [a1.value, a2.value]; refresh(); });
+        dhGrid.appendChild(el("div", { class: "allele-row" }, [el("span", { class: "locus-lbl" }, HLA_LOCUS_LABELS[locus] || locus), a1, a2]));
       }
     });
     dh.appendChild(dhGrid);
@@ -2213,20 +2221,20 @@ function renderBulkLuminexEditor(editCol, c, i) {
 function renderBulkKirEditor(editCol, c, i) {
   const p = c.patient || {};
   const refresh = () => scheduleBulkPreview(i);
-  const PAT_KIR = [["patient_name","Patient Name"],["gender_age","Gender / Age"],["pin","PIN"],
-    ["sample_number","Sample Number"],["hospital_mr_no","Hospital MR No"],
-    ["specimen","Specimen"],["hospital_clinic","Hospital/Clinic"],
-    ["collection_date","Collection Date"],["receipt_date","Receipt Date"],["report_date","Report Date"]];
+  const PAT_KIR = [["patient_name", "Patient Name"], ["gender_age", "Gender / Age"], ["pin", "PIN"],
+  ["sample_number", "Sample Number"], ["hospital_mr_no", "Hospital MR No"],
+  ["specimen", "Specimen"], ["hospital_clinic", "Hospital/Clinic"],
+  ["collection_date", "Collection Date"], ["receipt_date", "Receipt Date"], ["report_date", "Report Date"]];
   editCol.appendChild(_buildBulkPatientCard(p, PAT_KIR, refresh));
 
   const geneCard = el("div", { class: "card" }, [el("h3", {}, "KIR Genes")]);
   const geneGrid = el("div", { class: "field-grid cols-3" });
   const genes = c.kir_genes || {};
   KIR_GENES.forEach(g => {
-    const sel = el("select", {}, [el("option",{value:"Absent"},"Absent"),el("option",{value:"Present"},"Present")]);
+    const sel = el("select", {}, [el("option", { value: "Absent" }, "Absent"), el("option", { value: "Present" }, "Present")]);
     sel.value = genes[g] || "Absent";
     sel.addEventListener("change", () => { genes[g] = sel.value; c.kir_genes = genes; refresh(); });
-    geneGrid.appendChild(el("div",{class:"field"},[el("label",{},"KIR"+g),sel]));
+    geneGrid.appendChild(el("div", { class: "field" }, [el("label", {}, "KIR" + g), sel]));
   });
   geneCard.appendChild(geneGrid);
   editCol.appendChild(geneCard);
@@ -2234,16 +2242,16 @@ function renderBulkKirEditor(editCol, c, i) {
   const gtCard = el("div", { class: "card" }, [el("h3", {}, "Genotype / Interpretation")]);
   const gtGrid = el("div", { class: "field-grid" });
   const gtSel = el("select", {}, [
-    el("option",{value:"Auto"},"Auto"),el("option",{value:"AA"},"AA"),
-    el("option",{value:"AB"},"AB"),el("option",{value:"BB"},"BB"),
+    el("option", { value: "Auto" }, "Auto"), el("option", { value: "AA" }, "AA"),
+    el("option", { value: "AB" }, "AB"), el("option", { value: "BB" }, "BB"),
   ]);
   gtSel.value = c.kir_genotype_override || "Auto";
   gtSel.addEventListener("change", () => { c.kir_genotype_override = gtSel.value; refresh(); });
-  gtGrid.appendChild(el("div",{class:"field"},[el("label",{},"Genotype"),gtSel]));
+  gtGrid.appendChild(el("div", { class: "field" }, [el("label", {}, "Genotype"), gtSel]));
   const interpTA = el("textarea", {});
   interpTA.value = c.kir_interpretation || "";
   interpTA.addEventListener("input", () => { c.kir_interpretation = interpTA.value; refresh(); });
-  gtGrid.appendChild(el("div",{class:"field full"},[el("label",{},"Interpretation"),interpTA]));
+  gtGrid.appendChild(el("div", { class: "field full" }, [el("label", {}, "Interpretation"), interpTA]));
   gtCard.appendChild(gtGrid);
   editCol.appendChild(gtCard);
 
@@ -2266,26 +2274,26 @@ function renderBulkKirEditor(editCol, c, i) {
 function renderBulkPraEditor(editCol, c, i) {
   const p = c.patient || {};
   const refresh = () => scheduleBulkPreview(i);
-  const PAT_PRA = [["patient_name","Patient Name"],["gender","Gender"],["age","Age"],
-    ["specimen","Specimen"],["hospital_clinic","Hospital/Clinic"],["pin","PIN"],
-    ["sample_number","Sample Number"],["collection_date","Collection Date"],
-    ["receipt_date","Receipt Date"],["report_date","Report Date"]];
+  const PAT_PRA = [["patient_name", "Patient Name"], ["gender", "Gender"], ["age", "Age"],
+  ["specimen", "Specimen"], ["hospital_clinic", "Hospital/Clinic"], ["pin", "PIN"],
+  ["sample_number", "Sample Number"], ["collection_date", "Collection Date"],
+  ["receipt_date", "Receipt Date"], ["report_date", "Report Date"]];
   editCol.appendChild(_buildBulkPatientCard(p, PAT_PRA, refresh));
 
   const resCard = el("div", { class: "card" }, [el("h3", {}, "PRA Result")]);
   const resGrid = el("div", { class: "field-grid" });
   if (c.report_type === "mixed_pra") {
-    [["pra_percentage_1","% PRA Class I"],["pra_result_1","Result Class I"],
-     ["pra_percentage_2","% PRA Class II"],["pra_result_2","Result Class II"]].forEach(([k,l]) => {
-      const inp = el("input",{type:"text",value:c[k]||""});
-      inp.addEventListener("input",()=>{c[k]=inp.value; refresh();});
-      resGrid.appendChild(el("div",{class:"field"},[el("label",{},l),inp]));
+    [["pra_percentage_1", "% PRA Class I"], ["pra_result_1", "Result Class I"],
+    ["pra_percentage_2", "% PRA Class II"], ["pra_result_2", "Result Class II"]].forEach(([k, l]) => {
+      const inp = el("input", { type: "text", value: c[k] || "" });
+      inp.addEventListener("input", () => { c[k] = inp.value; refresh(); });
+      resGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), inp]));
     });
   } else {
-    [["pra_percentage","% PRA"],["pra_result","Result"]].forEach(([k,l]) => {
-      const inp = el("input",{type:"text",value:c[k]||""});
-      inp.addEventListener("input",()=>{c[k]=inp.value; refresh();});
-      resGrid.appendChild(el("div",{class:"field"},[el("label",{},l),inp]));
+    [["pra_percentage", "% PRA"], ["pra_result", "Result"]].forEach(([k, l]) => {
+      const inp = el("input", { type: "text", value: c[k] || "" });
+      inp.addEventListener("input", () => { c[k] = inp.value; refresh(); });
+      resGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), inp]));
     });
   }
   resCard.appendChild(resGrid);
@@ -2532,7 +2540,7 @@ function renderBulkEditor(i) {
   }
   editCol.appendChild(card);
 
-  const _hlaRtypes = ["single_hla","transplant_donor","ngs_photo","loci11","rpl_couple","single_rpl","hla_c"];
+  const _hlaRtypes = ["single_hla","transplant_donor","ngs_photo","loci11","rpl_couple","single_rpl","hla_c","single_locus"];
   if (p.hla && _hlaRtypes.includes(c.report_type)) {
     const hlaCard = el("div", { class: "card" }, [el("h3", {}, "HLA Results")]);
     hlaCard.appendChild(buildHlaGrid(p.hla));
@@ -2545,8 +2553,10 @@ function renderBulkEditor(i) {
       el("h3", { style: "margin:0;" }, `Donor ${di + 1}: ${d.name || ""}`),
     ]);
     if (MULTI_DONOR_RTYPES.includes(c.report_type)) {
-      const rmBtn = el("button", { class: "btn-sm btn-danger-outline", type: "button",
-        onclick: () => { c.donors.splice(di, 1); renderBulkEditor(i); } },
+      const rmBtn = el("button", {
+        class: "btn-sm btn-danger-outline", type: "button",
+        onclick: () => { c.donors.splice(di, 1); renderBulkEditor(i); }
+      },
         [el("i", { class: "fas fa-times" }), " Remove"]);
       dHdr.appendChild(rmBtn);
     }
@@ -2572,7 +2582,8 @@ function renderBulkEditor(i) {
   });
 
   if (MULTI_DONOR_RTYPES.includes(c.report_type)) {
-    const addDonorBtn = el("button", { class: "btn-sm btn-outline", type: "button",
+    const addDonorBtn = el("button", {
+      class: "btn-sm btn-outline", type: "button",
       onclick: () => {
         c.donors = c.donors || [];
         c.donors.push(emptyPerson({ pin: "NA", sample_number: "NA", hla: emptyHla() }));
@@ -2629,16 +2640,18 @@ async function previewBulkCase(i) {
   _pdfTokens["bulk"] = (_pdfTokens["bulk"] || 0) + 1;
   const myTok = _pdfTokens["bulk"];
   // Apply current logo/nabl/stamp settings to preview (bulk cases store parse-time values)
-  const previewCase = { ...c, with_logo: state.withLogo,
+  const previewCase = {
+    ...c, with_logo: state.withLogo,
     nabl: checked(document.getElementById("globalNablChk")),
-    signature_stamp: checked(document.getElementById("globalStampChk")) };
+    signature_stamp: checked(document.getElementById("globalStampChk"))
+  };
   try {
     if (statusEl) statusEl.textContent = "Generating...";
     body.innerHTML = '<div class="preview-placeholder" style="padding-top:40px;">Generating preview...</div>';
     const resp = await apiPost("/hla/preview", { case: previewCase });
     if (_pdfTokens["bulk"] !== myTok) return;
     if (!resp.preview_url) throw new Error("No preview URL returned.");
-    const pdfResp = await fetch(resp.preview_url + "?t=" + Date.now(), {cache: "no-store"});
+    const pdfResp = await fetch(resp.preview_url + "?t=" + Date.now(), { cache: "no-store" });
     if (!pdfResp.ok) throw new Error("PDF not found (" + pdfResp.status + ")");
     const buf = await pdfResp.arrayBuffer();
     if (_pdfTokens["bulk"] !== myTok) return;
@@ -2753,8 +2766,8 @@ function renderSigTable() {
     nameInput.addEventListener("input", () => { sig.name = nameInput.value; });
     const titleInput = el("input", { type: "text", value: sig.title });
     titleInput.addEventListener("input", () => { sig.title = titleInput.value; });
-    const upBtn = el("button", { class: "btn-sm btn-outline", style: "padding:3px 8px;", onclick: () => { if (i > 0) { [state.settings.signatories[i-1], state.settings.signatories[i]] = [state.settings.signatories[i], state.settings.signatories[i-1]]; renderSigTable(); } } }, [el("i", { class: "fas fa-arrow-up" })]);
-    const dnBtn = el("button", { class: "btn-sm btn-outline", style: "padding:3px 8px;", onclick: () => { if (i < state.settings.signatories.length - 1) { [state.settings.signatories[i+1], state.settings.signatories[i]] = [state.settings.signatories[i], state.settings.signatories[i+1]]; renderSigTable(); } } }, [el("i", { class: "fas fa-arrow-down" })]);
+    const upBtn = el("button", { class: "btn-sm btn-outline", style: "padding:3px 8px;", onclick: () => { if (i > 0) { [state.settings.signatories[i - 1], state.settings.signatories[i]] = [state.settings.signatories[i], state.settings.signatories[i - 1]]; renderSigTable(); } } }, [el("i", { class: "fas fa-arrow-up" })]);
+    const dnBtn = el("button", { class: "btn-sm btn-outline", style: "padding:3px 8px;", onclick: () => { if (i < state.settings.signatories.length - 1) { [state.settings.signatories[i + 1], state.settings.signatories[i]] = [state.settings.signatories[i], state.settings.signatories[i + 1]]; renderSigTable(); } } }, [el("i", { class: "fas fa-arrow-down" })]);
     const rmBtn = el("button", { class: "btn-sm btn-danger-outline", style: "padding:3px 8px;", onclick: () => { state.settings.signatories.splice(i, 1); renderSigTable(); } }, [el("i", { class: "fas fa-trash" })]);
     const row = el("tr", {}, [
       el("td", {}, nameInput), el("td", {}, titleInput),

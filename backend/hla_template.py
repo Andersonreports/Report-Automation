@@ -4257,10 +4257,6 @@ def _build_pra_report(case: dict, S: dict) -> list:
     elems.append(Spacer(1, 6*mm))
 
     _pra_rmk = _clean_display(patient.get("remarks", "")) or ""
-    if _pra_rmk:
-        _section("Remarks")
-        elems.append(Paragraph(_pra_rmk, _body_s))
-        elems.append(Spacer(1, 4*mm))
 
     # ── Interpretation (reference bands) ───────────────────────────────────────
     _section("Interpretation")
@@ -4278,8 +4274,13 @@ def _build_pra_report(case: dict, S: dict) -> list:
     ]))
     elems.append(_int_t)
 
-    # ── Page 2: Comments · Recommendations · Reference · Signatures ────────────
+    # ── Page 2: Remarks (if any) · Comments · Recommendations · Reference · Signatures ──
     elems.append(PageBreak())
+
+    if _pra_rmk:
+        _section("Remarks")
+        elems.append(Paragraph(_pra_rmk, _body_s))
+        elems.append(Spacer(1, 4*mm))
 
     _section("Comments")
     for _i, _c in enumerate(PRA_COMMENTS, 1):
