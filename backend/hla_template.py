@@ -395,12 +395,12 @@ def _styles() -> dict:
         # ── Reference heading ─────────────────────────────────────────────────
         "ref_hdr": ParagraphStyle(
             "ref_hdr", fontName=F_CALI_BOLD, fontSize=14,
-            textColor=BLACK, leading=18, spaceBefore=4, spaceAfter=2
+            textColor=C_NGS_TITLE, leading=18, spaceBefore=4, spaceAfter=2
         ),
         # ── RPL section headings (BACKGROUND, DISCLAIMERS) ────────────────────
         "section_hdr": ParagraphStyle(
             "section_hdr", fontName=F_SEGOE_BOLD, fontSize=12,
-            textColor=BLACK, leading=15, spaceBefore=6, spaceAfter=2
+            textColor=C_NGS_TITLE, leading=15, spaceBefore=6, spaceAfter=2
         ),
         # ── RPL body/disclaimers ──────────────────────────────────────────────
         "justify": ParagraphStyle(
@@ -3468,7 +3468,7 @@ def _build_dsa_report(case: dict, S: dict) -> list:
     _det_para = Paragraph(
         f"<u><b>{_det_heading}</b></u>",
         ParagraphStyle("_dsa_det", fontName=F_BOLD, fontSize=11,
-                       textColor=BLACK, alignment=TA_CENTER, leading=15,
+                       textColor=C_NGS_TITLE, alignment=TA_CENTER, leading=15,
                        spaceAfter=4 if _rmk else 5)
     )
 
@@ -4040,7 +4040,7 @@ def _build_sab_report(case: dict, S: dict) -> list:
     low_alleles  = [(a, m) for a, m in alleles if int(m) <  1000]
 
     _cls_hdr_s = ParagraphStyle("_sab_ch", fontName=F_BOLD, fontSize=11,
-                                 textColor=BLACK, leading=14, spaceAfter=4)
+                                 textColor=C_NGS_TITLE, leading=14, spaceAfter=4)
     _sub_s     = ParagraphStyle("_sab_sb", fontName=F_REG,  fontSize=10,
                                  leading=13, spaceAfter=3)
     _th_s      = ParagraphStyle("_sab_th", fontName=F_BOLD, fontSize=11,
@@ -4092,7 +4092,7 @@ def _build_sab_report(case: dict, S: dict) -> list:
     if chart_b:
         elems.append(PageBreak())
         _ct_s = ParagraphStyle("_sab_ct", fontName=F_BOLD, fontSize=12,
-                                textColor=BLACK, alignment=TA_CENTER, leading=16)
+                                textColor=C_NGS_TITLE, alignment=TA_CENTER, leading=16)
         try:
             img = Image(io.BytesIO(chart_b))
             # The source chart is landscape, so a true-aspect fit at full width
