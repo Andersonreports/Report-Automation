@@ -1767,13 +1767,13 @@ def _build_ngs_transplant(case: dict, S: dict) -> list:
     while elems and isinstance(elems[-1], Spacer):
         elems.pop()
 
-    # IMGT/HLA Release + Coverage flows naturally onto the same page when there's
-    # room (for both transplant_donor and loci11), instead of always forcing a
-    # fresh page regardless of how short the locus table content is.
-    elems.extend(_methodology_block(case, S))
+    # IMGT/HLA Release + Coverage + Methodology + Signatures are kept as one
+    # atomic block so Coverage never gets orphaned alone on a page (with a
+    # large blank gap below it) while Methodology/Signatures spill to the
+    # next page — they now move together, flowing naturally onto page 1
+    # when there's room for all of it, or together onto page 2 otherwise.
     sig_items = _signature_block(signatories, S)
-    if sig_items:
-        elems.append(KeepTogether(sig_items))
+    elems.append(KeepTogether(_methodology_block(case, S) + sig_items))
 
     return elems
 
