@@ -55,8 +55,11 @@
       justify-content: space-between;
       margin-bottom: 10px;
       flex-shrink: 0;
+      flex-wrap: wrap;
+      gap: 12px;
     }
     .page-hdr-left { display: flex; align-items: center; gap: 14px; }
+    .page-hdr-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
     .page-hdr-left h1 {
       font-family: 'GillSansMT-Bold', sans-serif;
       font-size: 20px;
@@ -94,8 +97,7 @@
     .tab-bar {
       display: flex;
       gap: 8px;
-      margin-bottom: 12px;
-      flex-shrink: 0;
+      flex-wrap: wrap;
     }
     .tab {
       padding: 9px 22px;
@@ -787,14 +789,14 @@
         <a href="index.html" class="home-btn">&#8592; Home</a>
         <h1>TERA Report Generator</h1>
       </div>
-    </div>
-
-    <!-- ── Tab Bar ── -->
-    <div class="tab-bar">
-      <button class="tab active" onclick="openTab('manual', this)"><i class="fas fa-user-edit"></i> Single Entry</button>
-      <button class="tab" onclick="openTab('bulk', this)"><i class="fas fa-table"></i> Bulk Upload</button>
-      <button class="tab" onclick="openTab('compare', this)"><i class="fas fa-columns"></i> Report Comparison</button>
-      <button class="tab" onclick="openTab('guide', this)"><i class="fas fa-book"></i> User Guide</button>
+      <div class="page-hdr-right">
+        <div class="tab-bar">
+          <button class="tab active" onclick="openTab('manual', this)"><i class="fas fa-user-edit"></i> Single Entry</button>
+          <button class="tab" onclick="openTab('bulk', this)"><i class="fas fa-table"></i> Bulk Upload</button>
+          <button class="tab" onclick="openTab('compare', this)"><i class="fas fa-columns"></i> Report Comparison</button>
+          <button class="tab" onclick="openTab('guide', this)"><i class="fas fa-book"></i> User Guide</button>
+        </div>
+      </div>
     </div>
 
     <!-- ── Workspace ── -->

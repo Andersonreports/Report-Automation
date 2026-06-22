@@ -294,7 +294,7 @@ async def preview_report(data: dict):
     # browser ever saves this preview file directly (e.g. via its native PDF
     # viewer's download button) it gets a sensible name instead of a bare UUID.
     try:
-        fname = os.path.splitext(_build_tera_filename(data, with_logo))[0]
+        fname = os.path.basename(os.path.splitext(_build_tera_filename(data, with_logo))[0])
     except Exception:
         fname = "preview"
     file_id = f"{fname}_{uuid.uuid4().hex[:8]}.pdf"
