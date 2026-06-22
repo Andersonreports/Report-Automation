@@ -11,7 +11,7 @@
 
     body {
       font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
-      background: #F4F5F7;
+      background: #EEF4FA;
       color: #111827;
       min-height: 100vh;
       opacity: 0;
@@ -19,64 +19,33 @@
     }
     body.loaded { opacity: 1; }
 
-    /* ── Sidebar (matches index.html) ── */
-    .sidebar {
-      position: fixed; top: 0; left: 0; width: 220px; height: 100vh;
-      background: #111827; z-index: 300; display: flex; flex-direction: column;
-    }
-    .sidebar-brand {
-      height: 68px; flex-shrink: 0; display: flex; align-items: center;
-      padding: 0 10px; gap: 10px; border-bottom: 1px solid rgba(255,255,255,0.07);
-      overflow: hidden;
-    }
-    .sidebar-brand-logo {
-      width: 100%; height: 100%; max-height: 56px; object-fit: contain;
-      background: #fff; border-radius: 6px; padding: 4px 10px;
-    }
-    .sidebar-brand-icon {
-      width: 30px; height: 30px; background: #4F46E5; border-radius: 8px;
-      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-    }
-    .sidebar-brand-icon i { font-size: 13px; color: #fff; }
-    .sidebar-brand-name { font-size: 13.5px; font-weight: 700; color: #F9FAFB; letter-spacing: -0.2px; line-height: 1.25; }
-    .sidebar-brand-sub { font-size: 10px; color: rgba(255,255,255,0.3); font-weight: 400; }
-    .sidebar-body { flex: 1; padding: 22px 10px 16px; display: flex; flex-direction: column; gap: 2px; }
-    .sidebar-section-label {
-      font-size: 9.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.8px;
-      color: rgba(255,255,255,0.22); padding: 0 10px; margin-bottom: 8px;
-    }
-    .sidebar-nav-item {
-      display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: 8px;
-      font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.46); cursor: pointer;
-      transition: all 0.15s ease; border: none; background: transparent; font-family: inherit;
-      width: 100%; text-align: left; text-decoration: none;
-    }
-    .sidebar-nav-item i { font-size: 13px; width: 16px; text-align: center; flex-shrink: 0; transition: color 0.15s; }
-    .sidebar-nav-item.active { background: rgba(79,70,229,0.18); color: #A5B4FC; font-weight: 600; }
-    .sidebar-nav-item.active i { color: #818CF8; }
-    .sidebar-nav-item:not(.active):hover { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.72); }
-    .sidebar-footer {
-      padding: 14px 18px; border-top: 1px solid rgba(255,255,255,0.06);
-      display: flex; align-items: center; gap: 8px;
-    }
-    .sidebar-footer-dot { width: 6px; height: 6px; border-radius: 50%; background: #10B981; flex-shrink: 0; }
-    .sidebar-footer-text { font-size: 11px; color: rgba(255,255,255,0.28); font-weight: 500; }
-
-    /* ── Header ── */
+    /* ── Header (matches index.html) ── */
     .app-header {
-      position: fixed; top: 0; left: 220px; right: 0; height: 58px; background: #fff;
+      position: fixed; top: 0; left: 0; right: 0; height: 72px; background: #fff;
       border-bottom: 1px solid #E5E7EB; display: flex; align-items: center;
-      justify-content: space-between; padding: 0 28px; z-index: 200;
+      justify-content: space-between; padding: 0 32px; z-index: 200;
     }
+    .header-brand { display: flex; align-items: center; gap: 18px; }
+    .header-logo { height: 44px; width: auto; object-fit: contain; }
+    .header-divider { width: 1px; height: 28px; background: #E5E7EB; }
     .header-title { font-size: 18px; font-weight: 700; color: #111827; letter-spacing: -0.4px; }
+    .header-right { display: flex; align-items: center; gap: 16px; }
     .header-user { font-size: 12.5px; color: #6B7280; font-weight: 500; }
+    .admin-btn {
+      display: flex; align-items: center; gap: 7px; padding: 9px 16px; border-radius: 9px;
+      background: #EEF2FF; color: #4F46E5; font-size: 13px; font-weight: 600;
+      text-decoration: none; transition: background 0.15s ease; border: none; cursor: pointer;
+      font-family: inherit;
+    }
+    .admin-btn:hover { background: #E0E7FF; }
+    .admin-btn i { font-size: 13px; }
 
     /* ── Page ── */
-    .page { margin-left: 220px; padding-top: 58px; min-height: 100vh; }
-    .page-inner { padding: 28px 32px; max-width: 1100px; }
-    .page-intro { margin-bottom: 22px; display: flex; align-items: center; justify-content: space-between; }
-    .page-intro h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.4px; }
-    .page-intro p { font-size: 13px; color: #6B7280; margin-top: 4px; }
+    .page { padding-top: 72px; min-height: 100vh; }
+    .page-inner { padding: 40px 32px 80px; max-width: 1100px; margin: 0 auto; }
+    .page-intro { margin-bottom: 28px; display: flex; align-items: center; justify-content: space-between; }
+    .page-intro h1 { font-size: 26px; font-weight: 800; letter-spacing: -0.6px; }
+    .page-intro p { font-size: 13.5px; color: #6B7280; margin-top: 6px; line-height: 1.6; }
 
     .btn {
       display: inline-flex; align-items: center; gap: 7px; padding: 9px 16px; border-radius: 9px;
@@ -101,7 +70,8 @@
     .banner i { margin-top: 2px; }
 
     .card {
-      background: #fff; border: 1px solid #E5E7EB; border-radius: 14px; overflow: hidden;
+      background: #fff; border: 1px solid #E5E7EB; border-radius: 16px; overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.05);
     }
 
     table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -158,31 +128,19 @@
 </head>
 <body>
 
-  <nav class="sidebar">
-    <div class="sidebar-brand">
-      <img src="/static/anderson-logo.png" alt="Anderson Diagnostics &amp; Labs" class="sidebar-brand-logo" />
-    </div>
-    <div class="sidebar-body">
-      <div class="sidebar-section-label">Workspace</div>
-      <a class="sidebar-nav-item" href="/index.html">
-        <i class="fas fa-file-medical"></i>
-        Report Automation
-      </a>
-      <div class="sidebar-section-label" style="margin-top:18px;">Administration</div>
-      <button class="sidebar-nav-item active">
-        <i class="fas fa-user-shield"></i>
-        Configuration
-      </button>
-    </div>
-    <div class="sidebar-footer">
-      <span class="sidebar-footer-dot"></span>
-      <span class="sidebar-footer-text">All systems operational</span>
-    </div>
-  </nav>
-
   <header class="app-header">
-    <span class="header-title">Configuration</span>
-    <span class="header-user" id="headerUser"></span>
+    <div class="header-brand">
+      <img src="/static/anderson-logo.png" alt="Anderson Diagnostics &amp; Labs" class="header-logo" />
+      <span class="header-divider"></span>
+      <span class="header-title">Configuration</span>
+    </div>
+    <div class="header-right">
+      <span class="header-user" id="headerUser"></span>
+      <a class="admin-btn" href="/index.html">
+        <i class="fas fa-arrow-left"></i>
+        Back to Dashboard
+      </a>
+    </div>
   </header>
 
   <div class="page">
@@ -284,7 +242,7 @@
     } else if (_accessControlActive && _role !== 'admin') {
       document.documentElement.innerHTML = `
         <body style="margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;
-          font-family:'Inter',sans-serif;background:#F4F5F7;">
+          font-family:'Inter',sans-serif;background:#EEF4FA;">
           <div style="text-align:center;max-width:420px;padding:40px;">
             <div style="font-size:48px;color:#DC2626;margin-bottom:16px;"><i class="fas fa-ban"></i></div>
             <h1 style="font-size:20px;font-weight:800;color:#111827;margin-bottom:8px;">Access Denied</h1>
