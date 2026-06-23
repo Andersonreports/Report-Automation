@@ -425,6 +425,21 @@
 
     <!-- ══════════════ TAB 1: SINGLE ENTRY ══════════════ -->
     <div class="tab-content active" id="tab-manual">
+      <div class="hla-patient-finder" style="display:flex; align-items:flex-end; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
+        <div class="hdr-select-group"><label>From Date:</label><input type="date" id="pfFromDate"></div>
+        <div class="hdr-select-group"><label>To Date:</label><input type="date" id="pfToDate"></div>
+        <button class="btn-sm btn-outline" id="pfFindBtn" type="button"><i class="fas fa-search"></i> Find Patients</button>
+        <span id="pfStatus" style="font-size:11.5px; color:var(--text-muted);"></span>
+      </div>
+      <div class="hla-modal-backdrop" id="pfModalBackdrop" style="display:none;">
+        <div class="hla-modal">
+          <h4>Select Patient</h4>
+          <div class="hla-modal-list" id="pfModalList"></div>
+          <div class="hla-modal-actions">
+            <button type="button" id="pfModalCloseBtn" style="border-color:var(--input-border); background:#fff;">Close</button>
+          </div>
+        </div>
+      </div>
       <div class="split-layout">
         <div class="form-col" id="manualFormCol">
           <!-- Filled dynamically by JS based on template -->
@@ -597,5 +612,70 @@
   <div class="toast" id="toast"></div>
 
   <script src="/hla.js?v=49"></script>
+  <script>
+    (function () {
+      const fromEl = document.getElementById('pfFromDate');
+      const toEl = document.getElementById('pfToDate');
+      const findBtn = document.getElementById('pfFindBtn');
+      const statusEl = document.getElementById('pfStatus');
+      const backdrop = document.getElementById('pfModalBackdrop');
+      const listEl = document.getElementById('pfModalList');
+      document.getElementById('pfModalCloseBtn').addEventListener('click', () => { backdrop.style.display = 'none'; });
+
+      function fillField(key, value) {
+        if (value === undefined || value === null || value === '') return;
+        if (manualFields[key]) manualFields[key].value = value;
+      }
+
+      function applyPatient(p) {
+        fillField('patient_name', p.patient_name);
+        fillField('name', p.patient_name);
+        fillField('age', p.age);
+        fillField('gender', p.gender);
+        if (p.age != null && p.gender) fillField('gender_age', `${p.gender} / ${p.age}`);
+        fillField('sample_number', p.lab_no);
+        fillField('pin', p.patient_no);
+        const isoDate = (p.sample_receipt_date || '').split(' ')[0];
+        const [y, m, d] = isoDate.split('-');
+        const displayDate = (y && m && d) ? `${d}-${m}-${y}` : '';
+        fillField('collection_date', displayDate);
+        fillField('receipt_date', displayDate);
+        if (typeof scheduleManualPreview === 'function') scheduleManualPreview();
+        backdrop.style.display = 'none';
+      }
+
+      findBtn.addEventListener('click', async () => {
+        const fromDate = fromEl.value, toDate = toEl.value;
+        if (!fromDate || !toDate) { statusEl.textContent = 'Pick both dates first.'; return; }
+        statusEl.textContent = 'Searching...';
+        try {
+          const res = await fetch('/access/patients', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ from_date: fromDate, to_date: toDate, reporting_type: 'hla_typing' }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) { statusEl.textContent = data.detail || 'Search failed.'; return; }
+          const patients = data.patients || [];
+          statusEl.textContent = `${patients.length} found`;
+          listEl.innerHTML = '';
+          if (!patients.length) {
+            listEl.innerHTML = '<div style="padding:10px; font-size:12.5px; color:var(--text-muted);">No patients in this date range.</div>';
+          } else {
+            patients.forEach(p => {
+              const item = document.createElement('div');
+              item.className = 'hla-modal-item';
+              item.textContent = `${p.patient_name} — ${p.gender || ''}/${p.age ?? ''} — ${p.patient_no} — ${(p.sample_receipt_date || '').split(' ')[0]}`;
+              item.addEventListener('click', () => applyPatient(p));
+              listEl.appendChild(item);
+            });
+          }
+          backdrop.style.display = 'flex';
+        } catch (err) {
+          statusEl.textContent = 'Could not reach the server.';
+        }
+      });
+    })();
+  </script>
 </body>
 </html>

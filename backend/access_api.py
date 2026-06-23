@@ -1,16 +1,3 @@
-"""
-access_api.py — User login + admin CRUD for the per-report access control
-system (Admin page + "Access Denied" guards on each report app).
-
-Identity (username + password + OTP) is verified by IT's genetics auth
-gateway via genetics_auth_client.py. mysql_client.py's `users` table no
-longer checks a local password — it's only used to look up the role and
-single report an already-verified username is allowed to see. Until
-MYSQL_HOST/USER/PASSWORD/DATABASE are set in the .env file,
-mysql_client.mysql_enabled is False and every CRUD route here returns a
-clear 503; login instead falls back to unrestricted access (matching
-pre-access-control behavior) since there's no local table to consult.
-"""
 
 from fastapi import APIRouter, HTTPException
 
@@ -75,6 +62,23 @@ async def verify_otp(body: dict):
             403, "Your account isn't set up for any report yet. Contact an administrator."
         )
     return user
+
+
+@router.post("/patients")
+async def get_patients(body: dict):
+    from_date = (body.get("from_date") or "").strip()
+    to_date = (body.get("to_date") or "").strip()
+    reporting_type = (body.get("reporting_type") or "").strip()
+    if not from_date or not to_date or not reporting_type:
+        raise HTTPException(400, "from_date, to_date, and reporting_type are required.")
+
+    try:
+        patients = genetics.get_patient_details(
+            f"{from_date} 00:00:00", f"{to_date} 23:59:59", reporting_type
+        )
+    except genetics.GeneticsApiError as e:
+        raise HTTPException(502, str(e))
+    return {"patients": patients}
 
 
 @router.get("/users")

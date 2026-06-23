@@ -139,3 +139,12 @@ def genetics_login(user_name: str, password: str) -> dict:
 
 def verify_otp(otp: str, otp_hash: str, mobile: str) -> dict:
     return _post("/genetics/verify_otp", {"otp": otp, "hash": otp_hash, "mobile": mobile})
+
+
+def get_patient_details(from_date: str, to_date: str, reporting_type: str) -> list:
+    data = _post("/genetics/get_patient_details", {
+        "from_date": from_date,
+        "to_date": to_date,
+        "reporting_type": reporting_type,
+    })
+    return data.get("data") or []
