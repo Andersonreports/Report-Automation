@@ -1,19 +1,20 @@
 """
-access_api.py — User login + admin CRUD for the interim per-report access
-control system (Admin page + "Access Denied" guards on each report app).
+access_api.py — User login + admin CRUD for the per-report access control
+system (Admin page + "Access Denied" guards on each report app).
 
-Backed by mysql_client.py's `users` table. Until MYSQL_HOST/USER/PASSWORD/
-DATABASE are set in the .env file, mysql_client.mysql_enabled is False and
-every route here returns a clear 503 instead of crashing — the Admin page
-shows that message until MySQL access is configured.
-
-SECURITY NOTE: this is an interim scaffold (plain-text passwords, no
-session/token validation) standing in for the IT team's real username +
-password + OTP system. Do not treat it as production-grade auth.
+Identity (username + password + OTP) is verified by IT's genetics auth
+gateway via genetics_auth_client.py. mysql_client.py's `users` table no
+longer checks a local password — it's only used to look up the role and
+single report an already-verified username is allowed to see. Until
+MYSQL_HOST/USER/PASSWORD/DATABASE are set in the .env file,
+mysql_client.mysql_enabled is False and every CRUD route here returns a
+clear 503; login instead falls back to unrestricted access (matching
+pre-access-control behavior) since there's no local table to consult.
 """
 
 from fastapi import APIRouter, HTTPException
 
+import genetics_auth_client as genetics
 import mysql_client as db
 
 router = APIRouter(prefix="/access", tags=["access"])
@@ -33,15 +34,46 @@ def _require_mysql():
 
 @router.post("/login")
 async def login(body: dict):
-    _require_mysql()
     username = (body.get("username") or "").strip()
     password = body.get("password") or ""
     if not username or not password:
         raise HTTPException(400, "Username and password are required.")
 
-    user = db.get_user_by_credentials(username, password)
+    try:
+        result = genetics.genetics_login(username, password)
+    except genetics.GeneticsApiError as e:
+        raise HTTPException(401, str(e))
+
+    otp_hash = result.get("hash")
+    if not otp_hash:
+        raise HTTPException(502, "Login succeeded but the auth service returned no OTP hash.")
+
+    return {"otp_required": True, "mobile": username, "hash": otp_hash}
+
+
+@router.post("/verify-otp")
+async def verify_otp(body: dict):
+    otp = (body.get("otp") or "").strip()
+    otp_hash = body.get("hash") or ""
+    mobile = (body.get("mobile") or "").strip()
+    if not otp or not otp_hash or not mobile:
+        raise HTTPException(400, "otp, hash, and mobile are required.")
+
+    try:
+        genetics.verify_otp(otp, otp_hash, mobile)
+    except genetics.GeneticsApiError as e:
+        raise HTTPException(401, str(e))
+
+    if not db.mysql_enabled:
+        # No local table to look up role/report — fail open, same as the
+        # rest of this module does while MySQL isn't configured.
+        return {"username": mobile, "role": "user", "report": None, "access_control": False}
+
+    user = db.get_user_by_username(mobile)
     if not user:
-        raise HTTPException(401, "Invalid username or password.")
+        raise HTTPException(
+            403, "Your account isn't set up for any report yet. Contact an administrator."
+        )
     return user
 
 
@@ -55,19 +87,18 @@ async def list_users():
 async def create_user(body: dict):
     _require_mysql()
     username = (body.get("username") or "").strip()
-    password = body.get("password") or ""
     role = body.get("role") or "user"
     report = body.get("report") or None
 
-    if not username or not password:
-        raise HTTPException(400, "Username and password are required.")
+    if not username:
+        raise HTTPException(400, "Username is required.")
     if role not in ("admin", "user"):
         raise HTTPException(400, "Role must be 'admin' or 'user'.")
     if role == "user" and report not in REPORT_KEYS:
         raise HTTPException(400, f"report must be one of {REPORT_KEYS} for a non-admin user.")
 
     try:
-        return db.create_user(username, password, role, report)
+        return db.create_user(username, role, report)
     except ValueError as e:
         raise HTTPException(409, str(e))
 

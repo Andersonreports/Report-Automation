@@ -125,6 +125,7 @@
     .toast-item.error { background: #DC2626; }
     @keyframes toastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
   </style>
+  <script src="/static/idle-logout.js"></script>
 </head>
 <body>
 
@@ -194,11 +195,7 @@
         <div class="field">
           <label>Username</label>
           <input type="text" id="f_username" required autocomplete="off" />
-        </div>
-        <div class="field">
-          <label id="f_password_label">Password</label>
-          <input type="text" id="f_password" autocomplete="off" />
-          <div class="field-hint" id="f_password_hint">Required for new users. Leave blank when editing to keep the current password.</div>
+          <div class="field-hint">Must match the username IT provisioned for this person in the genetics login system — that's what verifies their identity, not a local password.</div>
         </div>
         <div class="field">
           <label>Role</label>
@@ -344,8 +341,6 @@
       editingUserId = null;
       document.getElementById('userModalTitle').textContent = 'Add User';
       document.getElementById('f_username').value = '';
-      document.getElementById('f_password').value = '';
-      document.getElementById('f_password_hint').textContent = 'Required for new users.';
       document.getElementById('f_role').value = 'user';
       document.getElementById('f_report').innerHTML = reportSelectOptions();
       toggleReportField();
@@ -359,8 +354,6 @@
       editingUserId = id;
       document.getElementById('userModalTitle').textContent = 'Edit User';
       document.getElementById('f_username').value = u.username;
-      document.getElementById('f_password').value = '';
-      document.getElementById('f_password_hint').textContent = 'Leave blank to keep the current password.';
       document.getElementById('f_role').value = u.role;
       document.getElementById('f_report').innerHTML = reportSelectOptions(u.report);
       toggleReportField();
@@ -376,14 +369,11 @@
     document.getElementById('userForm').addEventListener('submit', async (e) => {
       e.preventDefault();
       const username = document.getElementById('f_username').value.trim();
-      const password = document.getElementById('f_password').value;
       const role = document.getElementById('f_role').value;
       const report = document.getElementById('f_report').value;
       if (!username) { toast('Username is required.', 'error'); return; }
-      if (!editingUserId && !password) { toast('Password is required for new users.', 'error'); return; }
 
       const payload = { username, role, report: role === 'admin' ? null : report };
-      if (password) payload.password = password;
 
       try {
         if (editingUserId) {

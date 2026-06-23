@@ -167,10 +167,6 @@
           <input type="checkbox" id="rememberMe" />
           Remember me
         </label>
-        <label class="checkbox-wrap">
-          <input type="checkbox" id="useOtp" />
-          Use OTP verification
-        </label>
       </div>
 
       <button type="submit" class="submit" id="submitBtn">
@@ -181,9 +177,9 @@
   </div>
 
   <script>
-    // NOTE: this is an interim username+password check against the
-    // access_api.py / mysql_client.py `users` table — a stand-in until the
-    // IT team's real username + password + OTP system is ready.
+    // Real auth: username+password go to IT's genetics login gateway
+    // (access_api.py -> genetics_auth_client.py), which always requires an
+    // OTP step before access is granted — see otp.html.
     const form     = document.getElementById('loginForm');
     const errorBox = document.getElementById('errorMsg');
     const errorText = document.getElementById('errorText');
@@ -205,7 +201,6 @@
         return;
       }
 
-      const useOtp = document.getElementById('useOtp').checked;
       submitBtn.disabled = true;
 
       try {
@@ -216,38 +211,19 @@
         });
         const data = await res.json().catch(() => ({}));
 
-        if (res.status === 503) {
-          // MySQL isn't configured yet — the access-control layer isn't
-          // operational, so fall back to unrestricted access (matches the
-          // pre-access-control behavior) instead of locking everyone out.
-          localStorage.setItem('arc_authenticated', 'true');
-          localStorage.setItem('arc_access_control', 'false');
-          localStorage.removeItem('arc_username');
-          localStorage.removeItem('arc_role');
-          localStorage.removeItem('arc_report');
-          window.location.href = '/index.html';
-          return;
-        }
-
         if (!res.ok) {
           showError(data.detail || 'Invalid username or password.');
           return;
         }
 
-        if (useOtp) {
-          // Hand off to the OTP step before granting access.
-          sessionStorage.setItem('arc_otp_pending', 'true');
-          sessionStorage.setItem('arc_pending_user', JSON.stringify(data));
-          window.location.href = '/otp.html';
-          return;
-        }
-
-        localStorage.setItem('arc_authenticated', 'true');
-        localStorage.setItem('arc_access_control', 'true');
-        localStorage.setItem('arc_username', data.username);
-        localStorage.setItem('arc_role', data.role);
-        localStorage.setItem('arc_report', data.report || '');
-        window.location.href = '/index.html';
+        // Hand off to the OTP step. Credentials are kept in sessionStorage
+        // only (cleared on success/failure) so "Resend OTP" can re-trigger
+        // /access/login without asking the user to retype their password.
+        sessionStorage.setItem('arc_otp_pending', 'true');
+        sessionStorage.setItem('arc_pending_mobile', data.mobile);
+        sessionStorage.setItem('arc_pending_hash', data.hash);
+        sessionStorage.setItem('arc_pending_password', password);
+        window.location.href = '/otp.html';
       } catch (err) {
         showError('Could not reach the server. Please try again.');
       } finally {

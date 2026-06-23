@@ -30,6 +30,9 @@ qrcode[pil]>=7.4.2
 # MySQL database
 mysql-connector-python>=8.3.0
 
+# HTTP client for IT's genetics auth gateway (login + OTP)
+requests>=2.31.0
+
 # Optional: JWT auth for report tracker
 # python-jose[cryptography]>=3.3.0
 # bcrypt>=4.0.0

@@ -171,14 +171,27 @@
   </div>
 
   <script>
-    // TODO (IT): wire this form up to the real OTP send/verify backend.
     if (sessionStorage.getItem('arc_otp_pending') !== 'true') {
       window.location.replace('/login.html');
     }
 
     const form     = document.getElementById('otpForm');
     const errorBox = document.getElementById('errorMsg');
+    const errorText = document.getElementById('errorText');
+    const submitBtn = document.getElementById('submitBtn');
     const inputs    = Array.from(document.querySelectorAll('.otp-input'));
+
+    function showError(msg) {
+      errorText.textContent = msg;
+      errorBox.classList.add('show');
+    }
+
+    function clearPendingSession() {
+      sessionStorage.removeItem('arc_otp_pending');
+      sessionStorage.removeItem('arc_pending_mobile');
+      sessionStorage.removeItem('arc_pending_hash');
+      sessionStorage.removeItem('arc_pending_password');
+    }
 
     inputs.forEach((input, idx) => {
       input.addEventListener('input', () => {
@@ -201,35 +214,76 @@
       });
     });
 
-    document.getElementById('resendLink').addEventListener('click', () => {
-      // Placeholder only — trigger a real OTP resend here.
-      inputs.forEach(i => i.value = '');
-      inputs[0].focus();
+    document.getElementById('resendLink').addEventListener('click', async () => {
+      errorBox.classList.remove('show');
+      const mobile = sessionStorage.getItem('arc_pending_mobile');
+      const password = sessionStorage.getItem('arc_pending_password');
+      if (!mobile || !password) {
+        window.location.replace('/login.html');
+        return;
+      }
+      try {
+        const res = await fetch('/access/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: mobile, password }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showError(data.detail || 'Could not resend the code. Please log in again.');
+          return;
+        }
+        sessionStorage.setItem('arc_pending_hash', data.hash);
+        inputs.forEach(i => i.value = '');
+        inputs[0].focus();
+      } catch (err) {
+        showError('Could not reach the server. Please try again.');
+      }
     });
 
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
       errorBox.classList.remove('show');
 
       const code = inputs.map(i => i.value).join('');
       if (code.length !== 6) {
-        errorBox.classList.add('show');
+        showError('Invalid OTP. Please try again.');
         return;
       }
 
-      // Placeholder only — replace with a real OTP verification request
-      // (IT team's username + password + OTP system).
-      const pending = JSON.parse(sessionStorage.getItem('arc_pending_user') || 'null');
-      sessionStorage.removeItem('arc_otp_pending');
-      sessionStorage.removeItem('arc_pending_user');
-      localStorage.setItem('arc_authenticated', 'true');
-      if (pending) {
-        localStorage.setItem('arc_access_control', 'true');
-        localStorage.setItem('arc_username', pending.username);
-        localStorage.setItem('arc_role', pending.role);
-        localStorage.setItem('arc_report', pending.report || '');
+      const mobile = sessionStorage.getItem('arc_pending_mobile');
+      const hash = sessionStorage.getItem('arc_pending_hash');
+      if (!mobile || !hash) {
+        window.location.replace('/login.html');
+        return;
       }
-      window.location.href = '/index.html';
+
+      submitBtn.disabled = true;
+      try {
+        const res = await fetch('/access/verify-otp', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ otp: code, hash, mobile }),
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          showError(data.detail || 'Invalid OTP. Please try again.');
+          return;
+        }
+
+        clearPendingSession();
+        localStorage.setItem('arc_authenticated', 'true');
+        localStorage.setItem('arc_access_control', String(data.access_control !== false));
+        localStorage.setItem('arc_username', data.username || mobile);
+        localStorage.setItem('arc_role', data.role || 'user');
+        localStorage.setItem('arc_report', data.report || '');
+        window.location.href = '/index.html';
+      } catch (err) {
+        showError('Could not reach the server. Please try again.');
+      } finally {
+        submitBtn.disabled = false;
+      }
     });
   </script>
 </body>
