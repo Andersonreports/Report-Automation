@@ -172,7 +172,7 @@
         <table>
           <thead>
             <tr>
-              <th>Username</th>
+              <th>Mobile Number</th>
               <th>Role</th>
               <th>Report Access</th>
               <th style="text-align:right;">Actions</th>
@@ -193,9 +193,9 @@
       <h3 id="userModalTitle">Add User</h3>
       <form id="userForm">
         <div class="field">
-          <label>Username</label>
-          <input type="text" id="f_username" required autocomplete="off" />
-          <div class="field-hint">Must match the username IT provisioned for this person in the genetics login system — that's what verifies their identity, not a local password.</div>
+          <label>Mobile Number</label>
+          <input type="tel" id="f_username" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" required autocomplete="off" />
+          <div class="field-hint">Must match the mobile number IT provisioned for this person in the genetics login system — that's what verifies their identity, not a local password.</div>
         </div>
         <div class="field">
           <label>Role</label>
@@ -336,6 +336,9 @@
       document.getElementById('f_report_field').style.display = isAdmin ? 'none' : '';
     }
     document.getElementById('f_role').addEventListener('change', toggleReportField);
+    document.getElementById('f_username').addEventListener('input', (e) => {
+      e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
+    });
 
     function openAddModal() {
       editingUserId = null;
@@ -371,7 +374,7 @@
       const username = document.getElementById('f_username').value.trim();
       const role = document.getElementById('f_role').value;
       const report = document.getElementById('f_report').value;
-      if (!username) { toast('Username is required.', 'error'); return; }
+      if (!/^[0-9]{10}$/.test(username)) { toast('Enter a valid 10-digit mobile number.', 'error'); return; }
 
       const payload = { username, role, report: role === 'admin' ? null : report };
 

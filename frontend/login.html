@@ -73,7 +73,7 @@
       font-size: 13px;
       color: #9CA3AF;
     }
-    input[type="password"], input[type="text"] {
+    input[type="password"], input[type="text"], input[type="tel"] {
       width: 100%;
       padding: 12px 14px 12px 38px;
       border: 1px solid #D1D5DB;
@@ -150,10 +150,11 @@
     </div>
 
     <form id="loginForm">
-      <label for="username">Username</label>
+      <label for="username">Mobile Number</label>
       <div class="input-wrap">
         <i class="fas fa-user"></i>
-        <input type="text" id="username" name="username" placeholder="Enter your username" autocomplete="username" required />
+        <input type="tel" id="username" name="username" placeholder="Enter your mobile number"
+               inputmode="numeric" pattern="[0-9]{10}" maxlength="10" autocomplete="tel" required />
       </div>
 
       <label for="password">Password</label>
@@ -184,6 +185,11 @@
     const errorBox = document.getElementById('errorMsg');
     const errorText = document.getElementById('errorText');
     const submitBtn = document.getElementById('submitBtn');
+    const usernameInput = document.getElementById('username');
+
+    usernameInput.addEventListener('input', () => {
+      usernameInput.value = usernameInput.value.replace(/[^0-9]/g, '').slice(0, 10);
+    });
 
     function showError(msg) {
       errorText.textContent = msg;
@@ -194,9 +200,13 @@
       e.preventDefault();
       errorBox.classList.remove('show');
 
-      const username = document.getElementById('username').value.trim();
+      const username = usernameInput.value.trim();
       const password = document.getElementById('password').value;
-      if (!username || !password) {
+      if (!/^[0-9]{10}$/.test(username)) {
+        showError('Please enter a valid 10-digit mobile number.');
+        return;
+      }
+      if (!password) {
         showError('Invalid username or password.');
         return;
       }
