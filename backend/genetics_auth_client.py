@@ -81,6 +81,20 @@ def _get_service_token(force_refresh: bool = False) -> str:
     return _token
 
 
+def _do_post(path: str, body: dict, token: str):
+    resp = requests.post(
+        f"{_BASE_URL}{path}",
+        json=body,
+        headers={"Authorization": f"Bearer {token}"},
+        timeout=_TIMEOUT,
+    )
+    try:
+        data = resp.json()
+    except ValueError:
+        data = {}
+    return resp, data
+
+
 def _post(path: str, body: dict) -> dict:
     if not is_configured():
         raise GeneticsApiError(
@@ -89,29 +103,19 @@ def _post(path: str, body: dict) -> dict:
 
     token = _get_service_token()
     try:
-        resp = requests.post(
-            f"{_BASE_URL}{path}",
-            json=body,
-            headers={"Authorization": f"Bearer {token}"},
-            timeout=_TIMEOUT,
-        )
-        if resp.status_code == 401:
+        resp, data = _do_post(path, body, token)
+        # IT's gateway returns HTTP 401 even on a logically successful
+        # /genetics/login or /verify_otp call (body has "message":"success")
+        # — only treat 401 as an expired service token (and retry once) if
+        # the body doesn't already say it succeeded.
+        if resp.status_code == 401 and data.get("message") != "success":
             token = _get_service_token(force_refresh=True)
-            resp = requests.post(
-                f"{_BASE_URL}{path}",
-                json=body,
-                headers={"Authorization": f"Bearer {token}"},
-                timeout=_TIMEOUT,
-            )
+            resp, data = _do_post(path, body, token)
     except requests.RequestException as e:
         raise GeneticsApiError(f"Could not reach {path}: {e}")
 
-    try:
-        data = resp.json()
-    except ValueError:
-        data = {}
-
-    if not resp.ok:
+    ok = resp.ok or data.get("message") == "success"
+    if not ok:
         message = data.get("message") or data.get("error") or resp.text[:300] or "Request failed."
         raise GeneticsApiError(message)
     return data
@@ -119,14 +123,18 @@ def _post(path: str, body: dict) -> dict:
 
 def genetics_login(user_name: str, password: str) -> dict:
     """Validates the end user's credentials with IT's gateway. On success
-    this also triggers an OTP to their registered mobile and returns the
-    `hash` needed to verify it in the same response."""
+    this also triggers an OTP to their registered mobile. IT's response
+    shape is `{"message": "success", "data": "<hash>"}` — the hash needed
+    for verify_otp is the `data` field itself, not a nested `hash` key."""
     data = _post("/genetics/login", {"user_name": user_name, "password": password})
-    # IT's docs didn't show a sample response body — tolerate the hash
-    # being nested under a `data` key as well as top-level.
-    if "hash" not in data and isinstance(data.get("data"), dict):
-        return data["data"]
-    return data
+    otp_hash = data.get("hash")
+    if not otp_hash:
+        nested = data.get("data")
+        if isinstance(nested, str):
+            otp_hash = nested
+        elif isinstance(nested, dict):
+            otp_hash = nested.get("hash")
+    return {"hash": otp_hash}
 
 
 def verify_otp(otp: str, otp_hash: str, mobile: str) -> dict:
