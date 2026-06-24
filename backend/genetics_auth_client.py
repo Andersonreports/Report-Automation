@@ -135,7 +135,7 @@ def genetics_login(mobile_number: str, password: str) -> dict:
 
 
 def verify_otp(otp: str, otp_hash: str, mobile: str) -> dict:
-    return _post("/genetics/verify_otp", {"otp": otp, "hash": otp_hash, "mobile": mobile})
+    return _post("/genetics/verify_otp", {"otp": otp, "hash": otp_hash, "mobile_number": mobile})
 
 
 def get_patient_details(from_date: str, to_date: str, reporting_type: str) -> list:
