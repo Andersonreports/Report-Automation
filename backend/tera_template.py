@@ -21,20 +21,20 @@ CONFIRMED LAYOUT (from pdfplumber analysis):
   Rec divider   : varies per type
 
 DATA COLUMNS (from TERA automation report Excel):
-  Patient Name              → patient name
-  Age                       → age (numeric)
-  Sample ID                 → sample identifier
-  Lab No.                   → lab number
-  Biopsy No.                → specimen label (e.g. "Endometrial Biopsy- 1")
-  Doctor Name               → referring clinician
-  Center name               → hospital/clinic
-  Cycle Type                → cycle type
-  P4 /hCG injection  date time  → first P4 intake (string datetime)
-  Biopsy time in hrs        → biopsy datetime (string, NOT the P+ hours)
-  Biopsy time in hrs.1      → P+ hours (numeric, e.g. 120.0)
-  TERA result               → receptivity classification
-  Time for report           → embryo transfer timing (e.g. "144 + 2")
-  Date of Received          → specimen receipt date (Timestamp)
+  Patient Name              â patient name
+  Age                       â age (numeric)
+  Sample ID                 â sample identifier
+  Lab No.                   â lab number
+  Biopsy No.                â specimen label (e.g. "Endometrial Biopsy- 1")
+  Doctor Name               â referring clinician
+  Center name               â hospital/clinic
+  Cycle Type                â cycle type
+  P4 /hCG injection  date time  â first P4 intake (string datetime)
+  Biopsy time in hrs        â biopsy datetime (string, NOT the P+ hours)
+  Biopsy time in hrs.1      â P+ hours (numeric, e.g. 120.0)
+  TERA result               â receptivity classification
+  Time for report           â embryo transfer timing (e.g. "144 + 2")
+  Date of Received          â specimen receipt date (Timestamp)
 """
 
 import os, io, re, base64, sys
@@ -60,16 +60,16 @@ from reportlab.pdfbase.pdfmetrics import registerFontFamily
 
 import tera_assets
 
-# ─── Colours ──────────────────────────────────────────────────────────────────
-BLUE     = Color(0.122, 0.286, 0.49)      # #1F497D  – headings & title
+# âââ Colours ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+BLUE     = Color(0.122, 0.286, 0.49)      # #1F497D  â headings & title
 BLUE_HEX = "#1F497D"                      # For PDF Paragraphs
-MED_BLUE = Color(0.310, 0.506, 0.741)     # #4F81BD  – "This report reviewed…"
-FIELD    = HexColor('#F1F1F7')            # lavender  – patient table background
-GRAY_SIG = Color(0.2, 0.2, 0.2)          # #333333   – reviewer names & titles
+MED_BLUE = Color(0.310, 0.506, 0.741)     # #4F81BD  â "This report reviewedâ¦"
+FIELD    = HexColor('#F1F1F7')            # lavender  â patient table background
+GRAY_SIG = Color(0.2, 0.2, 0.2)          # #333333   â reviewer names & titles
 BLACK    = black
 WHITE    = white
 
-# ─── Font registration ────────────────────────────────────────────────────────
+# âââ Font registration ââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 _FONT_DIR = _resource_path("fonts")
 
 def _reg(name, filename):
@@ -100,7 +100,7 @@ def _font_ok(name):
     except Exception:
         return False
 
-# Register Calibri as a font family (same full 1.6 MB TTFs as PGTA uses — confirmed box-free)
+# Register Calibri as a font family (same full 1.6 MB TTFs as PGTA uses â confirmed box-free)
 if _font_ok("Calibri") and _font_ok("Calibri-Bold"):
     registerFontFamily("Calibri",
         normal="Calibri", bold="Calibri-Bold",
@@ -135,15 +135,15 @@ F_BULLET = "DengXian"        if _font_ok("DengXian")        else ("Calibri" if _
 
 print(f"[tera_template] Fonts: TITLE={F_TITLE}  LBL={F_LBL}  BODY={F_BODY}  BULLET={F_BULLET}")
 
-# ─── Page geometry ────────────────────────────────────────────────────────────
+# âââ Page geometry ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 W, H = 612.0, 792.0
 
-# Header: PGTA/Anderson shared header image (1280�-193 px).
-#   Drawn at x=72, w=468, h = 468*(193/1280) = 70.6 ≈ 71pt  (same as PGTA).
+# Header: PGTA/Anderson shared header image (1280Ã-193 px).
+#   Drawn at x=72, w=468, h = 468*(193/1280) = 70.6 â 71pt  (same as PGTA).
 HDR_X, HDR_Y, HDR_W, HDR_H = 72.0, H - 72.0, 468.0, 72.0
 # Footer: aligned to content area (same x/w as header).
-#   Source image is footer_clean.png: 681�-48px (Anderson Genetics white strip removed).
-#   Natural height at 481.9pt wide: h = 481.9 �- (48 / 681) = 33.97 ≈ 34pt.
+#   Source image is footer_clean.png: 681Ã-48px (Anderson Genetics white strip removed).
+#   Natural height at 481.9pt wide: h = 481.9 Ã- (48 / 681) = 33.97 â 34pt.
 FTR_X, FTR_Y, FTR_W, FTR_H = 72.75, 8.0,      481.9, 34.0
 
 # When generated WITHOUT logo, the PDF is uploaded to the external "DOSE"
@@ -154,7 +154,7 @@ DOSE_FOOTER_RESERVE = 120.0
 
 # Patient info table
 TBL_X          = 45.84
-TBL_TOP_RL     = H - 143.78    # 648.22 – RL y of table top edge
+TBL_TOP_RL     = H - 143.78    # 648.22 â RL y of table top edge
 TBL_COL_WIDTHS = [111.26, 7.08, 200.61, 91.22, 9.01, 114.10]   # total 533.28; right value col widened 5pt for "Modified Natural Cycle"
 TBL_W          = sum(TBL_COL_WIDTHS)
 TBL_PAD_TOP    = 9              # vertical padding above text in each cell (3pt less = content 3pt higher)
@@ -162,7 +162,7 @@ TBL_PAD_TOP    = 9              # vertical padding above text in each cell (3pt 
 # Section divider x-span (same on all pages)
 DIV_X0, DIV_X1 = 72.75, 554.65
 
-# ─── Per-result-type layout (all y in ReportLab space) ────────────────────────
+# âââ Per-result-type layout (all y in ReportLab space) ââââââââââââââââââââââââ
 # Computed directly from pdfplumber measurements of the three template PDFs.
 RESULT_CFG = {
     "receptive": {
@@ -221,7 +221,7 @@ RESULT_CFG = {
     },
 }
 
-# ─── Drawing helpers ──────────────────────────────────────────────────────────
+# âââ Drawing helpers ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 _IMG_CACHE: dict = {}
 
 def _img(b64: str) -> ImageReader:
@@ -295,8 +295,8 @@ def _wrap_justify(c, text, x, y, max_w, font, size, leading, first_line_indent=0
 
 
 def _wrap_pm(c, text, x, y, max_w, font, size, leading):
-    """Like _wrap but renders the ± word in Helvetica-Bold (Type1 built-in).
-    Helvetica-Bold is a standard PDF font guaranteed to render ± (U+00B1).
+    """Like _wrap but renders the Â± word in Helvetica-Bold (Type1 built-in).
+    Helvetica-Bold is a standard PDF font guaranteed to render Â± (U+00B1).
     All other words are drawn in `font`.
     """
     PM = '\u00b1'
@@ -356,12 +356,12 @@ def _justified_block(c, text, x, y, max_w, font, size, leading):
     # drawOn places the bottom-left corner at (x, bot_y).
     # We want the top of the first line near 'y', so bot_y = y - h + (leading - size).
     # The small offset aligns the first baseline with the legacy _wrap() position.
-    offset = leading - size          # typically ≈11 pt for size=11, leading=22
+    offset = leading - size          # typically â11 pt for size=11, leading=22
     para.drawOn(c, x, y - h + offset)
     return y - h + offset
 
 
-# ─── Main class ───────────────────────────────────────────────────────────────
+# âââ Main class âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 class TERAReportGenerator:
 
     def __init__(self, data_row: dict, output_dir: str, with_logo: bool = False):
@@ -394,7 +394,7 @@ class TERAReportGenerator:
         self.filename = f"{name}_{bno}_TERA_report_{logo_tag}.pdf"
         self.filepath = os.path.join(self.out, self.filename)
 
-    # ── Public ────────────────────────────────────────────────────────────────
+    # ââ Public ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
     def generate(self, pages: int = 3) -> str:
         c = canvas.Canvas(self.filepath, pagesize=(W, H))
         c.setTitle(self.filename)
@@ -408,13 +408,13 @@ class TERAReportGenerator:
         c.save()
         return self.filepath
 
-    # ═══════════════════════════════════════════════════════════════════════════
+    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
     # Shared header / footer
-    # ═══════════════════════════════════════════════════════════════════════════
+    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
     def _header(self, c):
         """Draw header.
-        with_logo=True  → Anderson shared header image (tera_assets.HEADER_LOGO).
-        with_logo=False → nothing (no header image, no placeholder).
+        with_logo=True  â Anderson shared header image (tera_assets.HEADER_LOGO).
+        with_logo=False â nothing (no header image, no placeholder).
         """
         if not self.with_logo:
             return
@@ -442,8 +442,8 @@ class TERAReportGenerator:
 
     def _page_number(self, c, n: int, total: int = 3):
         """Draw centred 'Page N of Total'.
-        with_logo  → just above our own footer bar.
-        without_logo → lifted above the DOSE QR/footer reserve band so the
+        with_logo  â just above our own footer bar.
+        without_logo â lifted above the DOSE QR/footer reserve band so the
                        externally-stamped QR has clear room at the bottom.
         """
         text = f"Page {n} of {total}"
@@ -454,9 +454,9 @@ class TERAReportGenerator:
         c.drawCentredString(W / 2, y, text)
         c.restoreState()
 
-    # ═══════════════════════════════════════════════════════════════════════════
-    # PAGE 1 – Patient report
-    # ═══════════════════════════════════════════════════════════════════════════
+    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    # PAGE 1 â Patient report
+    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
     def _page1(self, c):
         self._header(c)
         self._footer(c)
@@ -468,8 +468,8 @@ class TERAReportGenerator:
 
     def _title_block(self, c):
         """Centred two-line title (GillSansMT-Bold 18pt, blue).
-        Exact y from pdfplumber: line1 bottom=93.9 → RL=698.1
-                                 line2 bottom=125.2 → RL=666.8
+        Exact y from pdfplumber: line1 bottom=93.9 â RL=698.1
+                                 line2 bottom=125.2 â RL=666.8
         """
         c.setFont(F_TITLE, 18)
         c.setFillColor(BLUE)
@@ -478,7 +478,7 @@ class TERAReportGenerator:
         c.drawCentredString(W / 2, H - 136.1, "(TERA)")
 
     def _field_table(self, c):
-        """Patient info table (6 rows �- 6 cols) with lavender background.
+        """Patient info table (6 rows Ã- 6 cols) with lavender background.
         Column widths from template: [111.26, 7.08, 205.61, 91.22, 9.01, 109.10]
         Table top  : RL y = H-143.78 = 648.22
         Top padding: 12 pt (text starts 12 pt below cell top edge)
@@ -507,7 +507,7 @@ class TERAReportGenerator:
             ("LEFTPADDING",   (0, 0), (-1, -1), 2),
             ("RIGHTPADDING",  (0, 0), (-1, -1), 2),
             # Zero right padding on right-label column (col 3): "First progesterone intake date"
-            # is 90.5 pt; the column is 91.22 pt — needs all available space.
+            # is 90.5 pt; the column is 91.22 pt â needs all available space.
             ("RIGHTPADDING",  (3, 0), (3, -1), 0),
             ("TOPPADDING",    (0, 0), (-1, -1), TBL_PAD_TOP),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
@@ -542,7 +542,7 @@ class TERAReportGenerator:
         except Exception:
             pass
 
-        # 2. Section heading – GillSansMT-Bold 14pt, blue
+        # 2. Section heading â GillSansMT-Bold 14pt, blue
         #    Exact baseline y from template: H-361.6 = 430.4
         c.setFont(F_HDG, 14)
         c.setFillColor(BLUE)
@@ -555,7 +555,7 @@ class TERAReportGenerator:
                cfg["box_w"], cfg["box_h"],
                fill=True, stroke=False)
 
-        # 4. Status paragraph – DengXian 12pt with inline bold for result phrase
+        # 4. Status paragraph â DengXian 12pt with inline bold for result phrase
         bh_int = self._int(self.d.get("Biopsy time in hrs.1", ""))
         bh_lbl = f"P+{bh_int} hrs" if bh_int is not None else "the biopsy time"
 
@@ -594,7 +594,7 @@ class TERAReportGenerator:
         except Exception:
             pass
 
-        # 2. Section heading – GillSansMT-Bold 14pt, blue
+        # 2. Section heading â GillSansMT-Bold 14pt, blue
         c.setFont(F_HDG, 14)
         c.setFillColor(BLUE)
         c.drawString(72, cfg["hdg_recom_y"],
@@ -608,7 +608,7 @@ class TERAReportGenerator:
                      self.d.get("embryo transfer time in hrs", ""))))).strip()
         blast_lbl, cleave_lbl = self._parse_tr(tr_raw)
 
-        # Extract numeric base from blast_lbl (e.g. "94 ± 2 hrs" → 94)
+        # Extract numeric base from blast_lbl (e.g. "94 Â± 2 hrs" â 94)
         _bm = re.match(r'(\d+)', blast_lbl)
         biopsy2_hrs = int(_bm.group(1)) if _bm else 98
 
@@ -617,7 +617,7 @@ class TERAReportGenerator:
         c.setFont(F_BBOLD, 11)
         c.setFillColor(BLACK)
 
-        # 4. Second biopsy note (post-receptive only) – appears between divider and transfer lines
+        # 4. Second biopsy note (post-receptive only) â appears between divider and transfer lines
         if cfg["has_biopsy2"]:
             # Robust Justified Direct Drawing: Full justification for a typeset look
             c.setFont(F_LBL, 11)
@@ -643,8 +643,8 @@ class TERAReportGenerator:
             curr_y = _wrap_justify(c, rem, draw_x, curr_y, wrap_total_w, F_LBL, 11, 14, first_line_indent=pw)
 
         reco_w = cfg.get("recom_max_w", 380.0)
-        # Use Calibri-Bold for text; _wrap_pm switches to Helvetica-Bold for ±
-        # (Helvetica-Bold is a built-in Type1 PDF font guaranteed to render ±)
+        # Use Calibri-Bold for text; _wrap_pm switches to Helvetica-Bold for Â±
+        # (Helvetica-Bold is a built-in Type1 PDF font guaranteed to render Â±)
         reco_font = "Calibri-Bold" if _font_ok("Calibri-Bold") else F_BBOLD
 
         # 5. Blastocyst transfer line
@@ -657,9 +657,9 @@ class TERAReportGenerator:
                  f"Cleavage stage transfer (Day 3 embryo): {cleave_lbl} {suffix}",
                  cfg["cleave_x"], cfg["cleave_y"], reco_w, reco_font, 11, 17)
 
-    # ═══════════════════════════════════════════════════════════════════════════
-    # PAGE 2 – About TERA + Methodology
-    # ═══════════════════════════════════════════════════════════════════════════
+    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    # PAGE 2 â About TERA + Methodology
+    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
     ABOUT_PARAS = [
         ("Embryo implantation is a highly organized process during which the embryo attaches "
          "to the surface of the endometrium. Synchronous structural and functional remodelling "
@@ -695,27 +695,27 @@ class TERAReportGenerator:
         CONTENT_W = DIV_X1 - 72
 
         # "About TERA" heading
-        # pdfplumber: x=72, top=75.2, bottom=89.2 → RL baseline = H-89.2 = 702.8
+        # pdfplumber: x=72, top=75.2, bottom=89.2 â RL baseline = H-89.2 = 702.8
         c.setFont(F_HDG, 14)
         c.setFillColor(BLUE)
         c.drawString(72, H - 109.2, "About TERA")
         _divider(c, H - 118.85)
 
-        # Body paragraphs – DengXian 11pt, leading 22, justified
+        # Body paragraphs â DengXian 11pt, leading 22, justified
         y = H - 145.4
         c.setFillColor(BLACK)
         for para in self.ABOUT_PARAS:
             y = _justified_block(c, para, 72, y, CONTENT_W, F_BODY, 11, 22)
             y -= 23     # inter-paragraph gap (matches reference: 23.3 pt bottom-to-top)
 
-        # "Methodology" heading — 8pt below last About TERA paragraph
+        # "Methodology" heading â 8pt below last About TERA paragraph
         meth_y = y - 8
         c.setFont(F_HDG, 14)
         c.setFillColor(BLUE)
         c.drawString(78.9, meth_y, "Methodology")
         _divider(c, meth_y - 9)         # ~9 pt below heading baseline
 
-        # Bullet points – filled circle drawn directly (font-independent), body text 11pt, justified
+        # Bullet points â filled circle drawn directly (font-independent), body text 11pt, justified
         y = meth_y - 37
         for bullet in self.METHOD_BULLETS:
             # Draw bullet as solid filled circle centered vertically with the text cap height
@@ -725,14 +725,14 @@ class TERAReportGenerator:
             y -= 10
         self._page_number(c, 2)
 
-    # ═══════════════════════════════════════════════════════════════════════════
-    # PAGE 3 – References + Signatures
-    # ═══════════════════════════════════════════════════════════════════════════
+    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+    # PAGE 3 â References + Signatures
+    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
     REFS = [
         "Achache H, Revel A. Hum Reprod Update, 2006, 12(6):731-46.",
         "Teh W T, Mcbain J, Rogers P. Journal of Assisted Reproduction & Genetics, 2016, 33(11):1-12.",
         "Mahajan N. Journal of Human Reproductive Sciences, 2015, 8(3):121-129.",
-        "Ruiz-Alonso M, Blesa D, Díaz-Gimeno, Patricia, et al. Fertility and Sterility, 2013, 100(3):818-824.",
+        "Ruiz-Alonso M, Blesa D, DÃ­az-Gimeno, Patricia, et al. Fertility and Sterility, 2013, 100(3):818-824.",
     ]
 
     def _page3(self, c):
@@ -740,7 +740,7 @@ class TERAReportGenerator:
         self._footer(c)
 
         # "References" heading
-        # pdfplumber: x=78.9, top=75.2 → RL baseline = H-89.2 = 702.8
+        # pdfplumber: x=78.9, top=75.2 â RL baseline = H-89.2 = 702.8
         c.setFont(F_HDG, 14)
         c.setFillColor(BLUE)
         c.drawString(78.9, H - 109.2, "References")
@@ -756,7 +756,7 @@ class TERAReportGenerator:
             y -= 27
 
         # "This report has been reviewed and approved by:"
-        # Arial-BoldMT 12pt, medium blue – pdfplumber top=219.4 → RL≈H-231.9=560.1
+        # Arial-BoldMT 12pt, medium blue â pdfplumber top=219.4 â RLâH-231.9=560.1
         c.setFont(F_SIGB, 12)
         c.setFillColor(MED_BLUE)
         c.drawString(75.9, H - 251.9,
@@ -780,7 +780,7 @@ class TERAReportGenerator:
                 c.setLineWidth(0.7)
                 c.line(sx, sy + 10, sx + sw, sy + 10)
 
-        # Reviewer names – SegoeUI 11pt, dark gray
+        # Reviewer names â SegoeUI 11pt, dark gray
         c.setFont(F_SIG, 11)
         c.setFillColor(GRAY_SIG)
         name_y = H - 329.9
@@ -794,30 +794,30 @@ class TERAReportGenerator:
         c.drawString(395.0, role_y, "Head- Clinical Genetics")
         self._page_number(c, 3)
 
-    # ═══════════════════════════════════════════════════════════════════════════
+    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
     # Data helpers
-    # ═══════════════════════════════════════════════════════════════════════════
+    # âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
     def _patient_rows(self):
         d     = self.d
         name  = self._s(d.get("Patient Name", "")).title()
-        # PIN field in report ← Sample ID column (col C of Excel)
+        # PIN field in report â Sample ID column (col C of Excel)
         pin   = self._s(d.get("Sample ID", "")) or "Not Provided"
-        # Sample Number field in report ← Lab No. column (col H of Excel)
+        # Sample Number field in report â Lab No. column (col H of Excel)
         sid   = self._s(d.get("Lab No.", ""))
         age_r = self._s(d.get("Age", ""))
         age   = f"{age_r} Years" if age_r else "Not Provided"
         doc   = self._s(d.get("Doctor Name", "")) or "Not Provided"
         hosp  = self._s(d.get("Center name", d.get("Hospital", d.get("Hospital ", ""))))
         # Cycle type display:
-        #   HRT               → "HRT; P+{N}"  (N = Biopsy column value, e.g. 5)
-        #   Modified Natural Cycle → "Modified Natural Cycle"  (no suffix)
+        #   HRT               â "HRT; P+{N}"  (N = Biopsy column value, e.g. 5)
+        #   Modified Natural Cycle â "Modified Natural Cycle"  (no suffix)
         cyc_raw     = self._s(d.get("Cycle Type", d.get("Cycle type", "HRT")))
         biopsy_days = self._int(d.get("Biopsy", ""))
         cyc_upper   = cyc_raw.upper()
         if "HRT" in cyc_upper:
             cyc = (f"HRT; P+{biopsy_days}" if biopsy_days is not None else "HRT")
         elif cyc_raw:
-            cyc = cyc_raw          # e.g. "Modified Natural Cycle" — unchanged
+            cyc = cyc_raw          # e.g. "Modified Natural Cycle" â unchanged
         else:
             cyc = "Not Provided"
         bno   = self._s(d.get("Biopsy No.",  d.get("Biopsy", "")))
@@ -843,8 +843,8 @@ class TERAReportGenerator:
     @staticmethod
     def _biopsy_ordinal(bno_raw: str) -> str:
         """Convert biopsy string to ordinal form.
-        'Endometrial Biopsy- 1' → '1st biopsy'
-        'Endometrial Biopsy- 2' → '2nd biopsy'
+        'Endometrial Biopsy- 1' â '1st biopsy'
+        'Endometrial Biopsy- 2' â '2nd biopsy'
         Fallback: return raw string unchanged.
         """
         m = re.search(r'(\d+)', bno_raw)
@@ -915,12 +915,12 @@ class TERAReportGenerator:
     def _parse_tr(raw: str):
         """Parse transfer time string (e.g. '144 + 2') into labelled strings.
         Blastocyst (Day 5/6) uses the base value.
-        Cleavage   (Day 3)   = blastocyst - 48 hrs (constant Day 5→Day 3 offset).
+        Cleavage   (Day 3)   = blastocyst - 48 hrs (constant Day 5âDay 3 offset).
         Returns (blast_label, cleave_label).
         """
         if not raw or raw in ("nan", "NaT", "None", ""):
             return "N/A", "N/A"
-        m = re.match(r'^\s*(\d+(?:\.\d+)?)\s*[+±]\s*(\d+)', raw)
+        m = re.match(r'^\s*(\d+(?:\.\d+)?)\s*[+Â±]\s*(\d+)', raw)
         if m:
             base   = round(float(m.group(1)))
             margin = m.group(2)
