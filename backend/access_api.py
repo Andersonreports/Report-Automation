@@ -19,6 +19,21 @@ def _require_mysql():
         raise HTTPException(503, _NOT_CONFIGURED_MSG)
 
 
+@router.get("/ping-gateway")
+def ping_gateway():
+    """Confirms the genetics API gateway is reachable and the service credentials work."""
+    import os
+    configured = genetics.is_configured()
+    base_url = os.getenv("GENETICS_API_BASE", "https://integration.andrsn.in")
+    if not configured:
+        return {"ok": False, "base_url": base_url, "error": "GENETICS_API_USERNAME / GENETICS_API_PASSWORD not set in .env"}
+    try:
+        genetics._get_service_token(force_refresh=True)
+        return {"ok": True, "base_url": base_url, "message": "Service token obtained — genetics gateway is reachable and credentials are valid."}
+    except genetics.GeneticsApiError as e:
+        return {"ok": False, "base_url": base_url, "error": str(e)}
+
+
 @router.post("/login")
 async def login(body: dict):
     mobile_number = (body.get("mobile_number") or "").strip()
@@ -28,6 +43,7 @@ async def login(body: dict):
 
     try:
         result = genetics.genetics_login(mobile_number, password)
+        print(result)
     except genetics.GeneticsApiError as e:
         raise HTTPException(401, str(e))
 
