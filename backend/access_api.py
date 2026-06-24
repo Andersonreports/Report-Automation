@@ -21,7 +21,6 @@ def _require_mysql():
 
 @router.get("/ping-gateway")
 def ping_gateway():
-    """Confirms the genetics API gateway is reachable and the service credentials work."""
     import os
     configured = genetics.is_configured()
     base_url = os.getenv("GENETICS_API_BASE", "https://integration.andrsn.in")
@@ -107,6 +106,7 @@ async def list_users():
 async def create_user(body: dict):
     _require_mysql()
     mobile_number = (body.get("mobile_number") or "").strip()
+    name = (body.get("name") or "").strip() or None
     role = body.get("role") or "user"
     report = body.get("report") or None
 
@@ -118,7 +118,7 @@ async def create_user(body: dict):
         raise HTTPException(400, f"report must be one of {REPORT_KEYS} for a non-admin user.")
 
     try:
-        return db.create_user(mobile_number, role, report)
+        return db.create_user(mobile_number, role, report, name=name)
     except ValueError as e:
         raise HTTPException(409, str(e))
 
@@ -129,6 +129,8 @@ async def update_user(user_id: str, body: dict):
     fields = {}
     if "mobile_number" in body and body["mobile_number"].strip():
         fields["mobile_number"] = body["mobile_number"].strip()
+    if "name" in body:
+        fields["name"] = (body["name"] or "").strip() or None
     if "password" in body and body["password"]:
         fields["password"] = body["password"]
     if "role" in body:

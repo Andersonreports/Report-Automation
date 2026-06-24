@@ -167,12 +167,14 @@
     }
 
     .module-icon {
-      width: clamp(48px, 4.4vw, 64px); height: clamp(48px, 4.4vw, 64px);
-      border-radius: 13px;
+      width: clamp(52px, 5vw, 72px); height: clamp(52px, 5vw, 72px);
+      border-radius: 50%;
       background: var(--accent, #6B7280);
       display: flex; align-items: center; justify-content: center;
       margin-bottom: clamp(18px, 2vw, 28px);
       transition: filter 0.2s ease;
+      overflow: hidden;
+      flex-shrink: 0;
     }
     .module-card:hover .module-icon { filter: brightness(0.92); }
     .module-icon i {
@@ -181,12 +183,13 @@
     }
     .module-icon.icon-img {
       background: #fff;
-      padding: 8px;
+      padding: 0;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
     }
     .module-icon.icon-img img {
       width: 100%;
       height: 100%;
-      object-fit: contain;
+      object-fit: cover;
     }
 
     .module-name {
@@ -369,7 +372,7 @@
         <!-- TERA -->
         <a class="module-card" href="tera.html" data-report="tera"
            style="--accent:#D97706; --accent-bg:#FFFBEB;">
-          <div class="module-icon icon-img"><img src="/static/tera.jpg" alt="TERA" /></div>
+          <div class="module-icon icon-img"><img src="/static/Logos/tera.jpg" alt="TERA" /></div>
           <div class="module-name">TERA Report</div>
           <div class="module-desc">Endometrial Receptivity Analysis</div>
           <div class="module-footer">
@@ -381,7 +384,7 @@
         <!-- PGTA -->
         <a class="module-card" href="pgta.html" data-report="pgta"
            style="--accent:#2563EB; --accent-bg:#EFF6FF;">
-          <div class="module-icon icon-img"><img src="/static/PGT-A.jpg" alt="PGTA" /></div>
+          <div class="module-icon icon-img"><img src="/static/Logos/PGT-A.jpg" alt="PGTA" /></div>
           <div class="module-name">PGTA Report</div>
           <div class="module-desc">Preimplantation Genetic Testing</div>
           <div class="module-footer">
@@ -393,7 +396,7 @@
         <!-- Karyotyping -->
         <a class="module-card" href="karyotype.html" data-report="karyotype"
            style="--accent:#7C3AED; --accent-bg:#F5F3FF;">
-          <div class="module-icon icon-img"><img src="/static/karyo.html.png" alt="Karyotyping" /></div>
+          <div class="module-icon icon-img"><img src="/static/Logos/karyo.html.png" alt="Karyotyping" /></div>
           <div class="module-name">Karyotyping</div>
           <div class="module-desc">Chromosomal Analysis Report</div>
           <div class="module-footer">
@@ -405,7 +408,7 @@
         <!-- NIPT -->
         <a class="module-card" href="nipt.html" data-report="nipt"
            style="--accent:#E11D48; --accent-bg:#FFF1F2;">
-          <div class="module-icon icon-img"><img src="/static/nips.jpg" alt="NIPS" /></div>
+          <div class="module-icon icon-img"><img src="/static/Logos/nips.jpg" alt="NIPS" /></div>
           <div class="module-name">NIPS</div>
           <div class="module-desc">Non-Invasive Prenatal Testing</div>
           <div class="module-footer">
@@ -417,7 +420,7 @@
         <!-- HLA Typing -->
         <a class="module-card" href="hla.html" data-report="hla"
            style="--accent:#059669; --accent-bg:#ECFDF5;">
-          <div class="module-icon icon-img"><img src="/static/hla.jpg" alt="HLA Typing" /></div>
+          <div class="module-icon icon-img"><img src="/static/Logos/hla.jpg" alt="HLA Typing" /></div>
           <div class="module-name">HLA Typing</div>
           <div class="module-desc">Human Leukocyte Antigen Report</div>
           <div class="module-footer">

@@ -23,6 +23,7 @@
     localStorage.removeItem('arc_authenticated');
     localStorage.removeItem('arc_access_control');
     localStorage.removeItem('arc_mobile_number');
+    localStorage.removeItem('arc_name');
     localStorage.removeItem('arc_role');
     localStorage.removeItem('arc_report');
     localStorage.removeItem(ACTIVITY_KEY);

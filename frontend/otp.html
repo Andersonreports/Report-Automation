@@ -175,6 +175,13 @@
       window.location.replace('/login.html');
     }
 
+    // Log the login result that was passed from login.html
+    console.log('Login result (from sessionStorage):', {
+      mobile: sessionStorage.getItem('arc_pending_mobile'),
+      hash:   sessionStorage.getItem('arc_pending_hash'),
+      otp_required: true,
+    });
+
     const form     = document.getElementById('otpForm');
     const errorBox = document.getElementById('errorMsg');
     const errorText = document.getElementById('errorText');
@@ -266,6 +273,8 @@
           body: JSON.stringify({ otp: code, hash, mobile }),
         });
         const data = await res.json().catch(() => ({}));
+        console.log('Verify OTP response status:', res.status, res.statusText);
+        console.log('Verify OTP response data:', data);
 
         if (!res.ok) {
           showError(data.detail || 'Invalid OTP. Please try again.');
@@ -276,6 +285,7 @@
         localStorage.setItem('arc_authenticated', 'true');
         localStorage.setItem('arc_access_control', String(data.access_control !== false));
         localStorage.setItem('arc_mobile_number', data.mobile_number || mobile);
+        localStorage.setItem('arc_name', data.name || '');
         localStorage.setItem('arc_role', data.role || 'user');
         localStorage.setItem('arc_report', data.report || '');
         window.location.href = '/index.html';

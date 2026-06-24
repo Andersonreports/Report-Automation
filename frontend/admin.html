@@ -172,6 +172,7 @@
         <table>
           <thead>
             <tr>
+              <th>Name</th>
               <th>Mobile Number</th>
               <th>Role</th>
               <th>Report Access</th>
@@ -192,6 +193,10 @@
     <div class="modal-box">
       <h3 id="userModalTitle">Add User</h3>
       <form id="userForm">
+        <div class="field">
+          <label>Name</label>
+          <input type="text" id="f_name" placeholder="e.g. Dr. Ravi Kumar" autocomplete="off" />
+        </div>
         <div class="field">
           <label>Mobile Number</label>
           <input type="tel" id="f_mobile_number" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" required autocomplete="off" />
@@ -234,6 +239,7 @@
     const _accessControlActive = localStorage.getItem('arc_access_control') === 'true';
     const _role = localStorage.getItem('arc_role');
     const _mobileNumber = localStorage.getItem('arc_mobile_number');
+    const _name = localStorage.getItem('arc_name');
     if (localStorage.getItem('arc_authenticated') !== 'true') {
       window.location.replace('/login.html');
     } else if (_accessControlActive && _role !== 'admin') {
@@ -252,7 +258,7 @@
         </body>`;
       throw new Error("Access denied — admin only");
     }
-    document.getElementById('headerUser').textContent = _mobileNumber ? `Signed in as ${_mobileNumber}` : '';
+    document.getElementById('headerUser').textContent = (_name || _mobileNumber) ? `Signed in as ${_name || _mobileNumber}` : '';
     document.body.classList.add('loaded');
 
     function toast(msg, type) {
@@ -290,6 +296,7 @@
       }
       body.innerHTML = users.map(u => `
         <tr>
+          <td>${u.name ? `<strong>${esc(u.name)}</strong>` : '<span style="color:#9CA3AF">—</span>'}</td>
           <td><strong>${esc(u.mobile_number)}</strong></td>
           <td><span class="pill ${u.role === 'admin' ? 'pill-admin' : 'pill-user'}">${u.role}</span></td>
           <td>
@@ -343,6 +350,7 @@
     function openAddModal() {
       editingUserId = null;
       document.getElementById('userModalTitle').textContent = 'Add User';
+      document.getElementById('f_name').value = '';
       document.getElementById('f_mobile_number').value = '';
       document.getElementById('f_role').value = 'user';
       document.getElementById('f_report').innerHTML = reportSelectOptions();
@@ -356,6 +364,7 @@
       if (!u) return;
       editingUserId = id;
       document.getElementById('userModalTitle').textContent = 'Edit User';
+      document.getElementById('f_name').value = u.name || '';
       document.getElementById('f_mobile_number').value = u.mobile_number;
       document.getElementById('f_role').value = u.role;
       document.getElementById('f_report').innerHTML = reportSelectOptions(u.report);
@@ -371,12 +380,13 @@
 
     document.getElementById('userForm').addEventListener('submit', async (e) => {
       e.preventDefault();
+      const name = document.getElementById('f_name').value.trim();
       const mobileNumber = document.getElementById('f_mobile_number').value.trim();
       const role = document.getElementById('f_role').value;
       const report = document.getElementById('f_report').value;
       if (!/^[0-9]{10}$/.test(mobileNumber)) { toast('Enter a valid 10-digit mobile number.', 'error'); return; }
 
-      const payload = { mobile_number: mobileNumber, role, report: role === 'admin' ? null : report };
+      const payload = { name: name || null, mobile_number: mobileNumber, role, report: role === 'admin' ? null : report };
 
       try {
         if (editingUserId) {

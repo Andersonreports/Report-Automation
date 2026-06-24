@@ -5,15 +5,11 @@ from mysql.connector import pooling
 
 _pool = None
 
-# Report keys must match each app's own identifier (used by the per-page
-# access guard script embedded in tera.html / pgta.html / nipt.html /
-# karyotype.html / hla.html).
 USER_REPORT_KEYS = ["tera", "pgta", "karyotype", "nipt", "hla", "billing"]
 
 
 def _is_configured():
     return bool(os.getenv("MYSQL_HOST") and os.getenv("MYSQL_USER") and os.getenv("MYSQL_DATABASE"))
-
 
 def _get_pool():
     global _pool
@@ -54,17 +50,13 @@ def _init_schema():
                 created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
-        # Per-report access-control table — each non-admin user is locked
-        # to exactly one report (matches the "3 users per report" access
-        # model). Identity itself is verified by IT's genetics auth
-        # gateway (see genetics_auth_client.py); this table only maps an
-        # already-verified mobile number to a role + report, so `password`
-        # is unused going forward (kept nullable for old rows).
+
         cur.execute("""
             CREATE TABLE IF NOT EXISTS users (
                 id            VARCHAR(36) PRIMARY KEY,
                 mobile_number VARCHAR(255) UNIQUE NOT NULL,
                 password      VARCHAR(255),
+                name          VARCHAR(255),
                 role          VARCHAR(10) NOT NULL,
                 report        VARCHAR(50),
                 created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -73,15 +65,14 @@ def _init_schema():
         conn.commit()
         cur.execute("ALTER TABLE users MODIFY password VARCHAR(255) NULL")
         conn.commit()
+        try:
+            cur.execute("ALTER TABLE users ADD COLUMN name VARCHAR(255) NULL")
+            conn.commit()
+        except Exception:
+            pass  # column already exists
         cur.execute("SELECT COUNT(*) FROM users")
         if cur.fetchone()[0] == 0:
-            # Login is now delegated to IT's genetics auth gateway (see
-            # genetics_auth_client.py) — there's no local password check
-            # left to seed a usable default admin with. The first admin
-            # row must be inserted manually using a real IT-provisioned
-            # mobile number, e.g.:
-            #   INSERT INTO users (id, mobile_number, role, report)
-            #   VALUES (UUID(), '<it-provisioned-mobile-number>', 'admin', NULL);
+            
             print(
                 "[mysql_client] `users` table is empty — no admin configured. "
                 "Insert one manually with a real IT-provisioned mobile number; "
@@ -127,7 +118,7 @@ def get_user_by_mobile_number(mobile_number: str):
         conn.close()
 
 
-def create_user(mobile_number: str, role: str, report: str | None, password: str | None = None):
+def create_user(mobile_number: str, role: str, report: str | None, password: str | None = None, name: str | None = None):
     conn = _get_pool().get_connection()
     try:
         cur = conn.cursor(dictionary=True)
@@ -137,8 +128,8 @@ def create_user(mobile_number: str, role: str, report: str | None, password: str
             raise ValueError("That mobile number already exists.")
         user_id = str(uuid.uuid4())
         cur.execute(
-            "INSERT INTO users (id, mobile_number, password, role, report) VALUES (%s, %s, %s, %s, %s)",
-            (user_id, mobile_number, password, role, None if role == "admin" else report),
+            "INSERT INTO users (id, mobile_number, password, name, role, report) VALUES (%s, %s, %s, %s, %s, %s)",
+            (user_id, mobile_number, password, name, role, None if role == "admin" else report),
         )
         conn.commit()
         cur.execute("SELECT * FROM users WHERE id = %s", (user_id,))
@@ -161,6 +152,7 @@ def update_user(user_id: str, **fields):
 
         mobile_number = fields.get("mobile_number", existing["mobile_number"]) or existing["mobile_number"]
         password = fields.get("password") or existing["password"]
+        name = fields.get("name") if "name" in fields else existing.get("name")
         role = fields.get("role", existing["role"]) or existing["role"]
         report = fields["report"] if "report" in fields else existing["report"]
         if role == "admin":
@@ -173,8 +165,8 @@ def update_user(user_id: str, **fields):
                 raise ValueError("That mobile number already exists.")
 
         cur.execute(
-            "UPDATE users SET mobile_number=%s, password=%s, role=%s, report=%s WHERE id=%s",
-            (mobile_number, password, role, report, user_id),
+            "UPDATE users SET mobile_number=%s, password=%s, name=%s, role=%s, report=%s WHERE id=%s",
+            (mobile_number, password, name, role, report, user_id),
         )
         conn.commit()
         cur.execute("SELECT * FROM users WHERE id = %s", (user_id,))
