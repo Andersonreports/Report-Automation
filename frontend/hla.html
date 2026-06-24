@@ -652,7 +652,7 @@
           const res = await fetch('/access/patients', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ from_date: fromDate, to_date: toDate, reporting_type: 'hla_typing' }),
+            body: JSON.stringify({ from_date: fromDate, to_date: toDate, reporting_type: 'HLA Typing' }),
           });
           const data = await res.json().catch(() => ({}));
           if (!res.ok) { statusEl.textContent = data.detail || 'Search failed.'; return; }
