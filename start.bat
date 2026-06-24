@@ -29,11 +29,6 @@ if not exist "drafts\PGTA"          mkdir drafts\PGTA
 if not exist "drafts\NIPT"          mkdir drafts\NIPT
 if not exist "uploads\pgta_cnv"     mkdir uploads\pgta_cnv
 
-REM Copy .env if it doesn't exist yet
-if not exist ".env" (
-    if exist "..\\.env" copy "..\\.env" ".env" >nul
-)
-
 echo.
 echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 echo  Anderson Report Automation

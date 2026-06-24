@@ -23,11 +23,6 @@ pip install -r requirements.txt --quiet
 # Create runtime directories
 mkdir -p reports reports-pgta temp drafts/TERA drafts/PGTA uploads/pgta_cnv
 
-# Copy .env if not present
-if [ ! -f ".env" ] && [ -f "../.env" ]; then
-    cp ../.env .env
-fi
-
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo " Anderson Report Automation"

@@ -52,7 +52,7 @@ from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 import pandas as pd
 
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env"))
 
 # ── Paths ──────────────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
