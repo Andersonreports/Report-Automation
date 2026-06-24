@@ -392,6 +392,10 @@
         if (editingUserId) {
           await apiSend('PUT', '/access/users/' + editingUserId, payload);
           toast('User updated.', 'success');
+          if (mobileNumber === localStorage.getItem('arc_mobile_number')) {
+            localStorage.setItem('arc_name', name || '');
+            document.getElementById('headerUser').textContent = `Signed in as ${name || mobileNumber}`;
+          }
         } else {
           await apiSend('POST', '/access/users', payload);
           toast('User created.', 'success');
