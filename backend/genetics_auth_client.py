@@ -118,12 +118,12 @@ def _post(path: str, body: dict) -> dict:
     return data
 
 
-def genetics_login(user_name: str, password: str) -> dict:
+def genetics_login(mobile_number: str, password: str) -> dict:
     """Validates the end user's credentials with IT's gateway. On success
     this also triggers an OTP to their registered mobile. IT's response
     shape is `{"message": "success", "data": "<hash>"}` — the hash needed
     for verify_otp is the `data` field itself, not a nested `hash` key."""
-    data = _post("/genetics/login", {"user_name": user_name, "password": password})
+    data = _post("/genetics/login", {"mobile_number": mobile_number, "password": password})
     otp_hash = data.get("hash")
     if not otp_hash:
         nested = data.get("data")
