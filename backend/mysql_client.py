@@ -58,16 +58,16 @@ def _init_schema():
         # to exactly one report (matches the "3 users per report" access
         # model). Identity itself is verified by IT's genetics auth
         # gateway (see genetics_auth_client.py); this table only maps an
-        # already-verified username to a role + report, so `password` is
-        # unused going forward (kept nullable for old rows).
+        # already-verified mobile number to a role + report, so `password`
+        # is unused going forward (kept nullable for old rows).
         cur.execute("""
             CREATE TABLE IF NOT EXISTS users (
-                id         VARCHAR(36) PRIMARY KEY,
-                username   VARCHAR(255) UNIQUE NOT NULL,
-                password   VARCHAR(255),
-                role       VARCHAR(10) NOT NULL,
-                report     VARCHAR(50),
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                id            VARCHAR(36) PRIMARY KEY,
+                mobile_number VARCHAR(255) UNIQUE NOT NULL,
+                password      VARCHAR(255),
+                role          VARCHAR(10) NOT NULL,
+                report        VARCHAR(50),
+                created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
         conn.commit()
@@ -79,12 +79,12 @@ def _init_schema():
             # genetics_auth_client.py) — there's no local password check
             # left to seed a usable default admin with. The first admin
             # row must be inserted manually using a real IT-provisioned
-            # username, e.g.:
-            #   INSERT INTO users (id, username, role, report)
-            #   VALUES (UUID(), '<it-provisioned-username>', 'admin', NULL);
+            # mobile number, e.g.:
+            #   INSERT INTO users (id, mobile_number, role, report)
+            #   VALUES (UUID(), '<it-provisioned-mobile-number>', 'admin', NULL);
             print(
                 "[mysql_client] `users` table is empty — no admin configured. "
-                "Insert one manually with a real IT-provisioned username; "
+                "Insert one manually with a real IT-provisioned mobile number; "
                 "see the comment above this line for the SQL."
             )
         cur.close()
@@ -105,7 +105,7 @@ def list_users():
     conn = _get_pool().get_connection()
     try:
         cur = conn.cursor(dictionary=True)
-        cur.execute("SELECT * FROM users ORDER BY username")
+        cur.execute("SELECT * FROM users ORDER BY mobile_number")
         rows = cur.fetchall()
         cur.close()
         return [_row_to_user(r) for r in rows]
@@ -113,13 +113,13 @@ def list_users():
         conn.close()
 
 
-def get_user_by_username(username: str):
-    """Looks up role/report by username only — identity is verified
+def get_user_by_mobile_number(mobile_number: str):
+    """Looks up role/report by mobile number only — identity is verified
     upstream by the genetics auth gateway, not by a local password."""
     conn = _get_pool().get_connection()
     try:
         cur = conn.cursor(dictionary=True)
-        cur.execute("SELECT * FROM users WHERE username = %s", (username,))
+        cur.execute("SELECT * FROM users WHERE mobile_number = %s", (mobile_number,))
         row = cur.fetchone()
         cur.close()
         return _row_to_user(row) if row else None
@@ -127,18 +127,18 @@ def get_user_by_username(username: str):
         conn.close()
 
 
-def create_user(username: str, role: str, report: str | None, password: str | None = None):
+def create_user(mobile_number: str, role: str, report: str | None, password: str | None = None):
     conn = _get_pool().get_connection()
     try:
         cur = conn.cursor(dictionary=True)
-        cur.execute("SELECT 1 FROM users WHERE username = %s", (username,))
+        cur.execute("SELECT 1 FROM users WHERE mobile_number = %s", (mobile_number,))
         if cur.fetchone():
             cur.close()
-            raise ValueError("That username already exists.")
+            raise ValueError("That mobile number already exists.")
         user_id = str(uuid.uuid4())
         cur.execute(
-            "INSERT INTO users (id, username, password, role, report) VALUES (%s, %s, %s, %s, %s)",
-            (user_id, username, password, role, None if role == "admin" else report),
+            "INSERT INTO users (id, mobile_number, password, role, report) VALUES (%s, %s, %s, %s, %s)",
+            (user_id, mobile_number, password, role, None if role == "admin" else report),
         )
         conn.commit()
         cur.execute("SELECT * FROM users WHERE id = %s", (user_id,))
@@ -159,22 +159,22 @@ def update_user(user_id: str, **fields):
             cur.close()
             raise LookupError("User not found.")
 
-        username = fields.get("username", existing["username"]) or existing["username"]
+        mobile_number = fields.get("mobile_number", existing["mobile_number"]) or existing["mobile_number"]
         password = fields.get("password") or existing["password"]
         role = fields.get("role", existing["role"]) or existing["role"]
         report = fields["report"] if "report" in fields else existing["report"]
         if role == "admin":
             report = None
 
-        if username != existing["username"]:
-            cur.execute("SELECT 1 FROM users WHERE username = %s AND id != %s", (username, user_id))
+        if mobile_number != existing["mobile_number"]:
+            cur.execute("SELECT 1 FROM users WHERE mobile_number = %s AND id != %s", (mobile_number, user_id))
             if cur.fetchone():
                 cur.close()
-                raise ValueError("That username already exists.")
+                raise ValueError("That mobile number already exists.")
 
         cur.execute(
-            "UPDATE users SET username=%s, password=%s, role=%s, report=%s WHERE id=%s",
-            (username, password, role, report, user_id),
+            "UPDATE users SET mobile_number=%s, password=%s, role=%s, report=%s WHERE id=%s",
+            (mobile_number, password, role, report, user_id),
         )
         conn.commit()
         cur.execute("SELECT * FROM users WHERE id = %s", (user_id,))

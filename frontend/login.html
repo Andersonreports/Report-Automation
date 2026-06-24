@@ -146,14 +146,14 @@
 
     <div class="error-msg" id="errorMsg">
       <i class="fas fa-circle-exclamation"></i>
-      <span id="errorText">Invalid username or password.</span>
+      <span id="errorText">Invalid mobile number or password.</span>
     </div>
 
     <form id="loginForm">
-      <label for="username">Mobile Number</label>
+      <label for="mobile_number">Mobile Number</label>
       <div class="input-wrap">
         <i class="fas fa-user"></i>
-        <input type="tel" id="username" name="username" placeholder="Enter your mobile number"
+        <input type="tel" id="mobile_number" name="mobile_number" placeholder="Enter your mobile number"
                inputmode="numeric" pattern="[0-9]{10}" maxlength="10" autocomplete="tel" required />
       </div>
 
@@ -178,17 +178,17 @@
   </div>
 
   <script>
-    // Real auth: username+password go to IT's genetics login gateway
+    // Real auth: mobile number+password go to IT's genetics login gateway
     // (access_api.py -> genetics_auth_client.py), which always requires an
     // OTP step before access is granted — see otp.html.
     const form     = document.getElementById('loginForm');
     const errorBox = document.getElementById('errorMsg');
     const errorText = document.getElementById('errorText');
     const submitBtn = document.getElementById('submitBtn');
-    const usernameInput = document.getElementById('username');
+    const mobileNumberInput = document.getElementById('mobile_number');
 
-    usernameInput.addEventListener('input', () => {
-      usernameInput.value = usernameInput.value.replace(/[^0-9]/g, '').slice(0, 10);
+    mobileNumberInput.addEventListener('input', () => {
+      mobileNumberInput.value = mobileNumberInput.value.replace(/[^0-9]/g, '').slice(0, 10);
     });
 
     function showError(msg) {
@@ -200,14 +200,14 @@
       e.preventDefault();
       errorBox.classList.remove('show');
 
-      const username = usernameInput.value.trim();
+      const mobileNumber = mobileNumberInput.value.trim();
       const password = document.getElementById('password').value;
-      if (!/^[0-9]{10}$/.test(username)) {
+      if (!/^[0-9]{10}$/.test(mobileNumber)) {
         showError('Please enter a valid 10-digit mobile number.');
         return;
       }
       if (!password) {
-        showError('Invalid username or password.');
+        showError('Invalid mobile number or password.');
         return;
       }
 
@@ -217,12 +217,12 @@
         const res = await fetch('/access/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username, password }),
+          body: JSON.stringify({ mobile_number: mobileNumber, password }),
         });
         const data = await res.json().catch(() => ({}));
 
         if (!res.ok) {
-          showError(data.detail || 'Invalid username or password.');
+          showError(data.detail || 'Invalid mobile number or password.');
           return;
         }
 

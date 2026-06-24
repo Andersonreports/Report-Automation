@@ -226,7 +226,7 @@
         const res = await fetch('/access/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ username: mobile, password }),
+          body: JSON.stringify({ mobile_number: mobile, password }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {
@@ -275,7 +275,7 @@
         clearPendingSession();
         localStorage.setItem('arc_authenticated', 'true');
         localStorage.setItem('arc_access_control', String(data.access_control !== false));
-        localStorage.setItem('arc_username', data.username || mobile);
+        localStorage.setItem('arc_mobile_number', data.mobile_number || mobile);
         localStorage.setItem('arc_role', data.role || 'user');
         localStorage.setItem('arc_report', data.report || '');
         window.location.href = '/index.html';

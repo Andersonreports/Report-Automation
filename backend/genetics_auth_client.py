@@ -1,13 +1,13 @@
 """
 genetics_auth_client.py — talks to IT's external auth gateway
-(integration.andrsn.in) for real username + password + OTP login.
+(integration.andrsn.in) for real mobile number + password + OTP login.
 
 Two layers of credentials are involved:
   1. A service account (GENETICS_API_USERNAME/PASSWORD) exchanged for a
      short-lived Bearer token via /auth/login. This authenticates *this
      server* to IT's gateway — it has nothing to do with the end user.
-  2. The end user's own username/password + OTP, sent under that Bearer
-     token via /genetics/login and /genetics/verify_otp.
+  2. The end user's own mobile number/password + OTP, sent under that
+     Bearer token via /genetics/login and /genetics/verify_otp.
 
 This module only proves "this person is who they say they are." Role and
 per-report access (the Admin page) are layered on top of it in
@@ -104,10 +104,7 @@ def _post(path: str, body: dict) -> dict:
     token = _get_service_token()
     try:
         resp, data = _do_post(path, body, token)
-        # IT's gateway returns HTTP 401 even on a logically successful
-        # /genetics/login or /verify_otp call (body has "message":"success")
-        # — only treat 401 as an expired service token (and retry once) if
-        # the body doesn't already say it succeeded.
+        
         if resp.status_code == 401 and data.get("message") != "success":
             token = _get_service_token(force_refresh=True)
             resp, data = _do_post(path, body, token)

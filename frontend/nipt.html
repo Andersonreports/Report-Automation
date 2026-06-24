@@ -1393,7 +1393,7 @@
 <body>
   <script>
     // Interim client-side access guard — stand-in for IT's real
-    // username + password + OTP system. See access_api.py / login.html.
+    // mobile number + password + OTP system. See access_api.py / login.html.
     (function () {
       if (localStorage.getItem('arc_authenticated') !== 'true') {
         window.location.replace('/login.html');

@@ -460,9 +460,9 @@
     document.body.classList.add('loaded');
 
     // ── Per-report access control ───────────────────────────────────────────
-    // Interim client-side check against the username/role/report set at
+    // Interim client-side check against the mobile_number/role/report set at
     // login (see login.html / access_api.py) — a stand-in for IT's real
-    // username + password + OTP system. While MySQL isn't configured yet
+    // mobile number + password + OTP system. While MySQL isn't configured yet
     // (arc_access_control !== 'true'), the access-control layer isn't
     // operational, so fail OPEN — full access for everyone, same as before
     // this feature existed — instead of locking everyone out.

@@ -21,13 +21,13 @@ def _require_mysql():
 
 @router.post("/login")
 async def login(body: dict):
-    username = (body.get("username") or "").strip()
+    mobile_number = (body.get("mobile_number") or "").strip()
     password = body.get("password") or ""
-    if not username or not password:
-        raise HTTPException(400, "Username and password are required.")
+    if not mobile_number or not password:
+        raise HTTPException(400, "Mobile number and password are required.")
 
     try:
-        result = genetics.genetics_login(username, password)
+        result = genetics.genetics_login(mobile_number, password)
     except genetics.GeneticsApiError as e:
         raise HTTPException(401, str(e))
 
@@ -35,7 +35,7 @@ async def login(body: dict):
     if not otp_hash:
         raise HTTPException(502, "Login succeeded but the auth service returned no OTP hash.")
 
-    return {"otp_required": True, "mobile": username, "hash": otp_hash}
+    return {"otp_required": True, "mobile": mobile_number, "hash": otp_hash}
 
 
 @router.post("/verify-otp")
@@ -54,9 +54,9 @@ async def verify_otp(body: dict):
     if not db.mysql_enabled:
         # No local table to look up role/report — fail open, same as the
         # rest of this module does while MySQL isn't configured.
-        return {"username": mobile, "role": "user", "report": None, "access_control": False}
+        return {"mobile_number": mobile, "role": "user", "report": None, "access_control": False}
 
-    user = db.get_user_by_username(mobile)
+    user = db.get_user_by_mobile_number(mobile)
     if not user:
         raise HTTPException(
             403, "Your account isn't set up for any report yet. Contact an administrator."
@@ -90,19 +90,19 @@ async def list_users():
 @router.post("/users")
 async def create_user(body: dict):
     _require_mysql()
-    username = (body.get("username") or "").strip()
+    mobile_number = (body.get("mobile_number") or "").strip()
     role = body.get("role") or "user"
     report = body.get("report") or None
 
-    if not username:
-        raise HTTPException(400, "Username is required.")
+    if not mobile_number:
+        raise HTTPException(400, "Mobile number is required.")
     if role not in ("admin", "user"):
         raise HTTPException(400, "Role must be 'admin' or 'user'.")
     if role == "user" and report not in REPORT_KEYS:
         raise HTTPException(400, f"report must be one of {REPORT_KEYS} for a non-admin user.")
 
     try:
-        return db.create_user(username, role, report)
+        return db.create_user(mobile_number, role, report)
     except ValueError as e:
         raise HTTPException(409, str(e))
 
@@ -111,8 +111,8 @@ async def create_user(body: dict):
 async def update_user(user_id: str, body: dict):
     _require_mysql()
     fields = {}
-    if "username" in body and body["username"].strip():
-        fields["username"] = body["username"].strip()
+    if "mobile_number" in body and body["mobile_number"].strip():
+        fields["mobile_number"] = body["mobile_number"].strip()
     if "password" in body and body["password"]:
         fields["password"] = body["password"]
     if "role" in body:
