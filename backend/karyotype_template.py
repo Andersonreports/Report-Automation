@@ -235,7 +235,7 @@ def _draw_section_heading(c, text, rl_y, color=DARK_BLUE, size=16) -> float:
     aligns with the reference PDF.  The return value (used for body placement)
     is kept at rl_y - size - 3 - 4 so downstream body positions are unaffected.
     """
-    # cap_offset â‰ˆ size Ã— 0.73 (Calibri cap height fraction); empirically ~11.8 for 16pt
+    # cap_offset â‰ˆ size Ã- 0.73 (Calibri cap height fraction); empirically ~11.8 for 16pt
     cap_offset = size * 0.74
     c.setFont(F_HDG, size)
     c.setFillColor(color)
@@ -490,7 +490,7 @@ class KaryotypeReportGenerator:
     def _page1_with_metaphase(self, c):
         """2-page layout: karyogram + metaphase table on page 1."""
         top_y  = self._page1_common(c, page_num=1, total_pages=2)
-        meta_h = 19.5 * 2            # 39 pt  (2 rows Ã— row_h)
+        meta_h = 19.5 * 2            # 39 pt  (2 rows Ã- row_h)
 
         # Keep the metaphase table well above the footer + page-number text.
         # FTR_Y + FTR_H = 48.2 pt from bottom; add ~22 pt clearance.
@@ -503,7 +503,7 @@ class KaryotypeReportGenerator:
     def _page1(self, c):
         """3-page layout: karyogram + metaphase table on page 1."""
         top_y  = self._page1_common(c, page_num=1, total_pages=3)
-        meta_h = 19.5 * 2            # 39 pt  (2 rows Ã— row_h)
+        meta_h = 19.5 * 2            # 39 pt  (2 rows Ã- row_h)
         meta_bot  = FTR_Y + FTR_H + 22   # RL y of table bottom â‰ˆ 70 pt
         kgram_bot = meta_bot + meta_h + 8
         self._draw_karyograms(c, top_y, kgram_bot)
@@ -753,7 +753,7 @@ class KaryotypeReportGenerator:
 
     def _place_image(self, c, path: str, x: float, y: float, max_w: float, max_h: float,
                      fixed_scale: float = None, valign: str = 'center'):
-        """Draw image scaled to fit max_w Ã— max_h, centred horizontally.
+        """Draw image scaled to fit max_w Ã- max_h, centred horizontally.
         valign : 'center' (default) | 'top' | 'bottom'
         A 1pt border is drawn automatically only when the image has no built-in frame
         (detected by sampling edge-pixel brightness)."""

@@ -1,11 +1,11 @@
 """
-genetics_auth_client.py — talks to IT's external auth gateway
+genetics_auth_client.py - talks to IT's external auth gateway
 (integration.andrsn.in) for real mobile number + password + OTP login.
 
 Two layers of credentials are involved:
   1. A service account (GENETICS_API_USERNAME/PASSWORD) exchanged for a
      short-lived Bearer token via /auth/login. This authenticates *this
-     server* to IT's gateway — it has nothing to do with the end user.
+     server* to IT's gateway - it has nothing to do with the end user.
   2. The end user's own mobile number/password + OTP, sent under that
      Bearer token via /genetics/login and /genetics/verify_otp.
 

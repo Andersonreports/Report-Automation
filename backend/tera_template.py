@@ -138,12 +138,12 @@ print(f"[tera_template] Fonts: TITLE={F_TITLE}  LBL={F_LBL}  BODY={F_BODY}  BULL
 # ─── Page geometry ────────────────────────────────────────────────────────────
 W, H = 612.0, 792.0
 
-# Header: PGTA/Anderson shared header image (1280×193 px).
+# Header: PGTA/Anderson shared header image (1280�-193 px).
 #   Drawn at x=72, w=468, h = 468*(193/1280) = 70.6 ≈ 71pt  (same as PGTA).
 HDR_X, HDR_Y, HDR_W, HDR_H = 72.0, H - 72.0, 468.0, 72.0
 # Footer: aligned to content area (same x/w as header).
-#   Source image is footer_clean.png: 681×48px (Anderson Genetics white strip removed).
-#   Natural height at 481.9pt wide: h = 481.9 × (48 / 681) = 33.97 ≈ 34pt.
+#   Source image is footer_clean.png: 681�-48px (Anderson Genetics white strip removed).
+#   Natural height at 481.9pt wide: h = 481.9 �- (48 / 681) = 33.97 ≈ 34pt.
 FTR_X, FTR_Y, FTR_W, FTR_H = 72.75, 8.0,      481.9, 34.0
 
 # When generated WITHOUT logo, the PDF is uploaded to the external "DOSE"
@@ -478,7 +478,7 @@ class TERAReportGenerator:
         c.drawCentredString(W / 2, H - 136.1, "(TERA)")
 
     def _field_table(self, c):
-        """Patient info table (6 rows × 6 cols) with lavender background.
+        """Patient info table (6 rows �- 6 cols) with lavender background.
         Column widths from template: [111.26, 7.08, 205.61, 91.22, 9.01, 109.10]
         Table top  : RL y = H-143.78 = 648.22
         Top padding: 12 pt (text starts 12 pt below cell top edge)

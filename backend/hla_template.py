@@ -55,8 +55,8 @@ class _BorderedTable(Table):
         c.rect(0, 0, self._width, self._height, stroke=1, fill=0)
         c.restoreState()
 
-# ─── Page geometry (Letter, 21.59 cm × 27.94 cm) ────────────────────────────
-PAGE_W, PAGE_H = letter        # 612.0 × 792.0 pts
+# ─── Page geometry (Letter, 21.59 cm �- 27.94 cm) ────────────────────────────
+PAGE_W, PAGE_H = letter        # 612.0 �- 792.0 pts
 MARGIN_L = 15 * mm            # ≈ 42.5 pts  → actual content starts ~43 pts
 MARGIN_R = 15 * mm
 MARGIN_T = 2  * mm
@@ -1035,7 +1035,7 @@ def _ngs_info_table(person: dict, S: dict, is_donor: bool = False, patient_name:
 
     if show_nabl:
         raw_nabl = _get_nabl_seal_bytes()
-        # new_NABL.jpg is 1080×1265 px — maintain aspect ratio from _LOGO_W
+        # new_NABL.jpg is 1080�-1265 px — maintain aspect ratio from _LOGO_W
         _LOGO_H = _LOGO_W * (1265 / 1080)
         logo_img = Image(io.BytesIO(raw_nabl), width=_LOGO_W, height=_LOGO_H)
         logo_cell = [logo_img]
