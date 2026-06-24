@@ -94,11 +94,13 @@ except Exception as _hla_err:
     print(f"[HLA] router not loaded: {_hla_err}")
 
 # ── Access control (Admin page + per-report login) router ─────────────────────
+_access_err_msg = None
 try:
     from access_api import router as access_router
     _access_ok = True
 except Exception as _access_err:
     _access_ok = False
+    _access_err_msg = str(_access_err)
     print(f"[Access] router not loaded: {_access_err}")
 
 # ── MySQL database ─────────────────────────────────────────────────────────────
@@ -934,7 +936,13 @@ async def open_folder_dialog():
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "mysql": _mysql_enabled, "timestamp": datetime.now().isoformat()}
+    return {
+        "status": "ok",
+        "mysql": _mysql_enabled,
+        "access_ok": _access_ok,
+        "access_error": _access_err_msg,
+        "timestamp": datetime.now().isoformat(),
+    }
 
 
 # ══════════════════════════════════════════════════════════════════════════════
