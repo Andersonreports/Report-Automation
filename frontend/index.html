@@ -351,10 +351,13 @@
       <span class="header-divider"></span>
       <span class="header-title">Anderson Clinical Genetics</span>
     </div>
-    <a class="admin-btn" id="sidebarAdminBtn" href="/admin.html" style="display:none;">
-      <i class="fas fa-user-shield"></i>
-      Admin
-    </a>
+    <div style="display:flex;align-items:center;gap:14px;">
+      <span id="headerUser" style="font-size:13px;color:#6B7280;font-weight:500;"></span>
+      <a class="admin-btn" id="sidebarAdminBtn" href="/admin.html" style="display:none;">
+        <i class="fas fa-user-shield"></i>
+        Admin
+      </a>
+    </div>
   </header>
 
   <!-- ── Page ── -->
@@ -473,6 +476,8 @@
     const _role   = localStorage.getItem('arc_role');
     const _report = localStorage.getItem('arc_report');
     const _isAdmin = !_accessControlActive || _role === 'admin';
+    const _displayName = localStorage.getItem('arc_name') || localStorage.getItem('arc_mobile_number') || '';
+    if (_displayName) document.getElementById('headerUser').textContent = _displayName;
 
     if (_isAdmin) {
       document.getElementById('sidebarAdminBtn').style.display = '';
