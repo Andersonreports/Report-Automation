@@ -1,7 +1,3 @@
-"""
-DOCX Report Generator for PGT-A Reports
-Generates Word documents matching the PDF template with 1:1 precision.
-"""
 
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
@@ -17,21 +13,9 @@ from io import BytesIO
 from datetime import datetime
 
 def set_cell_border(cell, **kwargs):
-    """
-    Set cell's border
-    Usage:
-    set_cell_border(
-        cell,
-        top={"sz": 12, "val": "single", "color": "#FF0000", "space": "0"},
-        bottom={"sz": 12, "color": "#00FF00", "val": "single"},
-        start={"sz": 24, "val": "dashed", "shadow": "true"},
-        end={"sz": 12, "val": "single", "color": "#0000FF"},
-    )
-    """
     tc = cell._tc
     tcPr = tc.get_or_add_tcPr()
 
-    # check for tag existence, if none found, then create one
     tcBorders = tcPr.find(qn('w:tcBorders'))
     if tcBorders is None:
         tcBorders = OxmlElement('w:tcBorders')
@@ -42,22 +26,18 @@ def set_cell_border(cell, **kwargs):
         if edge_data:
             tag = 'w:{}'.format(edge)
 
-            # check for tag existence, if none found, then create one
             element = tcBorders.find(qn(tag))
             if element is None:
                 element = OxmlElement(tag)
                 tcBorders.append(element)
 
-            # looks like order of attributes is important
             for key in ["sz", "val", "color", "space", "shadow"]:
                 if key in edge_data:
                     element.set(qn('w:{}'.format(key)), str(edge_data[key]))
 
 
 class PGTADocxGenerator:
-    """Generates DOCX reports for PGT-A with pixel-level precision"""
     
-    # Static content (same as PDF template)
     METHODOLOGY_TEXT = """Chromosomal aneuploidy analysis was performed using ChromInst® PGT-A kit from Yikon Genomics (Suzhou) Co., Ltd - China. The Yikon - ChromInst® PGT-A kit with the Genemind - SURFSeq 5000* High-throughput Sequencing Platform allows detection of aneuploidies in all 23 sets of Chromosomes. Probes are not covering the p arm of acrocentric chromosomes as they are rich in repeat regions and RNA markers and devoid of genes. Changes in this region will not be detected. However, these regions have less clinical significance due to the absence of genes. Chromosomal aneuploidy can be detected by copy number variations (CNVs), which represent a class of variation in which segments of the genome have been duplicated (gains) or deleted (losses). Large, genomic copy number imbalances can range from sub-chromosomal regions to entire chromosomes. Inherited and de-novo CNVs (up to 10 Mb) have been associated with many disease conditions. This assay was performed on DNA extracted from embryo biopsy samples."""
     
     MOSAICISM_TEXT = """Mosaicism arises in the embryo due to mitotic errors which lead to the production of karyotypically distinct cell lineages within a single embryo [1]. NGS has the sensitivity to detect mosaicism when 30% or the above cells are abnormal [2]. Mosaicism is reported in our laboratory as follows [3]."""
@@ -92,7 +72,6 @@ class PGTADocxGenerator:
     ]
 
     def __init__(self, assets_dir="assets/pgta"):
-        """Initialize assets and log paths"""
         script_dir = os.path.dirname(os.path.abspath(__file__))
         self.assets_dir = os.path.join(script_dir, assets_dir)
         
@@ -101,32 +80,26 @@ class PGTADocxGenerator:
         self.genqa_logo = os.path.join(self.assets_dir, "genqa_logo.png")
         self.signs_image = os.path.join(self.assets_dir, "signs.png")
 
-    # --- OXML PRECISION HELPERS ---
     
     def _set_cell_background(self, cell, fill):
-        """Set background shading for a table cell using OXML"""
         shading_elm = OxmlElement('w:shd')
         shading_elm.set(qn('w:fill'), fill.replace('#', ''))
         cell._tc.get_or_add_tcPr().append(shading_elm)
 
     def _set_table_fixed_layout(self, table):
-        """Force a table to use a fixed layout so column widths are strictly respected"""
         tbl_pr = table._element.xpath('w:tblPr')[0]
         layout = OxmlElement('w:tblLayout')
         layout.set(qn('w:type'), 'fixed')
         tbl_pr.append(layout)
 
     def _set_column_widths(self, table, widths_pt):
-        """Set exact column widths in points (1 pt = 1/72 inch) for every row/cell"""
         total_width = sum(widths_pt)
-        # Set total table width
         tbl_pr = table._element.xpath('w:tblPr')[0]
         tbl_w = OxmlElement('w:tblW')
         tbl_w.set(qn('w:w'), str(int(total_width * 20))) 
         tbl_w.set(qn('w:type'), 'dxa')
         tbl_pr.append(tbl_w)
 
-        # Iterate rows and set each cell's width to ensure parity even if columns[] fails
         for row in table.rows:
             for i, width in enumerate(widths_pt):
                 if i < len(row.cells):
@@ -138,7 +111,6 @@ class PGTADocxGenerator:
                     tc_pr.append(tc_w)
 
     def _set_paragraph_font(self, paragraph, font_name="Segoe UI", font_size=9, bold=False, italic=False, color=None):
-        """Apply font styling to every run in a paragraph to ensure 1:1 PDF parity"""
         if not paragraph.runs:
             paragraph.add_run()
         for run in paragraph.runs:
@@ -157,22 +129,17 @@ class PGTADocxGenerator:
                     run.font.color.rgb = color
 
     def _clean(self, val, default=""):
-        """Sanitize values"""
         if val is None: return default
         s = str(val).strip()
         if s.lower() == "nan": return default
         return s
 
-    # --- GENERATION LOGIC ---
 
     def generate_docx(self, output_path, patient_data, embryos_data, show_logo=True, show_grid=False):
-        """Main entry point for DOCX generation"""
         self.show_grid = show_grid
         doc = Document()
         
-        # 1. Page Setup (Margins mirroring PDF exactly)
         sections = doc.sections
-        # 1. Page Setup (US Letter: 612pt x 792pt)
         sections = doc.sections
         for section in sections:
             section.page_width = Pt(612)
@@ -184,22 +151,17 @@ class PGTADocxGenerator:
             section.header_distance = Pt(20)
             section.footer_distance = Pt(20)
         
-        # Global Font Defaults
         style = doc.styles['Normal']
         style.font.name = 'Calibri'
         style.font.size = Pt(9)
         
-        # 2. Cover Page
         self._add_cover_page(doc, patient_data, embryos_data)
         
-        # 3. Headers/Footers
         self._setup_page_header_footer(doc, show_logo=show_logo)
         
-        # 4. Methodology Page (pass embryos so PGDIS note is conditional)
         doc.add_page_break()
         self._add_methodology_page(doc, embryos_data)
 
-        # 5. Check if ALL embryos are "Low DNA concentration" — mirrors PDF logic exactly
         all_low_dna = bool(embryos_data)
         for embryo in embryos_data:
             interp = str(embryo.get('interpretation', '')).upper()
@@ -209,12 +171,10 @@ class PGTADocxGenerator:
                 break
 
         if all_low_dna:
-            # All Low DNA: append signature right after methodology, no embryo pages
             doc.add_paragraph()
             self._add_signature_section(doc)
         else:
             doc.add_page_break()
-            # 6. Individual embryo pages — skip Low DNA embryos, add signature after each
             for embryo in embryos_data:
                 interp = str(embryo.get('interpretation', '')).upper()
                 res    = str(embryo.get('result_summary', '')).upper()
@@ -222,14 +182,11 @@ class PGTADocxGenerator:
                     continue
                 self._add_embryo_page(doc, patient_data, embryo)
 
-        # 7. Save
         doc.save(output_path)
         return output_path
 
     def _setup_page_header_footer(self, doc, show_logo=True):
-        """Setup branding in headers and footers using locked table layouts"""
         for section in doc.sections:
-            # Header
             header = section.header
             header.paragraphs[0].clear()
             if show_logo and self.header_logo and os.path.exists(self.header_logo):
@@ -237,21 +194,18 @@ class PGTADocxGenerator:
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
                 p.add_run().add_picture(self.header_logo, width=Pt(496))
 
-            # Footer
             footer = section.footer
             footer.paragraphs[0].clear()
             footer_table = footer.add_table(rows=1, cols=2, width=Pt(496))
             self._set_table_fixed_layout(footer_table)
             self._set_column_widths(footer_table, [416, 80])
             
-            # Banner
             if show_logo and self.footer_banner and os.path.exists(self.footer_banner):
                 c0 = footer_table.rows[0].cells[0]
                 p0 = c0.paragraphs[0]
                 p0.alignment = WD_ALIGN_PARAGRAPH.LEFT
                 p0.add_run().add_picture(self.footer_banner, width=Pt(416))
             
-            # GenQA
             if self.genqa_logo and os.path.exists(self.genqa_logo):
                 c1 = footer_table.rows[0].cells[1]
                 p1 = c1.paragraphs[0]
@@ -259,26 +213,21 @@ class PGTADocxGenerator:
                 p1.add_run().add_picture(self.genqa_logo, width=Pt(65))
 
     def _add_cover_page(self, doc, patient_data, embryos_data):
-        """Cover page mirroring PDF layout and colors"""
-        # Title
         title = doc.add_paragraph()
         title.alignment = WD_ALIGN_PARAGRAPH.CENTER
         run = title.add_run("Preimplantation Genetic Testing for Aneuploidies (PGT-A)")
         self._set_paragraph_font(title, font_name="Calibri", font_size=14, bold=False)
         
-        doc.add_paragraph() # Spacer
+        doc.add_paragraph()
         
-        # Patient Info Table [108, 12, 131, 108, 12, 119] - 6 rows (spouse name combined with patient name)
-        # Adjusted widths to give more space to label columns to prevent date wrap
         info_table = doc.add_table(rows=6, cols=6)
         self._apply_grid_to_table(info_table)
         self._set_table_fixed_layout(info_table)
         self._set_column_widths(info_table, [108, 12, 131, 108, 12, 119])
         self._populate_patient_table(info_table, patient_data, is_embryo=False)
         
-        doc.add_paragraph() # Spacer
+        doc.add_paragraph()
         
-        # PNDT Disclaimer — bold + italic (PNDT Act 1994)
         disclaimer = doc.add_paragraph()
         disclaimer.alignment = WD_ALIGN_PARAGRAPH.CENTER
         run_d = disclaimer.add_run(
@@ -288,9 +237,8 @@ class PGTADocxGenerator:
         run_d.italic = True
         run_d.font.size = Pt(9.5)
         
-        doc.add_paragraph() # Spacer
+        doc.add_paragraph()
         
-        # Indication
         if 'indication' in patient_data and patient_data['indication']:
             p_ind = doc.add_paragraph()
             self._set_paragraph_font(p_ind, font_name="Calibri", font_size=10, bold=True)
@@ -299,18 +247,15 @@ class PGTADocxGenerator:
             self._set_paragraph_font(p_val, font_size=9)
             doc.add_paragraph()
 
-        # Results Summary Header
         p_res = doc.add_paragraph()
         self._set_paragraph_font(p_res, font_name="Calibri", font_size=10, bold=True)
         p_res.add_run("Results summary")
         
-        # Results Summary Table [50, 95, 185, 80, 86]
         res_table = doc.add_table(rows=len(embryos_data) + 1, cols=5)
         self._apply_grid_to_table(res_table)
         self._set_table_fixed_layout(res_table)
         self._set_column_widths(res_table, [50, 95, 185, 80, 86])
         
-        # Row 0: Headers (Peach bg)
         headers = ['S. No.', 'Sample', 'Result', 'MTcopy', 'Interpretation']
         for i, h in enumerate(headers):
             cell = res_table.rows[0].cells[i]
@@ -319,7 +264,6 @@ class PGTADocxGenerator:
             cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
             self._set_cell_background(cell, "F9BE8F")
 
-        # Data rows (F1F1F7 bg)
         for i, emb in enumerate(embryos_data, 1):
             row = res_table.rows[i]
             row.cells[0].text = str(i)
@@ -328,19 +272,14 @@ class PGTADocxGenerator:
             raw = self._clean(emb.get('result_summary') or emb.get('result_description') or '')
             info = clf.classify_embryo(raw)
 
-            # Result → mapped display text
             res_display = info["summary_text"]
 
-            # Interpretation: respect the user-edited interpretation field
-            # (falls back to the classification-derived value if not set),
-            # matching the detail page behaviour.
             interp_text = self._clean(emb.get('interpretation'), '')
             if not interp_text:
                 interp_text = info["classification"].replace("_", " ").title() if info["is_mosaic"] else "NA"
             interp_display = "NA" if interp_text.upper() == "EUPLOID" else interp_text
             cell_color = self._get_result_color_hex(raw, interp_text)
 
-            # MTcopy: NA for non-euploid
             raw_mt = self._clean(emb.get('mtcopy', ''))
             mt = raw_mt if interp_text.upper() == "EUPLOID" and raw_mt and raw_mt.upper() not in ('NA', 'N/A', '') else "NA"
 
@@ -353,24 +292,19 @@ class PGTADocxGenerator:
                 cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
                 p = cell.paragraphs[0]
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                # Color Result and Interpretation columns
                 color = cell_color if c_idx in (2, 4) else None
                 self._set_paragraph_font(p, font_size=9, color=color)
         
-        # Results Summary Comment (optional, appears below table)
         results_summary_comment = self._clean(patient_data.get('results_summary_comment', ''))
         if results_summary_comment:
-            doc.add_paragraph()  # Spacer
+            doc.add_paragraph()
             p_comment = doc.add_paragraph(results_summary_comment)
             self._set_paragraph_font(p_comment, font_size=9)
 
     def _populate_patient_table(self, table, data, is_embryo=False):
-        """Standard Patient Info Population Logic"""
-        # Patient name and spouse name - spouse on new line
         import re
         patient_name = re.sub(r'\s+', ' ', self._clean(data.get('patient_name'))).strip()
         spouse_name = re.sub(r'\s+', ' ', self._clean(data.get('spouse_name'))).strip()
-        # Put spouse on new line if present
         combined_name = f"{patient_name}\n{spouse_name}" if spouse_name else patient_name
         
         rows_map = [
@@ -385,13 +319,11 @@ class PGTADocxGenerator:
             if r_idx >= len(table.rows): break
             row = table.rows[r_idx]
             
-            # Populate labels and colons
             if l1: row.cells[0].text = l1; row.cells[1].text = ":"
             if l2: row.cells[3].text = l2; row.cells[4].text = ":"
             
-            # Populate cleaned values - first row has combined name directly
             if v1: 
-                if r_idx == 0:  # First row - combined name already a string
+                if r_idx == 0:
                     row.cells[2].text = v1
                 else:
                     row.cells[2].text = self._clean(data.get(v1))
@@ -405,13 +337,9 @@ class PGTADocxGenerator:
                 p_fmt.space_before = Pt(2)
                 p_fmt.space_after = Pt(2)
                 
-                # Set cell alignment to match PDF strictly left aligned for values
-                # Fixed: Use cell_idx from enumerate instead of row.cells.index(cell) to avoid tuple.index error
-                if cell_idx in [0, 3]:  # Label columns
+                if cell_idx in [0, 3]:
                     cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.TOP
                     
-                    # Logic: PIN label in embryo banner should be right-aligned (flushed to colon)
-                    # Page 1 and other labels should remain left-aligned with 12pt padding
                     label_text = cell.text.strip()
                     if is_embryo and label_text == "PIN":
                         cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.RIGHT
@@ -420,16 +348,14 @@ class PGTADocxGenerator:
                     else:
                         cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.LEFT
                         cell.paragraphs[0].paragraph_format.left_indent = Pt(4)
-                elif cell_idx in [1, 4]:  # Colon columns
+                elif cell_idx in [1, 4]:
                     cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.TOP
                     cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
-                else:  # Value columns
+                else:
                     cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.TOP
                     cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.LEFT
 
     def _add_methodology_page(self, doc, embryos_data=None):
-        """Methods, Limitations, and References with natural flow but orphan protection"""
-        # PGDIS 2019 counselling note only when a mosaic embryo exists
         mosaicism_clinical_item = (None, self.MOSAICISM_CLINICAL, None) if clf.any_mosaic(embryos_data or []) else None
 
         sections = [
@@ -448,7 +374,6 @@ class PGTADocxGenerator:
                 p = doc.add_paragraph()
                 self._set_paragraph_font(p, font_size=11, bold=True)
                 p.add_run(head)
-                # Only keep with next if there's content following
                 if body or bullets:
                     p.paragraph_format.keep_with_next = True
             
@@ -456,7 +381,6 @@ class PGTADocxGenerator:
                 p = doc.add_paragraph(body)
                 self._set_paragraph_font(p, font_size=9)
                 p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-                # Only keep with bullets if they exist
                 if bullets:
                     p.paragraph_format.keep_with_next = True
                 
@@ -465,35 +389,28 @@ class PGTADocxGenerator:
                     p = doc.add_paragraph(b, style='List Bullet')
                     self._set_paragraph_font(p, font_size=9)
                     p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-                    # Keep bullets together naturally
                     if i < len(bullets) - 1:
                         p.paragraph_format.keep_with_next = True
             doc.add_paragraph()
 
     def _add_embryo_page(self, doc, patient_data, embryo_data):
-        """Individual Embryo Result Page with exact PDF metrics"""
         doc.add_page_break()
 
-        # Title repeated on every embryo page — mirrors PDF _build_embryo_page
         p_title = doc.add_paragraph()
         p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
         self._set_paragraph_font(p_title, font_name="Calibri", font_size=14, bold=False)
         p_title.add_run("Preimplantation Genetic Testing for Aneuploidies (PGT-A)")
         doc.add_paragraph()
 
-        # 1. Banner [Total: 490pt] - Match exact cover page positioning
         banner = doc.add_table(rows=2, cols=6)
         self._apply_grid_to_table(banner)
         self._set_table_fixed_layout(banner)
-        # Optimized layout: Push PIN block right. PATIENT NAME (82), Colons (12x2), PIN label (24).
         self._set_column_widths(banner, [82, 12, 242, 24, 12, 118])
-        # Ensure table is aligned to the left like cover page
         banner.alignment = WD_ALIGN_PARAGRAPH.LEFT
         self._populate_patient_table(banner, patient_data, is_embryo=True)
 
         doc.add_paragraph()
 
-        # PNDT disclaimer on every embryo page — bold + italic (PNDT Act 1994)
         p_pndt = doc.add_paragraph()
         p_pndt.alignment = WD_ALIGN_PARAGRAPH.CENTER
         run_pndt = p_pndt.add_run(
@@ -505,20 +422,16 @@ class PGTADocxGenerator:
 
         doc.add_paragraph()
 
-        # 2. Embryo ID - Use embryo_id_detail for detail pages, fallback to embryo_id
         eid = self._clean(embryo_data.get('embryo_id_detail')) or self._clean(embryo_data.get('embryo_id'))
         p_eid = doc.add_paragraph()
         self._set_paragraph_font(p_eid, font_name="Calibri", font_size=12, bold=True, color="#1F497D")
         p_eid.add_run(f"EMBRYO: {eid}")
         
-        # 3. Summary [Total: 490pt]
         raw_result = self._clean(embryo_data.get('result_summary') or embryo_data.get('result_description') or '')
         info = clf.classify_embryo(raw_result)
 
-        # Result: mapped full sentence
         res = info["result_text"]
 
-        # Autosomes: "Normal" if euploid, else auto-derive
         existing_auto = self._clean(embryo_data.get('autosomes', ''))
         chr_statuses = embryo_data.get('chromosome_statuses') or {}
         if not chr_statuses:
@@ -526,16 +439,12 @@ class PGTADocxGenerator:
             chr_statuses = clf.validate_statuses(chr_statuses, raw_result)
         auto = clf.derive_autosomes(raw_result, chr_statuses, existing_auto)
 
-        # Sex chromosomes: sanitise, never XX/XY
         existing_sex = self._clean(embryo_data.get('sex_chromosomes', ''))
         sex = clf.sanitize_sex_chromosomes(existing_sex, raw_result, info["classification"])
 
-        # Interpretation: respect the user-edited interpretation field
-        # (falls back to "NA" if not set), matching the summary table.
         interp_text = self._clean(embryo_data.get('interpretation'), '')
         interp = "NA" if (not interp_text or interp_text.upper() == "EUPLOID") else interp_text
 
-        # MTcopy: NA for non-euploid
         raw_mt = self._clean(embryo_data.get('mtcopy', ''))
         mt = raw_mt if interp_text.upper() == "EUPLOID" and raw_mt and raw_mt.upper() not in ('NA', 'N/A', '') else "NA"
 
@@ -566,7 +475,6 @@ class PGTADocxGenerator:
 
         doc.add_paragraph()
         
-        # 4. Chart
         p_ch = doc.add_paragraph()
         self._set_paragraph_font(p_ch, font_size=10, bold=True)
         p_ch.add_run("COPY NUMBER CHART")
@@ -575,12 +483,10 @@ class PGTADocxGenerator:
         
         doc.add_paragraph()
         
-        # 5. CNV Status Table [Total: 496pt] - Skip for Inconclusive results
         result_summary = self._clean(embryo_data.get('result_summary', ''))
         result_desc = self._clean(embryo_data.get('result_description', ''))
         is_inconclusive = "INCONCLUSIVE" in result_summary.upper() or "INCONCLUSIVE" in result_desc.upper() or "INCONCLUSIVE" in interp.upper()
         
-        # Add inconclusive comment under CNV chart if present
         if is_inconclusive:
             inconclusive_comment = self._clean(embryo_data.get('inconclusive_comment', ''))
             if inconclusive_comment:
@@ -615,11 +521,9 @@ class PGTADocxGenerator:
             self._set_table_fixed_layout(cnv_table)
             self._set_column_widths(cnv_table, [75] + [19.13]*22)
             
-            # Header Row
             cnv_table.rows[0].cells[0].text = "Chromosome"
             for i in range(1, 23): cnv_table.rows[0].cells[i].text = str(i)
             
-            # Status Row
             cnv_table.rows[1].cells[0].text = "CNV status"
             for i in range(1, 23):
                 cell = cnv_table.rows[1].cells[i]
@@ -628,7 +532,6 @@ class PGTADocxGenerator:
                 color = self._get_status_color_docx(stat)
                 self._set_paragraph_font(cell.paragraphs[0], font_size=8, bold=True, color=color)
                 
-            # Mosaic Row
             if has_mosaic:
                 cnv_table.rows[2].cells[0].text = "Mosaic (%)"
                 for i in range(1, 23):
@@ -642,7 +545,6 @@ class PGTADocxGenerator:
                     if c_idx == 0: p.alignment = WD_ALIGN_PARAGRAPH.LEFT
                     self._set_paragraph_font(p, font_size=8, bold=True)
 
-            # CNV legend — mirrors PDF exactly
             legend_p = doc.add_paragraph()
             legend_run = legend_p.add_run(
                 "N \u2013 Normal, G-Gain, L-Loss, SG-Segmental Gain, SL-Segmental Loss, "
@@ -654,11 +556,9 @@ class PGTADocxGenerator:
 
         doc.add_paragraph()
         self._add_signature_section(doc)
-        # Page break after each embryo+signature block — mirrors PDF PageBreak()
         doc.add_page_break()
 
     def _add_signature_section(self, doc):
-        """Pixel-Perfect 3-Column Signature Section"""
         table = doc.add_table(rows=2, cols=3)
         self._set_table_fixed_layout(table)
         self._set_column_widths(table, [156, 156, 156])
@@ -681,12 +581,10 @@ class PGTADocxGenerator:
             self._set_paragraph_font(p2, font_size=11)
 
     def _get_result_color_hex(self, res, interp=None):
-        """Return red if embryo is abnormal/mosaic, black if normal."""
         combined = " ".join(filter(None, [str(res or ""), str(interp or "")]))
         return "#FF0000" if clf.classify_embryo(combined)["is_abnormal"] else "#000000"
 
     def _get_status_color_docx(self, status):
-        """CNV status table color: red for L/G/SL/SG, orange for mosaic, grey for NR, black for N."""
         s = str(status).upper().strip()
         if not s or s == 'N':
             return "#000000"
@@ -696,7 +594,6 @@ class PGTADocxGenerator:
             return "#FF8C00"
         if s in ('L', 'G', 'SL', 'SG', 'SL/SG', 'SG/SL'):
             return "#FF0000"
-        # Numeric mosaic percentage
         try:
             if float(s.replace('%', '')) > 0:
                 return "#FF8C00"
@@ -705,11 +602,10 @@ class PGTADocxGenerator:
         return "#000000"
 
     def _apply_grid_to_table(self, table):
-        """Apply lite white grid lines to table if enabled"""
         if not hasattr(self, 'show_grid') or not self.show_grid:
             return
             
-        grid_color = "E0E0E0" # Lite white/grey
+        grid_color = "E0E0E0"
         for row in table.rows:
             for cell in row.cells:
                 set_cell_border(

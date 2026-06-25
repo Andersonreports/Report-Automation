@@ -6,11 +6,11 @@
   <title>Karyotype Report Generator &mdash; Anderson Diagnostics</title>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css" crossorigin="anonymous" />
-  <!-- PDF.js — render preview pages to canvas (clean, no browser PDF toolbar), same as PGTA/NIPT -->
+  
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script>
     (function(){ var p=window['pdfjs-dist/build/pdf']; if(p) p.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; })();
-  </script>
+</script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :root{
@@ -22,7 +22,7 @@
       --text:#1e293b; --text-muted:#64748b;
       --input-bg:#ffffff; --input-border:#d1d5db;
       --shadow:0 2px 8px rgba(0,0,0,0.08); --radius:10px;
-      /* legacy aliases kept so existing class names map cleanly */
+      
       --blue:#1F497D; --green:#10b981; --red:#ef4444;
     }
     body{
@@ -31,7 +31,7 @@
     }
     a{ color:inherit; }
 
-    /* Top header */
+    
     .topbar{
       display:flex; align-items:center; justify-content:space-between; gap:16px;
       padding:14px 28px; position:sticky; top:0; z-index:50;
@@ -50,7 +50,7 @@
       background:linear-gradient(135deg,#1F497D,#4F81BD);
       -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;}
 
-    /* Tabs */
+    
     .tabs{ display:flex; gap:8px; }
     .tab{
       padding:9px 22px; border:1px solid var(--card-border); border-radius:8px;
@@ -67,7 +67,7 @@
     .layout{ display:grid; grid-template-columns: minmax(360px, 1fr) minmax(420px, 1.15fr); gap:20px; align-items:start; }
     @media (max-width:1050px){ .layout{ grid-template-columns:1fr; } }
 
-    /* Cards */
+    
     .glass{
       background:var(--panel); backdrop-filter:blur(12px);
       border:1px solid var(--panel-border); border-radius:var(--radius);
@@ -78,7 +78,7 @@
       display:flex; align-items:center; gap:8px; }
     .glass h3 i{ color:var(--accent-deep); }
 
-    /* Fields */
+    
     label.fld{ display:block; margin-bottom:12px; }
     label.fld span{ display:block; font-size:11px; font-weight:600; color:var(--text-muted);
       margin-bottom:5px; letter-spacing:.4px; text-transform:uppercase; }
@@ -95,7 +95,7 @@
     .row2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
     @media (max-width:560px){ .row2{ grid-template-columns:1fr; } }
 
-    /* Buttons */
+    
     .btn{
       display:inline-flex; align-items:center; justify-content:center; gap:8px;
       padding:9px 16px; border-radius:7px; cursor:pointer;
@@ -158,7 +158,7 @@
     .prog > i{ display:block; height:100%; width:0; background:var(--success); transition:width .25s; }
     .prog-lbl{ font-size:12px; color:var(--text-muted); margin-top:6px; display:none; }
 
-    /* Bulk 3-column workspace — mirrors desktop layout: table | editor | preview */
+    
     .bulk-3col{ display:flex; gap:16px; align-items:stretch; height:clamp(480px,66vh,840px); }
     @media (max-width:1050px){ .bulk-3col{ flex-direction:column; height:auto; } }
     .bulk-col{
@@ -183,7 +183,7 @@
     .bulk-col-header i{ color:var(--accent-deep); }
     .bulk-select-row{ display:flex; gap:8px; padding:10px 14px 0; flex-shrink:0; }
     .bulk-table-scroll{ flex:1; overflow:auto; }
-    .bulk-table-scroll table.bulk th{ background:#eaf0f6; }   /* solid so rows don't show through sticky header */
+    .bulk-table-scroll table.bulk th{ background:#eaf0f6; }   
     .bulk-col-scroll{ flex:1; overflow:auto; padding:14px 16px; }
     .bulk-placeholder{ color:var(--text-muted); font-style:italic; text-align:center; padding:44px 12px; font-size:13px; }
     .fld-cap{ display:block; font-size:11px; font-weight:600; color:var(--text-muted); margin-bottom:6px; text-transform:uppercase; letter-spacing:.4px; }
@@ -192,7 +192,7 @@
     .bulk-preview-host .preview-empty{ background:transparent; }
     .bulk-genrow{ display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; }
 
-    /* Compact bulk load bar (mirrors the other reports' top bar) */
+    
     .bulk-top-bar{ display:flex; align-items:center; gap:10px; padding:10px 14px;
       background:var(--panel); backdrop-filter:blur(12px); border:1px solid var(--panel-border);
       border-radius:var(--radius); box-shadow:var(--shadow); margin-bottom:16px; flex-wrap:wrap; }
@@ -200,7 +200,7 @@
       background:#fff; border-radius:6px; font-size:11.5px; color:var(--text-muted);
       overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 
-    /* Report Comparison */
+    
     .cmp-upload-row{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
     .cmp-upload-box{ flex:1; min-width:220px; border:2px dashed var(--input-border); border-radius:10px;
       padding:16px; text-align:center; cursor:pointer; transition:.2s; background:#fff; }
@@ -238,7 +238,7 @@
     .toast a{ color:var(--primary); font-weight:700; }
     @keyframes tin{ from{transform:translateY(12px);opacity:0;} to{transform:none;opacity:1;} }
 
-    /* Draft picker modal */
+    
     .modal-overlay{ position:fixed; inset:0; z-index:2000; background:rgba(15,23,42,.5);
       display:flex; align-items:center; justify-content:center; }
     .modal-box{ background:#fff; border-radius:var(--radius); box-shadow:0 24px 64px rgba(0,0,0,.2);
@@ -291,13 +291,13 @@
       border-top-color:var(--primary); border-radius:50%; animation:spin .7s linear infinite; vertical-align:middle;}
     .btn .spinner, .btn.primary .spinner, .btn.green .spinner{ border-color:rgba(255,255,255,.45); border-top-color:#fff; }
     @keyframes spin{ to{ transform:rotate(360deg); } }
-  </style>
+</style>
   <script src="/static/idle-logout.js"></script>
 </head>
 <body>
   <script>
-    // Interim client-side access guard — stand-in for IT's real
-    // mobile number + password + OTP system. See access_api.py / login.html.
+    
+    
     (function () {
       if (localStorage.getItem('arc_authenticated') !== 'true') {
         window.location.replace('/login.html');
@@ -320,7 +320,7 @@
         document.close();
       }
     })();
-  </script>
+</script>
 
   <div class="topbar">
     <div class="topbar-left">
@@ -337,7 +337,7 @@
     </div>
   </div>
 
-  <!-- MANUAL -->
+  
   <section class="panel active" id="panel-manual">
     <div class="layout">
       <div>
@@ -398,7 +398,7 @@
     </div>
   </section>
 
-  <!-- BULK -->
+  
   <section class="panel" id="panel-bulk">
     <div class="bulk-top-bar">
       <input type="file" id="b_excel" accept=".xls,.xlsx,.xlsm" hidden />
@@ -413,7 +413,7 @@
     </div>
 
     <div class="bulk-3col">
-      <!-- LEFT: patient table -->
+      
       <div class="bulk-col bulk-col-left">
         <div class="bulk-col-header"><span><i class="fas fa-table"></i> Review &amp; Edit Patients</span></div>
         <div class="bulk-select-row">
@@ -434,7 +434,7 @@
         </div>
       </div>
 
-      <!-- CENTER: patient editor -->
+      
       <div class="bulk-col bulk-col-center">
         <div class="bulk-col-header"><span><i class="fas fa-user-edit"></i> Patient Editor</span></div>
         <div class="bulk-col-scroll">
@@ -458,7 +458,7 @@
         </div>
       </div>
 
-      <!-- RIGHT: live preview -->
+      
       <div class="bulk-col bulk-col-right">
         <div class="bulk-col-header">
           <span><i class="fas fa-eye"></i> Live Preview</span>
@@ -469,7 +469,7 @@
       </div>
     </div>
 
-    <!-- 3. Generate -->
+    
     <div class="glass" style="margin-top:18px;">
       <h3><i class="fas fa-cog"></i> 3. Generate Reports</h3>
       <div class="folder-row">
@@ -488,7 +488,7 @@
     </div>
   </section>
 
-  <!-- REPORT COMPARISON -->
+  
   <section class="panel" id="panel-compare">
     <div style="max-width:1100px;margin:0 auto;">
       <div class="glass" style="margin-bottom:18px;">
@@ -521,7 +521,7 @@
     </div>
   </section>
 
-  <!-- GUIDE -->
+  
   <section class="panel guide" id="panel-guide">
     <div class="guide-container">
 
@@ -615,7 +615,7 @@
 
   <div class="toast-wrap" id="toasts"></div>
 
-  <!-- Draft picker modal -->
+  
   <div class="modal-overlay" id="draftModal" style="display:none;" onclick="if(event.target===this) closeDraftModal();">
     <div class="modal-box">
       <div class="modal-head">
@@ -638,21 +638,21 @@
 
   <script>
   "use strict";
-  // ===== Data model (verbatim from the desktop application) =====
+  
   var API = (window.location.protocol === "file:" ||
              ((window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost") &&
               window.location.port !== "8000"))
       ? "http://127.0.0.1:8000"
-      : "";  // same-origin when served by FastAPI
+      : "";  
   function apiUrl(path){
     if(!path) return "";
     if(/^https?:\/\//i.test(path) || /^data:/i.test(path)) return path;
     return API + (path.charAt(0)==="/" ? path : "/"+path);
   }
-  var BULLET = "•";       // matches backend recommendation bullet
-  var RSQUO  = "’";       // right single quote used in desktop templates
+  var BULLET = "•";       
+  var RSQUO  = "’";       
 
-  // ===== Output folder picker (saves generated reports to a chosen local folder) =====
+  
   var _dirHandles = {};
   function selectOutputFolder(inputId, btnId){
     if(!window.showDirectoryPicker){
@@ -738,7 +738,7 @@
   };
   var REPORT_TYPE_OPTIONS = Object.keys(REPORT_TEMPLATES);
 
-  // [label, key, type, placeholder|options]
+  
   var FIELD_DEFS = [
     ["Patient Name","NAME","line",""],
     ["Gender","GENDER","combo",["Male","Female"]],
@@ -777,7 +777,7 @@
     return "Other (Custom)";
   }
 
-  // ===== utils =====
+  
   function $(id){ return document.getElementById(id); }
   function esc(s){ return String(s==null?"":s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c];}); }
   function toast(msg, kind){
@@ -852,12 +852,12 @@
     return out;
   }
 
-  // ── PDF preview: render pages to stacked canvases via PDF.js (same as PGTA/NIPT) ──
+  
   var _pdfTokens = {};
   function renderPdfToCanvas(arrayBuffer, host, token, tokenKey){
     var lib = window['pdfjs-dist/build/pdf'];
     if(!lib){
-      // Fallback: embed via iframe if the PDF.js CDN is unavailable
+      
       if(host.dataset.blobUrl) URL.revokeObjectURL(host.dataset.blobUrl);
       var u = URL.createObjectURL(new Blob([arrayBuffer], {type:"application/pdf"}));
       host.dataset.blobUrl = u;
@@ -868,7 +868,7 @@
       if(_pdfTokens[tokenKey]!==token) return;
       host.innerHTML="";
       var containerW = Math.max((host.clientWidth||440) - 24, 240);
-      var dpr = Math.min(window.devicePixelRatio || 1, 3);   // render at device resolution for crisp text
+      var dpr = Math.min(window.devicePixelRatio || 1, 3);   
       var chain = Promise.resolve();
       var _loop = function(n){
         chain = chain.then(function(){
@@ -880,7 +880,7 @@
             var svp = page.getViewport({scale: cssScale * dpr});
             var canvas = document.createElement("canvas");
             canvas.className = "preview-page-canvas";
-            canvas.width = svp.width; canvas.height = svp.height;   // hi-DPI backing store; CSS width:100% sets display size
+            canvas.width = svp.width; canvas.height = svp.height;   
             host.appendChild(canvas);
             return page.render({canvasContext: canvas.getContext("2d"), viewport: svp}).promise;
           });
@@ -891,7 +891,7 @@
     });
   }
 
-  // Live preview with race-guard token (newest request wins)
+  
   function makePreviewer(hostId, statusId){
     _pdfTokens[hostId] = 0;
     return function(payload, enabled){
@@ -932,7 +932,7 @@
     };
   }
 
-  // Upload one or more image files -> returns array of {filename,url,original}
+  
   function uploadImages(fileList){
     var files=Array.prototype.slice.call(fileList||[]);
     return files.reduce(function(chain, f){
@@ -962,7 +962,7 @@
     }, Promise.resolve([]));
   }
 
-  // Render a list of {url,original,filename} chips with a remove callback
+  
   function renderImgList(host, arr, onRemove){
     host.innerHTML = arr.length ? "" : '<div class="hint">No images added.</div>';
     arr.forEach(function(im, idx){
@@ -973,7 +973,7 @@
     });
   }
 
-  // ===== Tabs =====
+  
   Array.prototype.forEach.call(document.querySelectorAll(".tab"), function(t){
     t.addEventListener("click", function(){
       Array.prototype.forEach.call(document.querySelectorAll(".tab"), function(x){ x.classList.remove("active"); });
@@ -983,8 +983,8 @@
     });
   });
 
-  // ===== MANUAL ENTRY =====
-  var M_images=[];                       // [{filename,url,original}]
+  
+  var M_images=[];                       
   var m_inputs=buildForm($("m_fields"));
   buildSelect($("m_rt"),REPORT_TYPE_OPTIONS);
   var m_preview=makePreviewer("m_pvhost","m_status");
@@ -1009,7 +1009,7 @@
   $("m_apply").addEventListener("click", function(){ applyTemplate(m_inputs,$("m_rt").value); m_schedule(); });
   $("m_refresh").addEventListener("click", m_run);
 
-  // ── Find Patients (date range lookup against IT's patient gateway) ──
+  
   function _pfApplyPatient(p){
     if(m_inputs.NAME) m_inputs.NAME.value = p.patient_name || "";
     if(m_inputs.PIN) m_inputs.PIN.value = p.patient_no || "";
@@ -1102,7 +1102,7 @@
   function closeDraftModal(){ $("draftModal").style.display="none"; }
 
   function _draftLabel(fname){
-    // karyo_draft_<name>_YYYYMMDD_HHMMSS.json -> "<name> — DD/MM/YYYY HH:MM"
+    
     var m=fname.match(/^karyo_draft_(.+)_(\d{8})_(\d{6})\.json$/);
     if(!m) return fname;
     var name=m[1].replace(/_/g," ");
@@ -1175,11 +1175,11 @@
     $("m_status").textContent="Fill in a Patient Name to enable preview.";
   });
 
-  // ===== BULK UPLOAD =====
-  var B_rows=[];                // [{...fields, REPORT_TYPE, IMAGES:[names]}]
-  var B_uploadedImages=[];      // [{filename, original, url, data_url}] selected with the Excel
+  
+  var B_rows=[];                
+  var B_uploadedImages=[];      
   var B_current=-1;
-  var B_checked={};             // idx -> bool; survives table re-renders (missing = checked)
+  var B_checked={};             
   var b_inputs=buildForm($("b_fields"));
   buildSelect($("b_rt"),REPORT_TYPE_OPTIONS);
   var b_preview=makePreviewer("b_pvhost","b_status");
@@ -1206,7 +1206,7 @@
     var ex=$("b_excel").files[0];
     if(!ex){ return; }
     var fd=new FormData(); fd.append("file",ex);
-    // Folder pick (webkitdirectory) returns every file in the folder — keep only images
+    
     var bulkFiles=Array.prototype.slice.call($("b_images").files||[]).filter(function(f){ return /\.(jpe?g|png)$/i.test(f.name); });
     bulkFiles.forEach(function(f){ fd.append("images",f); });
     $("b_loadstatus").innerHTML='<span class="spinner"></span> Parsing...';
@@ -1229,7 +1229,7 @@
           if(!row.REPORT_TYPE) row.REPORT_TYPE=detectReportType(row.RESULT||"");
           return row;
         });
-        B_checked={};   // fresh load → every row selected by default
+        B_checked={};   
         var withImgs=B_rows.filter(function(r){return (r.IMAGES||[]).length;}).length;
         $("b_loadstatus").textContent="Loaded "+B_rows.length+" patient(s)"+(bulkFiles.length?(" — "+withImgs+" matched to images"):"")+".";
         renderBulkTable();
@@ -1259,7 +1259,7 @@
       tr.addEventListener("click", function(e){ if(e.target.classList.contains("b_chk")) return; selectRow(i); });
       tb.appendChild(tr);
       var chk=tr.querySelector(".b_chk");
-      chk.checked = B_checked[i]!==false;       // restore prior selection (default checked)
+      chk.checked = B_checked[i]!==false;       
       chk.addEventListener("change", function(){ B_checked[+this.dataset.idx]=this.checked; syncCheckAll(); });
     });
     syncCheckAll();
@@ -1377,7 +1377,7 @@
   $("b_genall").addEventListener("click", function(){ runBulk(B_rows.map(function(_,i){return i;})); });
   $("b_selectdir").addEventListener("click", function(){ selectOutputFolder("b_outdir"); });
 
-  // ===== REPORT COMPARISON (Manual vs Automated PDF, styled like the other reports) =====
+  
   var cmpFiles = { manual:null, auto:null };
   var _lastCmpData = null;
   function cmpFileSelected(type, input){
@@ -1411,7 +1411,7 @@
       .then(function(r){ return r.json(); })
       .then(function(d){
         if(d.error) throw new Error(d.error);
-        d.manual_file=cmpFiles.manual.name; d.auto_file=cmpFiles.auto.name;  // server doesn't return names
+        d.manual_file=cmpFiles.manual.name; d.auto_file=cmpFiles.auto.name;  
         _lastCmpData=d;
         renderComparisonResult(d);
         $("cmpDownloadBtn").style.display="";
@@ -1471,6 +1471,6 @@
     URL.revokeObjectURL(url);
     toast("Comparison exported as HTML.","ok");
   }
-  </script>
+</script>
 </body>
 </html>

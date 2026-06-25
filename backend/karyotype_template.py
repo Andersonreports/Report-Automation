@@ -1,26 +1,3 @@
-"""
-Karyotype Report Generator - PDF Template
-==========================================
-Generates Anderson Diagnostics Peripheral Blood Karyotyping reports.
-
-Layout (pixel-perfect from pdfplumber analysis of reference PDFs):
-  Page size   : 612 x 792 pt  (US Letter)
-  Header img  : top=0,   bot=67.8,  x0=1.4,   x1=611.2
-  Footer img  : top=743.8, bot=791.8, x0=1.4, x1=612.0
-  Stamp img   : top=126.8, bot=205.6, x0=276.4, x1=339.2  (page 1)
-  Title       : y_topâ86.1 (centred), GillSansMT-Bold 16pt
-  Patient tbl : y_topâ127, rows every ~29pt, left_x=39.6 right_x=373.7
-  Test Ind hdg: y_topâ280
-  Result hdg  : y_topâ337-380
-  ISCN box    : y_topâ377-420  (amber bg, bold orange text)
-  Karyogram   : single centred or dual side-by-side
-  Metaphase   : page-1 bottom for 2-page layout; page-2 top for 3-page layout
-  Signatures  : page-2 for normal, page-3 for abnormal
-
-Layout decision:
-  - comments field is blank â 2-page (normal) layout
-  - comments field is non-blank â 3-page (abnormal) layout
-"""
 
 import os, io, re, base64, sys, uuid
 from datetime import datetime
@@ -28,7 +5,6 @@ from pathlib import Path
 
 
 def _resource_path(relative: str) -> str:
-    """Works frozen (PyInstaller) and unfrozen."""
     base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
     return os.path.join(base, relative)
 
@@ -45,19 +21,16 @@ from reportlab.pdfbase.pdfmetrics import registerFontFamily
 
 import karyotype_assets as _assets
 
-# âââ Colours ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-# Extracted from reference PDF (PARTHIBAN): (0.122, 0.22, 0.392) = #1F3864
-DARK_BLUE  = HexColor('#1F3864')   # section headings, title, "This report..." header
-RED        = Color(1, 0, 0)        # ISCN box text â abnormal
-GREEN      = HexColor('#00B050')   # ISCN box text â normal (both autosome+sex normal)
-AMBER_BG   = HexColor('#F2F2F2')   # ISCN box background  (light gray)
-AMBER_BRD  = HexColor('#D9D9D9')   # ISCN box border
-GRAY_DIV   = Color(0.6, 0.6, 0.6) # section divider lines
-FIELD_BG   = HexColor('#D9D9D9')   # metaphase table background
+DARK_BLUE  = HexColor('#1F3864')
+RED        = Color(1, 0, 0)
+GREEN      = HexColor('#00B050')
+AMBER_BG   = HexColor('#F2F2F2')
+AMBER_BRD  = HexColor('#D9D9D9')
+GRAY_DIV   = Color(0.6, 0.6, 0.6)
+FIELD_BG   = HexColor('#D9D9D9')
 BLACK      = black
 WHITE      = white
 
-# âââ Fonts ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 _FONT_DIR = _resource_path("fonts")
 
 def _reg(name, filename):
@@ -102,23 +75,18 @@ if _font_ok("GillSansMT") and _font_ok("GillSansMT-Bold"):
     registerFontFamily("GillSansMT", normal="GillSansMT", bold="GillSansMT-Bold",
                        italic="GillSansMT", boldItalic="GillSansMT-BoldItalic" if _font_ok("GillSansMT-BoldItalic") else "GillSansMT-Bold")
 
-# Font aliases matching reference PDF fonts exactly
-# Reference: GillSansMT-Bold for title/headings; SegoeUI-Bold/SegoeUI for patient table;
-#            Calibri/Calibri-Bold for body/ISCN; Calibri-Italic for references italic
 F_TITLE  = "GillSansMT-Bold" if _font_ok("GillSansMT-Bold") else "Helvetica-Bold"
 F_HDG    = "GillSansMT-Bold" if _font_ok("GillSansMT-Bold") else "Helvetica-Bold"
-F_TBL_LBL = "SegoeUI-Bold"  if _font_ok("SegoeUI-Bold")    else "Helvetica-Bold"   # patient table labels
-F_TBL_VAL = "SegoeUI"       if _font_ok("SegoeUI")         else "Helvetica"         # patient table values
+F_TBL_LBL = "SegoeUI-Bold"  if _font_ok("SegoeUI-Bold")    else "Helvetica-Bold"
+F_TBL_VAL = "SegoeUI"       if _font_ok("SegoeUI")         else "Helvetica"
 F_LBL    = "Calibri-Bold"   if _font_ok("Calibri-Bold")    else "Helvetica-Bold"
 F_BODY   = "Calibri"        if _font_ok("Calibri")         else "Helvetica"
 F_ITALIC = "Calibri-Italic" if _font_ok("Calibri-Italic")  else "Helvetica"
 F_BBOLD  = "Calibri-Bold"   if _font_ok("Calibri-Bold")    else "Helvetica-Bold"
 F_SIG    = "Calibri"        if _font_ok("Calibri")         else "Helvetica"
 
-# âââ Page geometry (all in ReportLab coords: origin = bottom-left) âââââââââ
 W, H = 612.0, 792.0
 
-# pdfplumber top â RL y = H - pdfplumber_top
 def _rl(pdfplumber_top):
     return H - pdfplumber_top
 
@@ -126,29 +94,24 @@ HDR_X, HDR_Y, HDR_W, HDR_H   =  1.4,  _rl(67.8),   609.8, 67.8
 FTR_X, FTR_Y, FTR_W, FTR_H   =  1.4,  0.2,         610.6, 48.0
 STAMP_X, STAMP_Y, STAMP_W, STAMP_H = 276.4, _rl(216.0), 62.8, 78.8
 
-# Content margins
-LX = 39.6    # left content x
-RX = 575.0   # right content x
-CW = RX - LX # content width  535.4
+LX = 39.6
+RX = 575.0
+CW = RX - LX
 
-# Patient table column boundaries (from pdfplumber analysis)
-LEFT_VAL_X  = 136.8  # left-side values start here
-RIGHT_LBL_X = 373.7  # right-side labels start here
-RIGHT_VAL_X = 487.3  # right-side values start here
-COLON_X_L   = 130.2  # left colons
-COLON_X_R   = 481.8  # right colons
+LEFT_VAL_X  = 136.8
+RIGHT_LBL_X = 373.7
+RIGHT_VAL_X = 487.3
+COLON_X_L   = 130.2
+COLON_X_R   = 481.8
 
-TABLE_ROW_H = 29.2   # approx row height (based on 127.2 â 161.7 = 34.5, etc)
+TABLE_ROW_H = 29.2
 
-# Divider line x-span
 DIV_X0, DIV_X1 = 72.0, 540.0
 
-# âââ Helpers ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
 def _img(b64: str) -> ImageReader:
     return ImageReader(io.BytesIO(base64.b64decode(b64)))
 
 def _img_white_to_alpha(b64: str, threshold: int = 235) -> ImageReader:
-    """Decode an image and make near-white pixels transparent."""
     from PIL import Image as PILImage
     img = PILImage.open(io.BytesIO(base64.b64decode(b64))).convert("RGBA")
     pixels = img.getdata()
@@ -180,10 +143,9 @@ def _fmt_date(v) -> str:
     return s
 
 def _wrap_text(c, text, x, y, max_w, font, size, leading=None) -> float:
-    """Word-wrap text; returns RL y after the last drawn line."""
     if leading is None:
         leading = size * 1.45
-    c.setFont(font, size)   # always set the correct font before drawing
+    c.setFont(font, size)
     words = text.split()
     line  = ""
     for w in words:
@@ -201,11 +163,9 @@ def _wrap_text(c, text, x, y, max_w, font, size, leading=None) -> float:
     return y
 
 def _paragraph_height(text, font, size, max_w, leading=None) -> float:
-    """Estimate height of word-wrapped text block (in pt)."""
     if not text: return 0.0
     if leading is None:
         leading = size * 1.45
-    # use a dummy canvas approach: count line breaks
     try:
         from reportlab.pdfgen.canvas import Canvas as _C
         buf = io.BytesIO()
@@ -222,20 +182,12 @@ def _paragraph_height(text, font, size, max_w, leading=None) -> float:
         if line: lines += 1
         return lines * leading
     except Exception:
-        # rough fallback
         avg_char_w = size * 0.5
         chars_per_line = int(max_w / avg_char_w)
         n_lines = max(1, len(text) // chars_per_line + 1)
         return n_lines * (leading or size * 1.35)
 
 def _draw_section_heading(c, text, rl_y, color=DARK_BLUE, size=16) -> float:
-    """Draw a bold section heading and a divider below it. Returns RL y below divider.
-
-    The text is drawn at rl_y - cap_offset so that pdfplumber-measured glyph top
-    aligns with the reference PDF.  The return value (used for body placement)
-    is kept at rl_y - size - 3 - 4 so downstream body positions are unaffected.
-    """
-    # cap_offset â size Ã- 0.73 (Calibri cap height fraction); empirically ~11.8 for 16pt
     cap_offset = size * 0.74
     c.setFont(F_HDG, size)
     c.setFillColor(color)
@@ -245,13 +197,11 @@ def _draw_section_heading(c, text, rl_y, color=DARK_BLUE, size=16) -> float:
     return div_y - 4
 
 def _draw_bullet_list(c, items, x, y, max_w, font, size, leading=None) -> float:
-    """Draw a bullet list; returns RL y after last item."""
     if leading is None:
         leading = size * 1.45
     bullet = "\u2022"
     indent = 18.0
     for item in items:
-        # Use Helvetica for the bullet glyph (guaranteed to have \u2022)
         c.setFont("Helvetica", size)
         c.setFillColor(BLACK)
         c.drawString(x, y, bullet)
@@ -261,11 +211,10 @@ def _draw_bullet_list(c, items, x, y, max_w, font, size, leading=None) -> float:
 
 def _draw_justified(c, text: str, x: float, y: float, max_w: float,
                     font: str, size: float, leading: float = None) -> float:
-    """Draw justified paragraph text. Returns RL y below the last line."""
     if not text:
         return y
     if leading is None:
-        leading = size * 1.41  # matches reference PDF ~15.5pt leading for 11pt body text
+        leading = size * 1.41
     style = ParagraphStyle(
         'body_just',
         fontName=font,
@@ -280,22 +229,7 @@ def _draw_justified(c, text: str, x: float, y: float, max_w: float,
     return y - h
 
 
-# âââ Main report generator âââââââââââââââââââââââââââââââââââââââââââââââââââ
 class KaryotypeReportGenerator:
-    """Generate a single patient's Karyotyping PDF.
-
-    Parameters
-    ----------
-    data_row : dict
-        Keys match Excel columns (case-insensitive normalised).
-    image_paths : list[str]
-        Paths to karyogram image files for this patient (1, 2, or 3 images).
-        - 1 image  â centred single karyogram
-        - 2 images â side-by-side dual karyogram (mosaic case)
-        - 3 images â scatter + zoom-pair on left, full karyogram on right
-    output_dir : str
-        Directory where the PDF will be saved.
-    """
 
     def __init__(self, data_row: dict, image_paths: list, output_dir: str,
                  include_logo: bool = True):
@@ -304,18 +238,15 @@ class KaryotypeReportGenerator:
         self.images = self._prepare_images(image_paths)
         self.include_logo = include_logo
 
-        # Derive filename: "{Name} ({SampleNumber}) PBCKT with/without logo.pdf"
         name   = " ".join((self._get("NAME") or "Unknown").split())
         sample = " ".join((self._get("SAMPLE NUMBER") or "NoSN").split())
-        # Remove characters not safe for filenames (keep alphanumeric, spaces, hyphens, parens, dots)
         safe_name = re.sub(r'[^\w\s\-\(\)\.]', '', name).strip()
         logo_tag = "with logo" if include_logo else "without logo"
         self.filename = f"{safe_name} ({sample}) PBCKT {logo_tag}.pdf"
         self.filepath = os.path.join(output_dir, self.filename)
 
-        # Determine layout variant
         has_comments = bool(self._get("COMMENTS"))
-        self.three_page = has_comments   # True â 3-page layout
+        self.three_page = has_comments
 
     def _prepare_images(self, image_paths: list) -> list:
         prepared = []
@@ -341,31 +272,26 @@ class KaryotypeReportGenerator:
         return prepared
 
     def _is_normal(self) -> bool:
-        """Return True if both autosome and sex chromosome are normal."""
         auto = self._get("AUTOSOME").lower()
         sex  = self._get("SEX CHROMOSOME", "SEX CHROMOSOME ").lower()
         return not ("abnormal" in auto or "abnormal" in sex or
                     "variant" in auto or "variant" in sex)
 
     def _iscn_color(self):
-        """Return ISCN text color based on autosome/sex chromosome values.
-        Both Normal â GREEN; either Abnormal â RED; either Variant â BLACK."""
         auto = self._get("AUTOSOME").lower()
         sex  = self._get("SEX CHROMOSOME", "SEX CHROMOSOME ").lower()
         if "abnormal" in auto or "abnormal" in sex:
             return RED
         if "variant" in auto or "variant" in sex:
             return BLACK
-        return GREEN  # both normal
+        return GREEN
 
-    # ââ accessors âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
     def _get(self, *keys) -> str:
         for k in keys:
             v = self.d.get(k.upper().strip(), "")
             if v: return v
         return ""
 
-    # ââ public entry point ââââââââââââââââââââââââââââââââââââââââââââââââââââ
     def generate(self) -> str:
         os.makedirs(self.out, exist_ok=True)
         c = canvas.Canvas(self.filepath, pagesize=(W, H))
@@ -385,39 +311,26 @@ class KaryotypeReportGenerator:
         c.save()
         return self.filepath
 
-    # ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-    # PAGE 1 (both layouts share patient info + result + karyograms)
-    # ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
     def _page1_common(self, c, page_num=1, total_pages=None) -> float:
-        """Draw everything on page 1 up to (but not including) the karyogram area.
-        Returns the RL y just above where karyograms should be placed."""
         if total_pages is None:
             total_pages = 3 if self.three_page else 2
 
         self._draw_chrome(c, page_num, total_pages)
 
-        # ââ Title ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-        # Draw title so its glyph TOP aligns with pdfplumber top=86.1
-        # baseline = glyph_top_RL - cap_height = _rl(86.1) - 18*0.74
-        title_y = _rl(86.1) - int(18 * 0.74)   # RL baseline â 692.6
+        title_y = _rl(86.1) - int(18 * 0.74)
         c.setFont(F_TITLE, 18)
         c.setFillColor(DARK_BLUE)
         c.drawCentredString(W / 2, title_y, "Peripheral Blood Karyotyping")
 
-        # ââ Patient table background (drawn FIRST so stamp + text render on top) â
         c.setFillColor(FIELD_BG)
         c.rect(LX, _rl(120.0) - 5 * 29.5, RX - LX, 5 * 29.5, fill=1, stroke=0)
 
-        # ââ Stamp image (drawn FIRST so table text renders on top) âââââââââââ
         c.drawImage(_img_white_to_alpha(_assets.STAMP),
                     STAMP_X, STAMP_Y, STAMP_W, STAMP_H, mask="auto")
 
-        # ââ Patient info table ââââââââââââââââââââââââââââââââââââââââââââââââ
         self._draw_patient_table(c)
 
-        # ââ Test Indication âââââââââââââââââââââââââââââââââââââââââââââââââââ
-        # Patient table bottom â RL 524; leave ~12 pt gap.
-        ti_y = _rl(282.0)   # RL 510; 12 pt below table bottom
+        ti_y = _rl(282.0)
         section_y = _draw_section_heading(c, "Test Indication", ti_y)
         c.setFont(F_BODY, 11)
         c.setFillColor(BLACK)
@@ -425,22 +338,18 @@ class KaryotypeReportGenerator:
         section_y = _draw_justified(c, indication, DIV_X0, section_y - 10, DIV_X1 - DIV_X0,
                                     F_BODY, 11)
 
-        # ââ Result ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
         res_y = section_y - 10
-        _divider(c, section_y - 4, lw=0.5)   # 4 pt below indication text bottom
+        _divider(c, section_y - 4, lw=0.5)
         res_y = _draw_section_heading(c, "Result", res_y)
 
-        # ISCN result box â tries to fit on single line by reducing font;
-        # falls back to word-wrap only if text won't fit even at min font size.
         iscn = self._get("RESULT")
         prefix = "International System for Human Cytogenomic Nomenclature (ISCN 2024):"
         full_text = prefix + "  " + iscn
         box_x0, box_x1 = DIV_X0, DIV_X1 + 7
-        pad   = 8   # horizontal padding inside box
-        pad_v = 7   # vertical padding top+bottom
+        pad   = 8
+        pad_v = 7
         avail_w = box_x1 - box_x0 - pad * 2
 
-        # Try decreasing font sizes to keep text on one line
         font_sz = 12
         for try_sz in [12, 11, 10, 9, 8]:
             c.setFont(F_LBL, try_sz)
@@ -449,7 +358,6 @@ class KaryotypeReportGenerator:
                 lines   = [full_text]
                 break
         else:
-            # Still doesn't fit on one line â word-wrap at 10pt
             font_sz = 10
             c.setFont(F_LBL, font_sz)
             words = full_text.split()
@@ -478,43 +386,35 @@ class KaryotypeReportGenerator:
         c.setFont(F_LBL, font_sz)
         c.setFillColor(iscn_color)
         box_cx = (box_x0 + box_x1) / 2
-        # Draw lines top-to-bottom, vertically centred
         text_block_h = n_lines * line_h
         first_y = box_bot + (box_h + text_block_h) / 2 - line_h + (line_h - font_sz * 0.74) / 2
         for idx, line in enumerate(lines):
             c.drawCentredString(box_cx, first_y - idx * line_h, line)
 
-        karyogram_top_y = box_bot - 6  # RL y at top of karyogram area
+        karyogram_top_y = box_bot - 6
         return karyogram_top_y
 
     def _page1_with_metaphase(self, c):
-        """2-page layout: karyogram + metaphase table on page 1."""
         top_y  = self._page1_common(c, page_num=1, total_pages=2)
-        meta_h = 19.5 * 2            # 39 pt  (2 rows Ã- row_h)
+        meta_h = 19.5 * 2
 
-        # Keep the metaphase table well above the footer + page-number text.
-        # FTR_Y + FTR_H = 48.2 pt from bottom; add ~22 pt clearance.
-        meta_bot  = FTR_Y + FTR_H + 22   # RL y of table bottom â 70 pt
-        kgram_bot = meta_bot + meta_h + 8  # karyogram bottom is above the table
+        meta_bot  = FTR_Y + FTR_H + 22
+        kgram_bot = meta_bot + meta_h + 8
 
         self._draw_karyograms(c, top_y, kgram_bot)
         self._draw_metaphase_table(c, meta_bot)
 
     def _page1(self, c):
-        """3-page layout: karyogram + metaphase table on page 1."""
         top_y  = self._page1_common(c, page_num=1, total_pages=3)
-        meta_h = 19.5 * 2            # 39 pt  (2 rows Ã- row_h)
-        meta_bot  = FTR_Y + FTR_H + 22   # RL y of table bottom â 70 pt
+        meta_h = 19.5 * 2
+        meta_bot  = FTR_Y + FTR_H + 22
         kgram_bot = meta_bot + meta_h + 8
         self._draw_karyograms(c, top_y, kgram_bot)
         self._draw_metaphase_table(c, meta_bot)
 
-    # ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-    # PAGE 2 â NORMAL (2-page layout)
-    # ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
     def _page2_normal(self, c):
         self._draw_chrome(c, 2, 2)
-        y = _rl(67.8) - 52  # ~52 pt below header bottom (pdfplumber: heading top=119.6)
+        y = _rl(67.8) - 52
 
         y = _draw_section_heading(c, "Interpretation", y)
         c.setFillColor(BLACK)
@@ -527,19 +427,15 @@ class KaryotypeReportGenerator:
         y = self._draw_references_block(c, y - 8)
         self._draw_signatures(c, y - 11)
 
-    # ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-    # PAGE 2 â ABNORMAL (3-page layout)
-    # ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
     def _page2_abnormal(self, c):
         self._draw_chrome(c, 2, 3)
-        y = _rl(67.8) - 52  # ~52 pt below header bottom
+        y = _rl(67.8) - 52
 
         y = _draw_section_heading(c, "Interpretation", y)
         c.setFillColor(BLACK)
         y = _draw_justified(c, self._get("INTERPRETATION"), DIV_X0, y - 10,
                             DIV_X1 - DIV_X0, F_BODY, 11)
 
-        # Comments section (hidden if empty, but rendered if present)
         comments = self._get("COMMENTS")
         if comments:
             y = y - 12
@@ -551,28 +447,18 @@ class KaryotypeReportGenerator:
         y = self._draw_recommendations_block(c, y - 12)
         y = self._draw_methodology_block(c, y - 12)
         self._draw_limitations_block(c, y - 12)
-        # References moved to page 3 with signatures (spacing adjusted there)
 
-    # ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-    # PAGE 3 â SIGNATURES (3-page layout)
-    # ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
     def _page3_signatures(self, c):
-        """Page 3: References then signatures."""
         self._draw_chrome(c, 3, 3)
-        y = _rl(67.8) - 52   # start just below header
+        y = _rl(67.8) - 52
         y = self._draw_references_block(c, y)
         self._draw_signatures(c, y - 20)
 
-    # ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
-    # COMMON DRAWING SUBROUTINES
-    # ââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
     def _draw_chrome(self, c, page_num: int, total_pages: int):
-        """Header image, footer image, and page number."""
         if self.include_logo:
             c.drawImage(_img(_assets.HEADER), HDR_X, HDR_Y, HDR_W, HDR_H, mask="auto")
             c.drawImage(_img(_assets.FOOTER), FTR_X, FTR_Y, FTR_W, FTR_H, mask="auto")
 
-        # Page number â only shown when logo/header is included
         if self.include_logo:
             c.setFont(F_BODY, 8)
             c.setFillColor(BLACK)
@@ -580,7 +466,6 @@ class KaryotypeReportGenerator:
             c.drawRightString(DIV_X1, FTR_Y + FTR_H + 4, pg_str)
 
     def _draw_patient_table(self, c):
-        """Draw the patient info table rows."""
         rows = [
             ("Patient name",      self._get("NAME"),
              "PIN",               self._get("PIN")),
@@ -600,8 +485,7 @@ class KaryotypeReportGenerator:
              datetime.today().strftime("%d-%m-%Y")),
         ]
 
-        # Starting y in RL (pdfplumber top=127.2 â RL y = 664.8, but text baseline)
-        row_top = _rl(120.0)   # RL y of top padding before first row
+        row_top = _rl(120.0)
         row_h   = 29.5
         label_size = 9
         value_size = 10
@@ -609,32 +493,27 @@ class KaryotypeReportGenerator:
         for i, (ll, lv, rl, rv) in enumerate(rows):
             baseline = row_top - (i * row_h) - row_h * 0.55
 
-            # Left label (bold)
             c.setFont(F_TBL_LBL, label_size)
             c.setFillColor(BLACK)
             c.drawString(LX, baseline, ll)
             c.drawString(COLON_X_L, baseline, ":")
 
-            # Left value (bold, title-cased since Excel stores all-caps)
             c.setFont(F_TBL_LBL, value_size)
             _wrap_text(c, lv.title(), LEFT_VAL_X, baseline,
                        RIGHT_LBL_X - LEFT_VAL_X - 8, F_TBL_LBL, value_size, leading=11)
 
-            # Right label (bold)
             c.setFont(F_TBL_LBL, label_size)
             c.setFillColor(BLACK)
             c.drawString(RIGHT_LBL_X, baseline, rl)
             c.drawString(COLON_X_R - 2, baseline, ":")
 
-            # Right value (bold)
             c.setFont(F_TBL_LBL, value_size)
             _wrap_text(c, rv, RIGHT_VAL_X, baseline,
                        RX - RIGHT_VAL_X, F_TBL_LBL, value_size, leading=11)
 
-        pass  # no lines around patient table
+        pass
 
     def _draw_karyograms(self, c, top_y: float, bottom_y: float):
-        """Place 1, 2, or 3 karyogram images in the available vertical band."""
         if not self.images:
             avail_h = top_y - bottom_y
             avail_w = DIV_X1 - DIV_X0
@@ -657,11 +536,9 @@ class KaryotypeReportGenerator:
                               DIV_X0, bottom_y, avail_w, avail_h)
 
         elif n == 2:
-            # Side-by-side mosaic: force both images to render at equal size
             gap   = 8
             img_w = (avail_w - gap) / 2
 
-            # Read both image dimensions to compute a common scale factor
             def _get_dims(path):
                 try:
                     from PIL import Image as PILImage
@@ -672,7 +549,6 @@ class KaryotypeReportGenerator:
 
             iw0, ih0 = _get_dims(self.images[0])
             iw1, ih1 = _get_dims(self.images[1])
-            # Use the same scale (minimum of both) so rendered sizes are equal
             common_scale = min(img_w / iw0, avail_h / ih0,
                                img_w / iw1, avail_h / ih1)
             self._place_image(c, self.images[0],
@@ -681,17 +557,13 @@ class KaryotypeReportGenerator:
                               DIV_X0 + img_w + gap, bottom_y, img_w, avail_h, fixed_scale=common_scale)
 
         else:
-            # 3 images: scatter (top-left) + zoom pair (bottom-left) + karyogram (right)
-            # Proportions from reference PDF pdfplumber analysis
             left_w  = avail_w * 0.37
             right_w = avail_w * 0.59
-            gap     = avail_w - left_w - right_w   # â 4% gap
+            gap     = avail_w - left_w - right_w
 
-            # Left column: scatter at top, zoom directly below
             scatter_h = avail_h * 0.54
             zoom_h    = avail_h * 0.44
 
-            # Compute scatter's actual rendered height so zoom sits just below it (not below slot)
             try:
                 from PIL import Image as PILImage
                 with PILImage.open(self.images[0]) as _im:
@@ -701,12 +573,11 @@ class KaryotypeReportGenerator:
             except Exception:
                 scatter_dh = scatter_h
 
-            scatter_slot_y = bottom_y + avail_h - scatter_h   # bottom of scatter slot (top-aligned)
-            scatter_rendered_bottom = scatter_slot_y + scatter_h - scatter_dh  # actual bottom edge
+            scatter_slot_y = bottom_y + avail_h - scatter_h
+            scatter_rendered_bottom = scatter_slot_y + scatter_h - scatter_dh
             IMG_GAP = 4
             zoom_slot_y = scatter_rendered_bottom - IMG_GAP - zoom_h
 
-            # All three images have built-in frames â no extra border on any of them
             self._place_image(c, self.images[0],
                               DIV_X0, scatter_slot_y, left_w, scatter_h,
                               valign='top')
@@ -714,19 +585,12 @@ class KaryotypeReportGenerator:
                               DIV_X0, zoom_slot_y, left_w, zoom_h,
                               valign='top')
 
-            # Right column: karyogram has built-in frame â no extra border to avoid double
-            # top-aligned so its top edge matches the scatter top edge
             self._place_image(c, self.images[2],
                               DIV_X0 + left_w + gap, bottom_y, right_w, avail_h,
                               valign='top')
 
     @staticmethod
     def _image_has_border(path: str) -> bool:
-        """Return True if the image already has a built-in dark frame.
-        Scans insets 0-15px from each edge and takes the minimum average
-        brightness found. Built-in borders appear at different inset depths
-        across images, so scanning a range catches them all reliably.
-        Threshold 230: no-border images stay at 255; framed images drop to ~130-193."""
         try:
             from PIL import Image as PILImage
             with PILImage.open(path) as im:
@@ -753,10 +617,6 @@ class KaryotypeReportGenerator:
 
     def _place_image(self, c, path: str, x: float, y: float, max_w: float, max_h: float,
                      fixed_scale: float = None, valign: str = 'center'):
-        """Draw image scaled to fit max_w Ã- max_h, centred horizontally.
-        valign : 'center' (default) | 'top' | 'bottom'
-        A 1pt border is drawn automatically only when the image has no built-in frame
-        (detected by sampling edge-pixel brightness)."""
         try:
             from PIL import Image as PILImage
             with PILImage.open(path) as im:
@@ -770,32 +630,25 @@ class KaryotypeReportGenerator:
             scale = min(max_w / iw, max_h / ih)
 
         dw, dh = iw * scale, ih * scale
-        # Horizontal: always centre
         cx = x + (max_w - dw) / 2
-        # Vertical alignment (RL y increases upward)
         if valign == 'top':
-            cy = y + max_h - dh   # flush to top of slot
+            cy = y + max_h - dh
         elif valign == 'bottom':
-            cy = y                 # flush to bottom of slot
+            cy = y
         else:
-            cy = y + (max_h - dh) / 2  # centred
+            cy = y + (max_h - dh) / 2
 
         try:
             c.drawImage(path, cx, cy, dw, dh, mask="auto")
         except Exception:
             pass
 
-        # Draw a thin border only if the image doesn't already have its own frame
         if not self._image_has_border(path):
             c.setStrokeColor(BLACK)
             c.setLineWidth(0.5)
             c.rect(cx, cy, dw, dh, fill=0, stroke=1)
 
     def _draw_metaphase_table(self, c, rl_y: float) -> float:
-        """Draw the 4-cell metaphase/autosome status table. Returns RL y below table."""
-        # From pdfplumber: row1 y=72.6, row2 y=91.9 (from top on page 2 in 3-page layout)
-        # On page 1 in 2-page layout: y=675.3 row1, y=694.7 row2 â rl_y = 116.7 and 97.3
-        # Two rows, 4 cells
         met_val  = self._get("METAPHASE ANALYSED", "METAPHASE ANALYSED ")
         auto_val = self._get("AUTOSOME")
         band_val = self._get("ESTIMATED BAND RESOLUTION")
@@ -805,23 +658,19 @@ class KaryotypeReportGenerator:
         tbl_x0 = LX + 12
         tbl_x1 = RX - 12
         mid_x  = (tbl_x0 + tbl_x1) / 2
-        col1_x = tbl_x0 + 8    # left area label x
-        col2_x = col1_x + 175  # left area value x
-        col3_x = mid_x + 18    # right area label x â extra offset gives breathing room from centre
-        col4_x = col3_x + 175  # right area value x
+        col1_x = tbl_x0 + 8
+        col2_x = col1_x + 175
+        col3_x = mid_x + 18
+        col4_x = col3_x + 175
 
-        # Background
         c.setFillColor(FIELD_BG)
         c.rect(tbl_x0, rl_y, tbl_x1 - tbl_x0, row_h * 2, fill=1, stroke=0)
 
-        # No outer border or internal dividers on the metaphase table
 
-        # Vertically centre text: row_h/2 - cap_height/2 from row top
         cap_h9 = 9 * 0.74 / 2
-        label_y1 = rl_y + row_h * 2 - row_h / 2 - cap_h9  # row 1 text baseline (centred)
-        label_y2 = rl_y + row_h       - row_h / 2 - cap_h9  # row 2 text baseline (centred)
+        label_y1 = rl_y + row_h * 2 - row_h / 2 - cap_h9
+        label_y2 = rl_y + row_h       - row_h / 2 - cap_h9
 
-        # Pre-compute aligned colon x for each half based on longest label
         c.setFont(F_BODY, 9)
         left_colon_x  = col1_x + max(c.stringWidth("Metaphase analysed",        F_BODY, 9),
                                      c.stringWidth("Estimated band resolution",  F_BODY, 9)) + 8
@@ -841,7 +690,7 @@ class KaryotypeReportGenerator:
         _cell("Estimated band resolution",band_val, col1_x, left_colon_x,  left_val_x,  label_y2)
         _cell("Sex chromosome",           sex_val,  col3_x, right_colon_x, right_val_x, label_y2)
 
-        return rl_y  # caller can do rl_y - something to continue below
+        return rl_y
 
     def _draw_recommendations_block(self, c, y: float) -> float:
         y = _draw_section_heading(c, "Recommendations", y)
@@ -860,8 +709,6 @@ class KaryotypeReportGenerator:
                     custom_items[-1] = custom_items[-1] + " " + item
                 else:
                     custom_items.append(item)
-            # Skip any custom item that just duplicates a default sentence
-            # (e.g. a report-type template that pre-fills the same wording).
             seen_defaults = {d.strip().lower().rstrip('.') for d in default_items}
             custom_items = [it for it in custom_items
                             if it.strip().lower().rstrip('.') not in seen_defaults]
@@ -895,7 +742,6 @@ class KaryotypeReportGenerator:
 
     def _draw_references_block(self, c, y: float) -> float:
         y = _draw_section_heading(c, "References", y)
-        # Each ref: (number, normal_part, italic_part)
         refs = [
             ("1.", "The AGT Cytogenetics Laboratory Manual Third Edition (1997)  ",
              "Editors: Margaret J. Barch, TuridKnutsen, Jack L. Spurbeck."),
@@ -905,9 +751,7 @@ class KaryotypeReportGenerator:
         c.setFillColor(BLACK)
         indent = 22.0
         ref_w = DIV_X1 - DIV_X0 - indent
-        # Use Paragraph for justified text with inline italic via XML markup
-        ref_italic = F_ITALIC  # Calibri-Italic (matches reference PDF)
-        # First ref needs smaller gap from heading (~14pt); subsequent refs smaller gap (~10pt)
+        ref_italic = F_ITALIC
         first_gap = 14
         inter_gap = 10
         for i, (num, normal_part, italic_part) in enumerate(refs):
@@ -915,7 +759,6 @@ class KaryotypeReportGenerator:
             c.setFont(F_BBOLD, 11)
             c.setFillColor(BLACK)
             c.drawString(DIV_X0, y, num)
-            # Build markup: normal text + italic editors
             markup = (normal_part +
                       f'<font name="{ref_italic}" color="black"><i>{italic_part}</i></font>')
             style = ParagraphStyle(
@@ -933,16 +776,13 @@ class KaryotypeReportGenerator:
         return y
 
     def _draw_signatures(self, c, y: float):
-        """Draw 'This report has been reviewed and approved by:' + signature image."""
-        # Heading
         c.setFont(F_HDG, 14)
         c.setFillColor(DARK_BLUE)
         c.drawString(DIV_X0, y - 14, "This report has been reviewed and approved by:")
 
-        # Combined signature image
-        sig_y  = y - 14 - 8    # top of sig image in RL (drawImage draws from bottom-left)
-        sig_w  = 538.8 - 97.4  # 441.4 pt (from pdfplumber)
-        sig_h  = 81.6          # pt
+        sig_y  = y - 14 - 8
+        sig_w  = 538.8 - 97.4
+        sig_h  = 81.6
         sig_x  = 97.4
         c.drawImage(_img(_assets.SIGN_DEEPIKA),
                     sig_x,                  sig_y - sig_h,

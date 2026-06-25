@@ -134,7 +134,6 @@ def _init_schema():
 mysql_enabled = _is_configured()
 
 
-# -- User / access-control helpers --------------------------------------
 
 def _row_to_user(row: dict) -> dict:
     return dict(row)
@@ -277,8 +276,6 @@ def save_report(user_id, file_url, report_type):
         conn.close()
 
 
-# -- PGT-A shared autosave (lets a colleague editing the same patient/batch
-# see the latest saved version instead of redoing work) ----------------
 
 def pgta_autosave_save(draft_key: str, mode: str, data: str) -> dict:
     conn = _get_pool().get_connection()

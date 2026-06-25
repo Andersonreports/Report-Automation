@@ -7,7 +7,7 @@
   <title>NIPS Report Generator</title>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
-  <!-- SheetJS – try local copy first, fall back to CDN -->
+  
   <script>
     (function () {
       var s = document.createElement('script');
@@ -19,7 +19,7 @@
       };
       document.head.appendChild(s);
     })();
-  </script>
+</script>
   <style>
     :root {
       --primary: #1F497D;
@@ -71,7 +71,7 @@
       overflow: hidden;
     }
 
-    /* ── Layout ── */
+    
     .main {
       height: 100vh;
       padding: 10px 24px;
@@ -80,7 +80,7 @@
       overflow: hidden;
     }
 
-    /* ── Page Header ── */
+    
     .page-hdr {
       display: flex;
       align-items: center;
@@ -130,7 +130,7 @@
       background: var(--primary-hover);
     }
 
-    /* ── Export Settings Bar ── */
+    
     .export-bar {
       display: flex;
       align-items: center;
@@ -223,7 +223,7 @@
       background: var(--primary-hover);
     }
 
-    /* ── Tabs ── */
+    
     .tab-bar {
       display: flex;
       gap: 8px;
@@ -267,7 +267,7 @@
       overflow: hidden;
     }
 
-    /* ── Cards ── */
+    
     .card {
       background: var(--panel);
       backdrop-filter: blur(12px);
@@ -289,7 +289,7 @@
       border-bottom: 2px solid var(--accent);
     }
 
-    /* ── Form Fields ── */
+    
     .field {
       display: flex;
       flex-direction: column;
@@ -341,7 +341,7 @@
       grid-column: 1/-1;
     }
 
-    /* ── Z-Score Grid ── */
+    
     .zscore-section {
       background: var(--grey-box);
       border-radius: 8px;
@@ -451,7 +451,7 @@
       border-color: var(--primary);
     }
 
-    /* ── Action Buttons ── */
+    
     .action-bar {
       display: flex;
       align-items: center;
@@ -525,7 +525,7 @@
       color: #fff;
     }
 
-    /* ── Manual Tab Split ── */
+    
     #tab-manual .manual-split {
       display: grid;
       grid-template-columns: 1.1fr 1fr;
@@ -548,7 +548,7 @@
       min-height: 0;
     }
 
-    /* ── PDF Preview ── */
+    
     .preview-frame-wrap {
       flex: 1;
       min-height: 0;
@@ -567,7 +567,7 @@
       min-height: 0;
     }
 
-    /* Canvas-based PDF preview (pdf.js) — mirrors PGTA, no browser PDF toolbar */
+    
     .preview-canvas-wrap {
       flex: 1;
       min-height: 0;
@@ -596,7 +596,7 @@
       flex-shrink: 0;
     }
 
-    /* ── Result Box ── */
+    
     .result-box {
       padding: 10px 14px;
       border-radius: 8px;
@@ -638,7 +638,7 @@
       background: var(--primary-hover);
     }
 
-    /* ── Batch Tab ── */
+    
     #tab-batch {
       overflow: hidden;
     }
@@ -791,7 +791,7 @@
       background: var(--primary-hover);
     }
 
-    /* ── Batch Editor ── */
+    
     .batch-editor-panel {
       display: flex;
       flex-direction: column;
@@ -823,7 +823,7 @@
       font-size: 12px;
     }
 
-    /* ── Batch Preview ── */
+    
     .batch-preview-panel {
       display: flex;
       flex-direction: column;
@@ -841,7 +841,7 @@
     }
 
 
-    /* ── Progress Bar ── */
+    
     .progress-wrap {
       margin-top: 6px;
       display: none;
@@ -870,7 +870,7 @@
       margin-top: 3px;
     }
 
-    /* ── Compare Tab ── */
+    
     #tab-compare {
       overflow-y: auto;
       gap: 12px;
@@ -1035,7 +1035,7 @@
       min-width: 140px;
     }
 
-    /* ── Compare File Upload Boxes ── */
+    
     .cmp-upload-box {
       flex: 1;
       background: #f8fafc;
@@ -1063,7 +1063,7 @@
       max-width: 100%;
     }
 
-    /* ── Compare Result Card ── */
+    
     .diff-wrapper {
       overflow-x: auto;
       border: 1px solid var(--panel-border);
@@ -1160,7 +1160,7 @@
       margin-top: 8px;
     }
 
-    /* ── Guide Tab ── */
+    
     #tab-guide {
       overflow-y: auto;
     }
@@ -1209,7 +1209,7 @@
       font-size: 11px;
     }
 
-    /* User Guide — card layout (matches TERA / PGTA) */
+    
     #tab-guide .guide-container {
       max-width: 820px;
       margin: 0 auto;
@@ -1289,12 +1289,12 @@
       margin-bottom: 12px;
     }
 
-    /* ── Hidden file inputs ── */
+    
     input[type=file].hidden {
       display: none;
     }
 
-    /* ── Server status dot (inside export bar) ── */
+    
     .server-dot {
       display: inline-flex;
       align-items: center;
@@ -1325,12 +1325,12 @@
       font-size: 8px;
     }
 
-    /* ── Server status banner (hidden by default, only shown while checking) ── */
+    
     .server-banner {
       display: none;
     }
 
-    /* ── Preview offline placeholder ── */
+    
     .preview-offline {
       display: flex;
       flex-direction: column;
@@ -1368,7 +1368,7 @@
       font-size: 11px;
     }
 
-    /* ── Scrollbars ── */
+    
     ::-webkit-scrollbar {
       width: 6px;
       height: 6px;
@@ -1386,14 +1386,14 @@
     ::-webkit-scrollbar-thumb:hover {
       background: #94a3b8;
     }
-  </style>
+</style>
   <script src="/static/idle-logout.js"></script>
 </head>
 
 <body>
   <script>
-    // Interim client-side access guard — stand-in for IT's real
-    // mobile number + password + OTP system. See access_api.py / login.html.
+    
+    
     (function () {
       if (localStorage.getItem('arc_authenticated') !== 'true') {
         window.location.replace('/login.html');
@@ -1416,10 +1416,10 @@
         document.close();
       }
     })();
-  </script>
+</script>
   <div class="main">
 
-    <!-- ── Page Header ── -->
+    
     <div class="page-hdr">
       <div class="page-hdr-left">
         <a href="index.html" class="home-btn">&#8592; Home</a>
@@ -1439,9 +1439,9 @@
       </div>
     </div>
 
-    <!-- ── Export Settings Bar ── -->
+    
     <div class="export-bar">
-      <!-- Excel file picker (Batch Upload tab only) -->
+      
       <div class="drop-zone-compact" id="batchDropZoneWrap" style="display:none;"
         onclick="document.getElementById('batchFileInput').click()"
         ondragover="event.preventDefault();this.classList.add('drag-over')"
@@ -1463,7 +1463,7 @@
           oninput="syncBatchFolder(this.value)">
         <button class="btn-folder-sm" onclick="browseOutFolder()"><i class="fas fa-folder-open"></i> Browse</button>
       </div>
-      <!-- Server status — hidden from UI, kept in DOM for server-detection logic -->
+      
       <span class="server-dot offline" id="serverDot" onclick="checkServer(true)" title="Click to recheck server"
         style="display:none;">
         <i class="fas fa-circle" id="serverDotIcon"></i>
@@ -1471,14 +1471,14 @@
       </span>
     </div>
 
-    <!-- ════════════════════════════════════════════════════ -->
-    <!-- TAB 1 – MANUAL ENTRY                                -->
-    <!-- ════════════════════════════════════════════════════ -->
+    
+    
+    
     <div id="tab-manual" class="tab-content active">
       <div class="manual-split">
-        <!-- LEFT: Form -->
+        
         <div class="form-scroll">
-          <!-- Patient Information -->
+          
           <div class="card" style="margin-bottom:10px;">
             <h3><i class="fas fa-user-injured"></i> Patient Information</h3>
             <div style="display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
@@ -1521,7 +1521,7 @@
             </div>
           </div>
 
-          <!-- Z-Scores -->
+          
           <div class="card" style="margin-bottom:10px;">
             <h3><i class="fas fa-dna"></i> Laboratory Z-Scores</h3>
             <div class="zscore-section">
@@ -1556,7 +1556,7 @@
             </div>
           </div>
 
-          <!-- Action bar -->
+          
           <div class="action-bar" style="margin-bottom:10px;">
             <button class="btn-primary" onclick="generateManual()"><i class="fas fa-file-pdf"></i> Generate
               Report</button>
@@ -1569,7 +1569,7 @@
           <div id="manualResult" class="result-box"></div>
         </div>
 
-        <!-- RIGHT: Preview -->
+        
         <div class="preview-panel">
           <div class="card" style="flex:0 0 auto; padding:10px 14px;">
             <div style="display:flex;align-items:center;justify-content:space-between;">
@@ -1593,11 +1593,11 @@
       </div>
     </div>
 
-    <!-- ════════════════════════════════════════════════════ -->
-    <!-- TAB 2 – BATCH UPLOAD                                -->
-    <!-- ════════════════════════════════════════════════════ -->
+    
+    
+    
     <div id="tab-batch" class="tab-content">
-      <!-- Output folder — hidden from UI, input kept in DOM so JS references stay valid -->
+      
       <div style="display:none;align-items:center;gap:6px;flex-shrink:0;">
         <label style="font-size:11px;font-weight:600;color:var(--text-muted);white-space:nowrap;">Output:</label>
         <input type="text" id="batchOutFolder" placeholder="Type or paste path…"
@@ -1606,9 +1606,9 @@
         <button class="btn-folder-sm" onclick="browseOutFolder(true)"><i class="fas fa-folder-open"></i></button>
       </div>
 
-      <!-- Three-panel layout: patient list | editor | preview -->
+      
       <div class="batch-main">
-        <!-- LEFT: patient list -->
+        
         <div class="patient-list-panel">
           <input type="text" id="batchSearch" placeholder="Search by name…" oninput="filterPatientList(this.value)">
           <div class="patient-list" id="patientList"></div>
@@ -1628,7 +1628,7 @@
           <div id="batchResult" class="result-box" style="margin-top:4px;"></div>
         </div>
 
-        <!-- CENTER: inline editor -->
+        
         <div class="batch-editor-panel">
           <div class="card-label"><i class="fas fa-edit" style="margin-right:4px;"></i>Patient Editor</div>
           <div class="batch-editor-scroll" id="batchEditorScroll">
@@ -1643,7 +1643,7 @@
           </div>
         </div>
 
-        <!-- RIGHT: batch preview -->
+        
         <div class="batch-preview-panel">
           <div class="preview-label"><i class="fas fa-eye" style="margin-right:4px;"></i>Patient Preview</div>
           <div class="preview-frame-wrap" style="flex:1;">
@@ -1661,11 +1661,11 @@
       </div>
     </div>
 
-    <!-- ════════════════════════════════════════════════════ -->
-    <!-- TAB 3 – REPORT COMPARISON                           -->
-    <!-- ════════════════════════════════════════════════════ -->
+    
+    
+    
     <div id="tab-compare" class="tab-content" style="padding-bottom:14px;">
-      <!-- Mode selector -->
+      
       <div class="compare-mode-bar card" style="margin-bottom:10px;">
         <span style="font-size:12px;font-weight:700;color:var(--primary);margin-right:10px;">Comparison Mode:</span>
         <label><input type="radio" name="cmpMode" value="dir" checked onchange="toggleCmpMode()"> Directory Mode
@@ -1673,7 +1673,7 @@
         <label><input type="radio" name="cmpMode" value="file" onchange="toggleCmpMode()"> Individual File Mode</label>
       </div>
 
-      <!-- Directory mode -->
+      
       <div id="cmpDirPanel" class="card" style="margin-bottom:10px;">
         <h3><i class="fas fa-folder"></i> Select Report Directories</h3>
         <div style="display:flex;flex-direction:column;gap:10px;">
@@ -1702,7 +1702,7 @@
         </div>
       </div>
 
-      <!-- File mode -->
+      
       <div id="cmpFilePanel" style="display:none;margin-bottom:10px;">
         <div style="display:flex;gap:16px;align-items:stretch;margin-bottom:4px;">
           <div class="cmp-upload-box" id="cmpBoxManual">
@@ -1746,9 +1746,9 @@
       </div>
     </div>
 
-    <!-- ════════════════════════════════════════════════════ -->
-    <!-- TAB 4 – USER GUIDE                                  -->
-    <!-- ════════════════════════════════════════════════════ -->
+    
+    
+    
     <div id="tab-guide" class="tab-content">
       <div class="guide-container">
 
@@ -1827,46 +1827,46 @@
       </div>
     </div>
 
-  </div><!-- .main -->
+  </div>
 
-  <!-- Hidden file inputs for draft loading -->
+  
   <input type="file" id="draftLoadInput" class="hidden" accept=".json" onchange="onDraftLoaded(this)">
   <input type="file" id="bulkDraftLoadInput" class="hidden" accept=".json" onchange="onBulkDraftLoaded(this)">
   <input type="file" id="indivDraftLoadInput" class="hidden" accept=".json">
 
-  <!-- PDF.js — render preview pages to canvas (clean, no browser PDF toolbar), same as PGTA -->
+  
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script>
     (function () {
       const pdfjs = window['pdfjs-dist/build/pdf'];
       if (pdfjs) pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
     })();
-  </script>
+</script>
   <script>
-    // ══════════════════════════════════════════════════════════════
-    // STATE
-    // ══════════════════════════════════════════════════════════════
+    
+    
+    
     let previewTimer = null;
     let batchPreviewTimer = null;
     let batchPatients = [];
     let currentBatchIdx = -1;
     let _serverUp = false;
-    let _apiBase = '';   // '' = same origin (served by FastAPI); set to full URL when opened as file://
+    let _apiBase = '';   
     const CHR_COUNT = 22;
 
     const SERVER_REQUIRED_MSG =
       '⚠ Server offline — PDF/DOCX generation requires the FastAPI server.<br>' +
       '<span style="font-size:11px;opacity:.8;">Start with: <code style="background:rgba(0,0,0,.08);padding:1px 5px;border-radius:3px;">cd backend &amp;&amp; python main.py</code></span>';
 
-    // Candidate server origins to probe when the page is opened as a local file
+    
     const _PROBE_ORIGINS = [
       'http://localhost:8000',
       'http://127.0.0.1:8000',
     ];
 
-    // ══════════════════════════════════════════════════════════════
-    // SERVER STATUS CHECK
-    // ══════════════════════════════════════════════════════════════
+    
+    
+    
     async function _tryOrigin(origin) {
       try {
         const ctrl = new AbortController();
@@ -1886,19 +1886,19 @@
         dotMsg.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking…';
       }
 
-      // 1. Try same-origin first (page served by FastAPI)
+      
       const sameOriginOk = await _tryOrigin('');
       if (sameOriginOk) {
         _apiBase = ''; _serverUp = true;
         _showOnline(dot, dotIcon, dotMsg); return;
       }
 
-      // 2. Probe localhost when opened as file://
+      
       for (const origin of _PROBE_ORIGINS) {
         if (await _tryOrigin(origin)) {
           _apiBase = origin; _serverUp = true;
           _showOnline(dot, dotIcon, dotMsg);
-          // Redirect to the server URL so subsequent use is fully server-based
+          
           if (window.location.protocol === 'file:') {
             setTimeout(() => { window.location.href = origin + '/nipt'; }, 1200);
           }
@@ -1906,7 +1906,7 @@
         }
       }
 
-      // 3. Truly offline
+      
       _serverUp = false; _apiBase = '';
       dot.className = 'server-dot offline';
       dotIcon.style.color = '#f59e0b';
@@ -1923,7 +1923,7 @@
       document.getElementById('previewCanvasWrap').style.display = 'flex';
       document.getElementById('batchPreviewOffline').style.display = 'none';
       document.getElementById('batchPreviewCanvasWrap').style.display = 'flex';
-      // If we were in batch tab with a patient selected, trigger preview now
+      
       if (currentBatchIdx >= 0) triggerBatchPreview();
     }
     function _showOfflinePlaceholders() {
@@ -1933,14 +1933,14 @@
       document.getElementById('batchPreviewCanvasWrap').style.display = 'none';
     }
 
-    // Convenience wrapper — all fetch calls go through here so _apiBase is always applied
+    
     function _apiFetch(path, options) {
       return fetch(_apiBase + path, options);
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // FIND PATIENTS (date range lookup against IT's patient gateway)
-    // ══════════════════════════════════════════════════════════════
+    
+    
+    
     function _pfFillField(id, value) {
       if (value === undefined || value === null || value === "") return;
       const el = document.getElementById(id);
@@ -2007,15 +2007,15 @@
       });
     });
 
-    // ══════════════════════════════════════════════════════════════
-    // INIT
-    // ══════════════════════════════════════════════════════════════
+    
+    
+    
     document.addEventListener('DOMContentLoaded', () => {
       buildChrGrid();
       loadSettings();
       document.getElementById('cbBranding').addEventListener('change', schedulePreview);
       checkServer();
-      // Auto-retry every 5 seconds until server comes online
+      
       const _retryInterval = setInterval(() => {
         if (!_serverUp) checkServer();
         else clearInterval(_retryInterval);
@@ -2034,23 +2034,23 @@
       right.innerHTML += `<tr><td class="chr-num">X</td><td><input type="number" id="m_chrX" value="0.00" step="0.01" oninput="schedulePreview()"></td></tr>`;
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // TABS
-    // ══════════════════════════════════════════════════════════════
+    
+    
+    
     function switchTab(name, btn) {
       document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById('tab-' + name).classList.add('active');
-      // Show the Excel file picker in the export bar only for Batch Upload
+      
       const showDrop = name === 'batch';
       document.getElementById('batchDropZoneWrap').style.display = showDrop ? 'flex' : 'none';
       document.getElementById('batchDropZoneSep').style.display = showDrop ? 'block' : 'none';
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // SETTINGS
-    // ══════════════════════════════════════════════════════════════
+    
+    
+    
     function loadSettings() {
       const s = JSON.parse(localStorage.getItem('nipt_settings') || '{}');
       if (s.outFolder) document.getElementById('outFolder').value = s.outFolder;
@@ -2068,11 +2068,11 @@
         cbBranding: document.getElementById('cbBranding').checked,
       }));
     }
-    // Stored FileSystemDirectoryHandle so we can write files directly to chosen folder
+    
     let _niptDirHandle = null;
 
     async function browseOutFolder(isBatch = false) {
-      // 1. Try FastAPI server folder dialog (works when server is running on same machine)
+      
       try {
         const ctrl = new AbortController();
         setTimeout(() => ctrl.abort(), 2000);
@@ -2081,17 +2081,17 @@
         if (d.path) {
           document.getElementById('outFolder').value = d.path;
           document.getElementById('batchOutFolder').value = d.path;
-          _niptDirHandle = null; // server-side path — no browser handle needed
+          _niptDirHandle = null; 
           saveSettings();
           return;
         }
-      } catch { /* fall through to browser API */ }
+      } catch {  }
 
-      // 2. Use browser's native folder picker (Chrome/Edge)
+      
       if (typeof window.showDirectoryPicker === 'function') {
         try {
           const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
-          _niptDirHandle = handle; // store handle for direct file writing
+          _niptDirHandle = handle; 
           document.getElementById('outFolder').value = handle.name;
           document.getElementById('batchOutFolder').value = handle.name;
           saveSettings();
@@ -2102,12 +2102,12 @@
         }
       }
 
-      // 3. Fallback: let user type path manually
+      
       const el = document.getElementById(isBatch ? 'batchOutFolder' : 'outFolder');
       el.focus(); el.select();
     }
 
-    // Save a blob directly to the picked folder, or browser-download as fallback
+    
     async function _saveToOutputFolder(blob, filename) {
       if (_niptDirHandle) {
         try {
@@ -2120,7 +2120,7 @@
           console.warn('[NIPT] Could not write to folder:', err);
         }
       }
-      // Fallback: browser download
+      
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url; a.download = filename;
@@ -2129,7 +2129,7 @@
       return false;
     }
 
-    // Fetch generated file from server and save to output folder (or download)
+    
     async function _saveGeneratedFile(filename) {
       try {
         const r = await fetch(_apiBase + '/reports-nipt/' + encodeURIComponent(filename));
@@ -2152,9 +2152,9 @@
       saveSettings();
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // HELPERS
-    // ══════════════════════════════════════════════════════════════
+    
+    
+    
     function collectManual() {
       const p = {
         name: document.getElementById('m_name').value,
@@ -2194,11 +2194,11 @@
       el.innerHTML = msg + (links ? links.map(l => _dlBtn(l.file)).join('') : '');
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // PDF.js CANVAS PREVIEW (shared by Manual + Batch) — renders pages to
-    // stacked canvases like PGTA, so there's no native browser PDF toolbar.
-    // A monotonic token per panel prevents overlapping renders from shuffling pages.
-    // ══════════════════════════════════════════════════════════════
+    
+    
+    
+    
+    
     const _pdfRenderTokens = { manual: 0, batch: 0 };
     async function renderPdfToCanvas(url, wrapId, key) {
       const lib = window['pdfjs-dist/build/pdf'];
@@ -2206,7 +2206,7 @@
       if (!lib || !wrap) return;
       const myToken = ++_pdfRenderTokens[key];
       const doc = await lib.getDocument(url).promise;
-      if (myToken !== _pdfRenderTokens[key]) return;            // superseded by a newer preview
+      if (myToken !== _pdfRenderTokens[key]) return;            
       wrap.querySelectorAll('canvas').forEach(c => c.remove());
       const containerW = (wrap.offsetWidth || 360) - 16;
       for (let num = 1; num <= doc.numPages; num++) {
@@ -2224,9 +2224,9 @@
       }
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // LIVE PREVIEW (MANUAL)
-    // ══════════════════════════════════════════════════════════════
+    
+    
+    
     function schedulePreview() {
       clearTimeout(previewTimer);
       previewTimer = setTimeout(startPreview, 1000);
@@ -2261,9 +2261,9 @@
       }
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // GENERATE MANUAL REPORT
-    // ══════════════════════════════════════════════════════════════
+    
+    
+    
     async function generateManual() {
       if (!_serverUp) { showResult('manualResult', 'error', SERVER_REQUIRED_MSG); return; }
       if (!_niptDirHandle && !document.getElementById('outFolder').value.trim()) {
@@ -2303,9 +2303,9 @@
       }
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // DRAFT (MANUAL)
-    // ══════════════════════════════════════════════════════════════
+    
+    
+    
     function saveDraftManual() {
       const { p, z } = collectManual();
       const payload = { patient_details: p, z_scores: z };
@@ -2357,9 +2357,9 @@
       const elX = document.getElementById('m_chrX'); if (elX) elX.value = '0.00';
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // EXCEL PARSING HELPERS  (client-side, mirrors Python backend)
-    // ══════════════════════════════════════════════════════════════
+    
+    
+    
 
     function _safeFloat(v) {
       if (v === null || v === undefined || v === '') return 0;
@@ -2376,16 +2376,16 @@
 
     function _cleanStr(v) {
       if (v === null || v === undefined) return '';
-      // SheetJS (cellDates:true) returns Date objects for Excel date cells.
-      // Render as DD/MM/YYYY only — never the full "Fri Mar 20 1992 GMT+0530 …" string.
+      
+      
       if (v instanceof Date && !isNaN(v)) {
         const dd = String(v.getDate()).padStart(2, '0');
         const mm = String(v.getMonth() + 1).padStart(2, '0');
         return `${dd}/${mm}/${v.getFullYear()}`;
       }
       const s = String(v)
-        .replace(/ 00:00:00/g, '')   // strip datetime artefact
-        .split(' /')[0]               // strip " / age" suffix in DOB fields
+        .replace(/ 00:00:00/g, '')   
+        .split(' /')[0]               
         .trim();
       return ['nan', 'nat', 'none', 'null', 'undefined'].includes(s.toLowerCase()) ? '' : s;
     }
@@ -2413,7 +2413,7 @@
       }).join(' ');
     }
 
-    // Normalise a column name to a canonical key for Z-score sheets
+    
     function _normZColName(col) {
       return String(col).trim().toLowerCase().replace(/[\s_\-]+/g, '');
     }
@@ -2428,7 +2428,7 @@
       return null;
     }
 
-    // Find the sample-ID column in a row array
+    
     function _findIdCol(rows, candidates) {
       if (!rows.length) return null;
       const keys = Object.keys(rows[0]);
@@ -2438,9 +2438,9 @@
       return null;
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // BATCH: LOAD EXCEL  (100% client-side via SheetJS)
-    // ══════════════════════════════════════════════════════════════
+    
+    
+    
     function handleBatchDrop(e) {
       e.preventDefault();
       document.getElementById('batchDropZoneWrap').classList.remove('drag-over');
@@ -2452,7 +2452,7 @@
       if (!file) return;
       document.getElementById('batchFileName').textContent = file.name;
 
-      // Show loading state
+      
       document.getElementById('patientList').innerHTML =
         '<div style="padding:16px;text-align:center;color:#64748b;font-size:12px;"><i class="fas fa-spinner fa-spin"></i> Parsing Excel…</div>';
 
@@ -2483,21 +2483,21 @@
               type: 'array', cellDates: true, raw: false
             });
 
-            // ── Sheet1: demographics ──────────────────────────────
+            
             const s1name = wb.SheetNames.includes('Sheet1') ? 'Sheet1' : wb.SheetNames[0];
             let rows1 = XLSX.utils.sheet_to_json(wb.Sheets[s1name], { defval: '' });
 
-            // QC filter
+            
             if (rows1.length && Object.keys(rows1[0]).some(k => k.trim() === 'QC')) {
               const qcKey = Object.keys(rows1[0]).find(k => k.trim() === 'QC');
               rows1 = rows1.filter(r => String(r[qcKey] || '').trim().toLowerCase() === 'pass');
             }
 
-            // ── Sheet2: Z-scores (optional) ───────────────────────
+            
             if (wb.SheetNames.includes('Sheet2')) {
               let rows2 = XLSX.utils.sheet_to_json(wb.Sheets['Sheet2'], { defval: '' });
 
-              // Rename Z-score columns to canonical names
+              
               if (rows2.length) {
                 const remap = {};
                 Object.keys(rows2[0]).forEach(col => {
@@ -2517,14 +2517,14 @@
               const id2 = _findIdCol(rows2, ['Sample ID', 'Sample']);
 
               if (id1 && id2) {
-                // Build lookup: normalised ID → z-score row
+                
                 const zById = {};
                 rows2.forEach(r => {
                   const id = _normId(String(r[id2] ?? ''));
                   if (id) zById[id] = r;
                 });
 
-                // Find unmatched rows for positional fallback
+                
                 const matchedIds = new Set(
                   rows1.map(r => _normId(String(r[id1] ?? '')))
                     .filter(id => id && zById[id])
@@ -2535,25 +2535,25 @@
                 });
                 const leftoverZ = rows2.filter(r => !matchedIds.has(_normId(String(r[id2] ?? ''))));
 
-                // Merge by ID
+                
                 rows1 = rows1.map(r => {
                   const id = _normId(String(r[id1] ?? ''));
                   return zById[id] ? Object.assign({}, r, zById[id]) : r;
                 });
 
-                // Positional fallback for unmatched rows
+                
                 if (unmatchedPos.length > 0 && unmatchedPos.length === leftoverZ.length) {
                   unmatchedPos.forEach((pos, i) => {
                     Object.assign(rows1[pos], leftoverZ[i]);
                   });
                 }
               } else {
-                // No ID cols: positional merge
+                
                 rows1 = rows1.map((r, i) => i < rows2.length ? Object.assign({}, r, rows2[i]) : r);
               }
             }
 
-            // ── Map to patient objects ────────────────────────────
+            
             const patients = rows1.map(row => {
               const ffRaw = _safeFloat(row['Fetal DNA'] ?? row['Fetal fraction'] ?? row['FF'] ?? row['ff'] ?? 0);
               const ffPct = ffRaw > 0 && ffRaw < 1 ? ffRaw * 100 : ffRaw;
@@ -2584,7 +2584,7 @@
               p.chrX = (Math.trunc(_safeFloat(row['chrX'] ?? row['ChrX'] ?? row['CHRX'] ?? 0) * 100) / 100).toFixed(2);
 
               return p;
-            }).filter(p => p.name || p.sample_id); // skip completely empty rows
+            }).filter(p => p.name || p.sample_id); 
 
             resolve(patients);
           } catch (err) {
@@ -2609,9 +2609,9 @@
     }
     function filterPatientList(v) { rebuildPatientList(v); }
 
-    // ══════════════════════════════════════════════════════════════
-    // BATCH: PATIENT EDITOR
-    // ══════════════════════════════════════════════════════════════
+    
+    
+    
     function selectBatchPatient(idx) {
       if (currentBatchIdx >= 0) saveBatchEditor(currentBatchIdx);
       currentBatchIdx = idx;
@@ -2670,7 +2670,7 @@
       </div>
     </div>
   `;
-      // Wire up the fixed footer action bar for this patient
+      
       const bar = document.getElementById('perPatientActionsBar');
       bar.style.display = '';
       document.getElementById('perPatientGenBtn').onclick = () => generateSingleBatch(idx);
@@ -2710,9 +2710,9 @@
       batchPatients[idx].chrX = z.chrX;
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // BATCH PREVIEW
-    // ══════════════════════════════════════════════════════════════
+    
+    
+    
     function scheduleBatchPreview() {
       clearTimeout(batchPreviewTimer);
       batchPreviewTimer = setTimeout(triggerBatchPreview, 1000);
@@ -2748,9 +2748,9 @@
       }
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // BATCH GENERATE (SINGLE + ALL)
-    // ══════════════════════════════════════════════════════════════
+    
+    
+    
     async function generateSingleBatch(idx) {
       const resultEl = document.getElementById('perPatientResultBar');
       if (!_serverUp) {
@@ -2850,9 +2850,9 @@
       return z;
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // BATCH DRAFTS
-    // ══════════════════════════════════════════════════════════════
+    
+    
+    
     function saveIndividualDraft(idx) {
       saveBatchEditor(idx);
       const pat = batchPatients[idx];
@@ -2901,13 +2901,13 @@
         try {
           const parsed = JSON.parse(e.target.result);
           if (Array.isArray(parsed)) {
-            // Format 1: plain array (bulk download format)
+            
             batchPatients = parsed;
           } else if (parsed.patients && Array.isArray(parsed.patients)) {
-            // Format 2: { patients: [...], _type: 'nipt_bulk_draft' } (server-saved bulk format)
+            
             batchPatients = parsed.patients;
           } else if (parsed.patient_details) {
-            // Format 3: { patient_details: {...}, z_scores: {...} } (individual draft)
+            
             const pd = parsed.patient_details || {};
             const zs = parsed.z_scores || {};
             const patient = { ...pd };
@@ -2927,9 +2927,9 @@
       reader.readAsText(file);
     }
 
-    // ══════════════════════════════════════════════════════════════
-    // COMPARISON
-    // ══════════════════════════════════════════════════════════════
+    
+    
+    
     const cmpFiles = { manual: null, auto: null };
     let _lastNiptCmpData = null;
 
@@ -2958,7 +2958,7 @@
       const box = document.getElementById(boxId);
       if (lbl) lbl.textContent = file.name;
       if (box) box.classList.add('has-file');
-      // Auto-run once both files have been selected
+      
       if (cmpFiles.manual && cmpFiles.auto) runComparison();
     }
 
@@ -3077,7 +3077,7 @@ ${d.html_diff || '<p>No differences found.</p>'}
         }
       }
     }
-  </script>
+</script>
 
   <div id="pfModalOverlay" style="display:none;position:absolute;z-index:5000;">
     <div style="background:#fff;border-radius:14px;width:420px;max-width:95vw;max-height:380px;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.25);border:1px solid #e2e8f0;">

@@ -1,7 +1,3 @@
-"""
-NIPS (Non-Invasive Prenatal Screening) Report Template Engine - Professional Suite
-Version: 3.0 (100% Accuracy Refinement)
-"""
 
 import os
 import re
@@ -30,7 +26,6 @@ from nipt_assets import (
     ALGO_CHART_B64, SACHIN_SIGN_B64, DIRECTOR_SIGN_B64,
 )
 
-# ── Module-level caches (populated once on first use) ─────────────────────────
 _FONTS_REGISTERED = False
 _IMG_HEADER:   bytes = None
 _IMG_FOOTER:   bytes = None
@@ -84,7 +79,6 @@ def _ensure_images_decoded():
     if _IMG_SACHIN   is None: _IMG_SACHIN   = base64.b64decode(SACHIN_SIGN_B64)
     if _IMG_DIRECTOR is None: _IMG_DIRECTOR = base64.b64decode(DIRECTOR_SIGN_B64)
 
-# Pre-warm at import time so first request isn't slow either
 try:
     _ensure_fonts_registered()
     _ensure_images_decoded()
@@ -93,7 +87,6 @@ except Exception:
 
 
 class NIPTReportTemplate:
-    """Template engine for NIPS reports with 100% Layout Accuracy"""
     
     COLORS = {
         'blue_header': '#1F497D',
@@ -105,7 +98,6 @@ class NIPTReportTemplate:
         'grey_bg': '#F2F2F2'
     }
     
-    # Page dimensions (US Letter)
     PAGE_WIDTH = 612
     PAGE_HEIGHT = 792
     MARGIN_LEFT = 50
@@ -114,7 +106,6 @@ class NIPTReportTemplate:
     MARGIN_BOTTOM = 80
     CONTENT_WIDTH = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT
     
-    # Static Content
     METHODOLOGY_TEXT = """Maternal whole blood sample was taken from the pregnant mother after 10-week gestation with no risk to the fetus. The circulating cell-free placental DNA was isolated and purified, which was then converted into genomic DNA library using Yourgene cfDNA Library prep kit. This was followed by automated size selection of fragment lengths by QS250 for enriching fetal fraction. The enriched sample pool was subjected to high throughput sequencing using Ion GeneStudio S5 Plus™ System. Finally, analysis was performed using Sage Link V2."""
     
     LIMITATIONS_TEXT = [
@@ -237,38 +228,32 @@ class NIPTReportTemplate:
         ))
 
     def generate(self, data, z_scores, with_logo=True):
-        # Without logo: rebuild doc with extra top/bottom margins (20% of logo/footer area)
         if not with_logo:
             self.doc = SimpleDocTemplate(
                 self.output_path,
                 pagesize=letter,
                 leftMargin=self.MARGIN_LEFT,
                 rightMargin=self.MARGIN_RIGHT,
-                topMargin=self.MARGIN_TOP + 15,   # +20% of 75pt logo height
-                bottomMargin=self.MARGIN_BOTTOM + 13,  # +20% of 66pt footer banner
+                topMargin=self.MARGIN_TOP + 15,
+                bottomMargin=self.MARGIN_BOTTOM + 13,
             )
 
         story = []
 
-        # Header with Pagination and Title
         def header_footer(canvas, doc):
             canvas.saveState()
-            # Top Branding
             if with_logo:
                 try:
                     img = Image(BytesIO(_IMG_HEADER), width=self.CONTENT_WIDTH, height=75)
                     img.drawOn(canvas, self.MARGIN_LEFT, self.PAGE_HEIGHT - 65)
                 except: pass
-            # Title is now handled in the story flow for better layout control
 
-            # Footer banner (with logo mode only)
             if with_logo:
                 try:
                     f_img = Image(BytesIO(_IMG_FOOTER), width=468, height=66)
                     f_img.drawOn(canvas, 72, 10)
                 except: pass
 
-            # GenQA logo and page number — always shown in both modes
             try:
                 gq_img = Image(BytesIO(_IMG_GENQA), width=85, height=40)
                 gq_img.drawOn(canvas, self.PAGE_WIDTH - self.MARGIN_RIGHT - 85, 78)
@@ -278,13 +263,11 @@ class NIPTReportTemplate:
             canvas.drawRightString(self.PAGE_WIDTH - self.MARGIN_RIGHT, 74, f"Page {doc.page} of 6")
             canvas.restoreState()
 
-        # Page 1
         if with_logo:
             story.append(Spacer(1, 30))
         else:
-            story.append(Spacer(1, 15))  # 20% of 75pt logo height
+            story.append(Spacer(1, 15))
         
-        # Centered Title (Now in story to ensure visibility and prevent overlap)
         title_style = ParagraphStyle(
             name='Title',
             fontName=self._get_font('GillSansMT-Bold', 'Helvetica-Bold'),
@@ -296,11 +279,9 @@ class NIPTReportTemplate:
         story.append(Paragraph("Non-Invasive Prenatal Screening (NIPS)", title_style))
         story.append(Spacer(1, 2))
         
-        # Patient Info Grid MUST be first on Page 1
         story.append(self._create_patient_grid(data))
         story.append(Spacer(1, 3))
         
-        # PNDT disclaimer
         pndt_style = ParagraphStyle(name='PNDT', parent=self.styles['Value'], alignment=TA_CENTER)
         pndt_p = Paragraph("<font name='Helvetica-BoldOblique'><i><b>This test does not reveal sex of the fetus &amp; confers to PNDT act, 1994</b></i></font>", pndt_style)
         pndt_t = Table([[pndt_p]], colWidths=[self.CONTENT_WIDTH])
@@ -348,7 +329,6 @@ class NIPTReportTemplate:
         
         story.append(PageBreak())
         
-        # Page 2: Detailed Table
         story.append(Spacer(1, 40))
         story.append(self._create_detailed_table(z_scores))
         story.append(Spacer(1, 10))
@@ -356,7 +336,6 @@ class NIPTReportTemplate:
         
         story.append(PageBreak())
         
-        # Page 3: Interpretation & Method
         story.append(Spacer(1, 30))
         story.append(self._create_section_header("Interpretation and follow-up"))
         story.append(Spacer(1, 5))
@@ -395,7 +374,6 @@ class NIPTReportTemplate:
         
         story.append(PageBreak())
         
-        # Page 4: Continuing Limitations & Disclaimer
         story.append(Spacer(1, 40))
         for p in self.LIMITATIONS_TEXT[2:]:
             story.append(Paragraph(p, self.styles['Detail_Text']))
@@ -413,7 +391,6 @@ class NIPTReportTemplate:
         
         story.append(PageBreak())
         
-        # Page 5: Test Specifications (Tables)
         story.append(Spacer(1, 30))
         story.append(self._create_section_header("Test specifications"))
         story.append(Spacer(1, 10))
@@ -431,7 +408,6 @@ class NIPTReportTemplate:
         
         story.append(PageBreak())
         
-        # Page 6: Algorithm, References & Signatures
         story.append(Spacer(1, 15))
         story.append(self._create_section_header("Prenatal Testing Algorithm"))
         story.append(Spacer(1, 5))
@@ -453,7 +429,6 @@ class NIPTReportTemplate:
         story.append(Spacer(1, 10))
         story.append(self._create_signature_row())
         
-        # Build
         self.doc.build(story, onFirstPage=header_footer, onLaterPages=header_footer)
         return self.output_path
 
@@ -484,7 +459,6 @@ class NIPTReportTemplate:
             if m: return f"{int(m.group(3)):02d}/{int(m.group(2)):02d}/{m.group(1)}"
             m = re.match(r'(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})', d)
             if m: return f"{int(m.group(1)):02d}/{int(m.group(2)):02d}/{m.group(3)}"
-            # JavaScript Date.toString(): "Fri May 08 2026 GMT+0530 (India Standard Time)"
             m = re.match(r'[A-Za-z]{3}\s+([A-Za-z]{3})\s+(\d{1,2})\s+(\d{4})', d)
             if m:
                 _months = {'jan':1,'feb':2,'mar':3,'apr':4,'may':5,'jun':6,
@@ -493,12 +467,10 @@ class NIPTReportTemplate:
                 if mo: return f"{int(m.group(2)):02d}/{mo:02d}/{m.group(3)}"
             return d
 
-        # Any alphabetic word ≤5 chars in a pregnancy field is a medical abbreviation → ALL CAPS
         _preg_abbr = re.compile(r'\b([A-Za-z]{1,5})\b')
         def fmt_preg(text):
             return _preg_abbr.sub(lambda mo: mo.group().upper(), text.title())
 
-        # 4-Column Table for precise colon alignment
         _dob = fmt_date(data.get('dob',''))
         _age = str(data.get('age','') or '').strip()
         dob_age_value = f"{_dob} / {_age}" if _dob and _age else (_dob or _age)

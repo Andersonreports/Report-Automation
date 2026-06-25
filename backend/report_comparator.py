@@ -8,35 +8,24 @@ class PGTAReportComparator:
     def __init__(self, manual_dir=None, automated_dir=None):
         self.manual_dir = manual_dir
         self.automated_dir = automated_dir
-        # Exclude corrected files (filenames containing 'crcted', case-insensitive)
         def _is_valid_pdf(f):
             return f.endswith('.pdf') and 'crcted' not in f.lower()
         self.manual_files = sorted([f for f in os.listdir(manual_dir) if _is_valid_pdf(f)]) if manual_dir and os.path.isdir(manual_dir) else []
         self.automated_files = sorted([f for f in os.listdir(automated_dir) if _is_valid_pdf(f)]) if automated_dir and os.path.isdir(automated_dir) else []
         
     def normalize_name(self, name):
-        """Normalize patient name for matching."""
         if not name: return ""
-        # Remove titles and labels
         name = re.sub(r'^(MRS\.|MR\.|SMT\.|DR\.|MS\.|MISS\.|PATIENT NAME|PATIENT NAME\s*:)\s*', '', name, flags=re.IGNORECASE)
-        # Remove hospital codes/extra info in parenthesis
         name = re.sub(r'\(.*?\)', '', name)
-        # Remove underscores, dots, and common suffixes
         name = name.replace('_', ' ').replace('.', ' ')
-        # Special case for "Mrs._" prefix in automated files
         name = re.sub(r'^MRS\s+', '', name, flags=re.IGNORECASE)
-        # Remove "PGT-A report" and "PGTA REPORT" suffix
         name = re.sub(r'PGT-A report.*', '', name, flags=re.IGNORECASE)
         name = re.sub(r'PGTA REPORT.*', '', name, flags=re.IGNORECASE)
-        # Remove "withlogo" etc
         name = re.sub(r'withlogo|withoutlogo', '', name, flags=re.IGNORECASE)
-        # Cleanup whitespace and non-alphanumeric
         name = re.sub(r'[^A-Z0-9\s]', '', name.upper())
         return ' '.join(name.split())
 
-    # ── Unified smart extractor ──────────────────────────────────────────────
     def _extract_all_text(self, file_path):
-        """Return full text + per-page lines from PDF."""
         with open(file_path, "rb") as f:
             reader = PyPDF2.PdfReader(f)
             pages = [p.extract_text() or "" for p in reader.pages]
@@ -45,44 +34,34 @@ class PGTAReportComparator:
         return full, lines
 
     def _smart_extract(self, file_path):
-        """
-        Single extractor that handles both manual and automated PDF formats.
-        Tries inline 'Label : Value' style first, then next-line value style.
-        """
         full_text, lines = self._extract_all_text(file_path)
         data = {'patient_name': '', 'pin': '', 'sample_number': '', 'embryos': []}
 
-        # ── Patient info ──────────────────────────────────────────────────────
         for i, line in enumerate(lines):
             upper = line.upper()
 
-            # Inline style: "Patient name : PRIYA ..."
             if not data['patient_name']:
                 m = re.search(r'Patient\s*name\s*[:\-]\s*(.+?)(?:\s+PIN\s*[:\-]|$)', line, re.IGNORECASE)
                 if m and m.group(1).strip():
                     data['patient_name'] = m.group(1).strip()
 
-            # Next-line style: standalone "Patient name" followed by ":" then value
             if not data['patient_name'] and upper.strip() in ('PATIENT NAME', 'PATIENT NAME :'):
                 for j in range(i+1, min(i+4, len(lines))):
                     if lines[j].strip() not in (':', ''):
                         data['patient_name'] = lines[j].strip()
                         break
 
-            # PIN inline
             if not data['pin']:
                 m = re.search(r'\bPIN\s*[:\-]\s*([A-Z0-9]{6,})', line)
                 if m:
                     data['pin'] = m.group(1)
 
-            # PIN next-line
             if not data['pin'] and upper.strip() == 'PIN':
                 for j in range(i+1, min(i+4, len(lines))):
                     if re.match(r'^[A-Z0-9]{6,}$', lines[j].strip()):
                         data['pin'] = lines[j].strip()
                         break
 
-            # Sample Number
             if not data['sample_number']:
                 m = re.search(r'Sample\s*Number\s*[:\-]\s*(\d+)', line, re.IGNORECASE)
                 if m:
@@ -93,14 +72,12 @@ class PGTAReportComparator:
                         data['sample_number'] = lines[j].strip()
                         break
 
-        # ── Embryo results from Results Summary table ─────────────────────────
         results_text = ""
         m = re.search(r'Results?\s+summary(.+?)(?:Methodology|This test does not reveal|$)',
                       full_text, re.IGNORECASE | re.DOTALL)
         if m:
             results_text = m.group(1)
 
-        # Try inline row format: "1  PS4  Trisomy of chr 16  NA  Aneuploid"
         inline_rows = re.findall(
             r'^(\d+)\s+([A-Z0-9]+(?:\s*\(D\d\))?)\s+(.+?)\s+([\d\.]+|NA)\s+([A-Za-z].+?)$',
             results_text, re.MULTILINE)
@@ -113,7 +90,6 @@ class PGTAReportComparator:
                     'interpretation': row[4].strip()
                 })
         else:
-            # Block format (automated): numbered blocks separated by embryo index lines
             res_lines = [l.strip() for l in results_text.split('\n') if l.strip()
                          and 'PNDT act' not in l and not l.startswith('[')]
             i = 0
@@ -139,28 +115,20 @@ class PGTAReportComparator:
                     i += 1
         return data
 
-    # Keep old methods as aliases so existing UI code still works
     def extract_manual_data(self, file_path):
         return self._smart_extract(file_path)
 
     def extract_automated_data(self, file_path):
         return self._smart_extract(file_path)
 
-    # ── Normalisation ─────────────────────────────────────────────────────────
     def _norm_text(self, s):
-        """Aggressively normalise a text value for comparison."""
         if not s: return ""
         s = str(s)
-        # Collapse whitespace and uppercase
         s = ' '.join(s.split()).upper()
-        # Remove day-tag like (D5), (D6)
         s = re.sub(r'\(D\d\)', '', s)
-        # Normalise chromosome number representations: "chr 16" → "CHR16", "chromosome 16" → "CHR16"
         s = re.sub(r'CHROMOSOME\s*(\d+)', r'CHR\1', s)
         s = re.sub(r'CHR\s+(\d+)', r'CHR\1', s)
-        # Remove punctuation noise (commas, dots, hyphens between words)
         s = re.sub(r'[,\.\-]+', ' ', s)
-        # Collapse again
         return ' '.join(s.split())
 
     def compare_embryos(self, me, ae):
@@ -174,11 +142,9 @@ class PGTAReportComparator:
         norm_mres = self._norm_text(me['result'])
         norm_ares = self._norm_text(ae['result'])
         if norm_mres != norm_ares:
-            # Allow if one is a substring of the other (handles truncation)
             if norm_mres not in norm_ares and norm_ares not in norm_mres:
                 discrepancies.append(f"Result Mismatch:\n    Manual: {me['result']}\n    Auto:   {ae['result']}")
 
-        # MTcopy: treat both blank/"NA"/"0" equivalently
         mt_m = me['mtcopy'].strip().upper() if me['mtcopy'] else 'NA'
         mt_a = ae['mtcopy'].strip().upper() if ae['mtcopy'] else 'NA'
         if mt_m in ('', '0', 'NA'): mt_m = 'NA'
@@ -196,7 +162,6 @@ class PGTAReportComparator:
 
 
     def check_name_match(self, manual_path, auto_path):
-        """Validate if two report files belong to the same patient."""
         try:
             m_data = self.extract_manual_data(manual_path)
             a_data = self.extract_automated_data(auto_path)
@@ -204,12 +169,9 @@ class PGTAReportComparator:
             m_norm = self.normalize_name(m_data['patient_name'])
             a_norm = self.normalize_name(a_data['patient_name'])
             
-            # Also consider filename if data extraction fails to find a name properly
             m_file_norm = self.normalize_name(os.path.basename(manual_path))
             a_file_norm = self.normalize_name(os.path.basename(auto_path))
             
-            # Check for name in either extracted data or filename
-            # CRITICAL: Ensure we don't match against empty strings
             is_match = False
             primary_m = m_norm or m_file_norm
             primary_a = a_norm or a_file_norm
@@ -229,14 +191,12 @@ class PGTAReportComparator:
             return {'match': False, 'error': str(e)}
 
     def compare_single_pair(self, manual_path, auto_path):
-        """Compare a specific pair of manual and automated reports."""
         try:
             m_data = self.extract_manual_data(manual_path)
             a_data = self.extract_automated_data(auto_path)
             
             discrepancies = []
             
-            # Robustness check: if one file is in the wrong directory, it will likely have no PIN
             if not m_data['pin'] and not a_data['pin']:
                 discrepancies.append("CRITICAL: Failed to extract PIN from both reports. Check if files are swapped or invalid.")
             elif not m_data['pin']:
@@ -250,13 +210,10 @@ class PGTAReportComparator:
             if m_data['sample_number'] and a_data['sample_number'] and m_data['sample_number'] != a_data['sample_number']:
                 discrepancies.append(f"Sample # Mismatch: Manual({m_data['sample_number']}) vs Auto({a_data['sample_number']})")
             
-            # ── Embryo comparison: match by ID, not position ─────────────────
             if not m_data['embryos'] and not a_data['embryos']:
                 discrepancies.append("Warning: No embryo data extracted from either report.")
             else:
-                # Build lookup maps: norm_id → embryo dict
                 def norm_id(eid):
-                    """Strip day-tag, normalise spacing, uppercase."""
                     return re.sub(r'\s*\(D\d+\)\s*', '', str(eid)).strip().upper()
 
                 m_map = {norm_id(e['id']): e for e in m_data['embryos']}
@@ -293,7 +250,6 @@ class PGTAReportComparator:
             }
 
     def compare(self):
-        """Compare all files found in manual_dir with matching files in automated_dir."""
         comparison_results = []
         for m_file in self.manual_files:
             if "Investigation" in m_file: continue
@@ -329,14 +285,12 @@ class PGTAReportComparator:
         return report
 
     def generate_html_report(self, results, output_path):
-        """Generate a premium HTML comparison report with detailed stats and modern design."""
         total_samples = len(results)
         if total_samples == 0: return
         
         perfect_matches = len([r for r in results if not r['discrepancies']])
         match_rate = (perfect_matches / total_samples) * 100
         
-        # Calculate granular stats
         stats = {
             'pin': {'match': 0, 'total': 0},
             'sample_num': {'match': 0, 'total': 0},

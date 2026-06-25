@@ -1,31 +1,3 @@
-"""
-Anderson Report Automation – Self-Hosted Backend
-FastAPI server for TERA and PGT-A report generation.
-
-Directory layout expected next to this file:
-  server/
-    main.py          ← this file
-    tera_template.py
-    pgta_template.py
-    pgta_docx_generator.py
-    pgta_classify.py
-    tera_assets.py
-    pgta_assets.py
-    report_comparator.py
-    assets/pgta/fonts/   ← fonts used by PDF generators
-    reports/             ← TERA output (auto-created)
-    reports-pgta/        ← PGTA output (auto-created)
-    temp/                ← preview PDFs (auto-created)
-    drafts/PGTA/         ← draft JSON files (auto-created)
-    uploads/pgta_cnv/    ← uploaded CNV images (auto-created)
-
-Frontend (HTML/JS/CSS) is served from the parent directory:
-  ../index.html
-  ../tera.html
-  ../pgta.html
-  ../xlsx.full.min.js
-  ../Head_logo.jpg
-"""
 
 import pdfplumber
 from pgta_classify import auto_map_cnvs
@@ -55,7 +27,6 @@ import pandas as pd
 
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env"))
 
-# ── Paths ──────────────────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIR = os.environ.get("FRONTEND_DIR") or os.path.join(
     os.path.dirname(BASE_DIR), "frontend")
@@ -69,7 +40,6 @@ PGTA_DRAFT_DIR = os.path.join(BASE_DIR, "drafts", "PGTA")
 for d in (REPORT_DIR, PGTA_REPORT_DIR, TEMP_DIR, PGTA_CNV_DIR, PGTA_DRAFT_DIR):
     os.makedirs(d, exist_ok=True)
 
-# ── Temp folder auto-cleanup (preview PDFs/images pile up and can fill the disk) ──
 TEMP_CLEANUP_INTERVAL_SECONDS = 24 * 60 * 60
 TEMP_MAX_AGE_SECONDS = 24 * 60 * 60
 
@@ -99,7 +69,6 @@ async def _temp_cleanup_loop():
             print(f"[TempCleanup] failed: {e}")
         await asyncio.sleep(TEMP_CLEANUP_INTERVAL_SECONDS)
 
-# ── Import report generators ───────────────────────────────────────────────────
 
 try:
     from report_comparator import PGTAReportComparator
@@ -107,7 +76,6 @@ try:
 except Exception:
     _comparator_ok = False
 
-# ── NIPT report generators ─────────────────────────────────────────────────────
 try:
     from nipt_template import NIPTReportTemplate
     from nipt_docx_generator import NIPTDocxGenerator
@@ -116,7 +84,6 @@ except Exception as _nipt_err:
     _nipt_ok = False
     print(f"[NIPT] generators not loaded: {_nipt_err}")
 
-# ── HLA Typing report router ───────────────────────────────────────────────────
 try:
     from hla_api import router as hla_router
     _hla_ok = True
@@ -124,7 +91,6 @@ except Exception as _hla_err:
     _hla_ok = False
     print(f"[HLA] router not loaded: {_hla_err}")
 
-# ── Access control (Admin page + per-report login) router ─────────────────────
 _access_err_msg = None
 try:
     from access_api import router as access_router
@@ -134,7 +100,6 @@ except Exception as _access_err:
     _access_err_msg = str(_access_err)
     print(f"[Access] router not loaded: {_access_err}")
 
-# ── MySQL database ─────────────────────────────────────────────────────────────
 _mysql_enabled = False
 upload_pdf = upload_pgta_file = save_report = None
 pgta_autosave_save = pgta_autosave_get = None
@@ -146,15 +111,13 @@ try:
 except Exception:
     pass
 
-# ── App ────────────────────────────────────────────────────────────────────────
 app = FastAPI(title="Anderson Report Automation", version="1.0.0")
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    # covers file:// pages (Origin: null) and all localhost variants
     allow_origin_regex=r".*",
-    allow_credentials=False,    # must be False when allow_origins=["*"]
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -164,7 +127,6 @@ app.add_middleware(
 async def _start_temp_cleanup():
     asyncio.create_task(_temp_cleanup_loop())
 
-# ── Static mounts ──────────────────────────────────────────────────────────────
 app.mount("/reports",      StaticFiles(directory=REPORT_DIR),      name="reports")
 app.mount("/reports-pgta", StaticFiles(directory=PGTA_REPORT_DIR),
           name="reports-pgta")
@@ -178,14 +140,10 @@ if os.path.isdir(_assets_dir):
     app.mount("/pgta-assets", StaticFiles(directory=_assets_dir),
               name="pgta-assets")
 
-# Serve frontend static assets (logo, xlsx.js, css) from frontend dir
 if os.path.isdir(FRONTEND_DIR):
     app.mount("/static", StaticFiles(directory=FRONTEND_DIR), name="static")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# HTML PAGE ROUTES
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _serve(filename: str):
     p = os.path.join(FRONTEND_DIR, filename)
@@ -238,7 +196,6 @@ def nipt_page(): return _serve("nipt.html")
 @app.get("/billing.html")
 def billing_page(): return _serve("billing.html")
 
-# Forward /xlsx.full.min.js  so the frontend can load SheetJS via relative path
 
 
 @app.get("/xlsx.full.min.js")
@@ -273,9 +230,6 @@ def sign_sec_png():
     raise HTTPException(404, "Sign_sec.png not found")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# HELPERS
-# ══════════════════════════════════════════════════════════════════════════════
 
 def _safe_name(name: str) -> str:
     return re.sub(r'[^a-zA-Z0-9 ]', '', str(name).strip()).replace(' ', '_')
@@ -296,7 +250,6 @@ def _build_tera_filename(row: dict, with_logo: bool) -> str:
 
 
 def _resolve_cnv_images(embryos: list) -> tuple:
-    """Decode any base64 CNV images to temp files so the PDF generator can read them."""
     tmp_paths = []
     for emb in embryos:
         b64 = (emb.get("cnv_image_b64") or "").strip()
@@ -325,16 +278,10 @@ def _upload_in_background(filepath: str, filename: str):
         print(f"[background upload] {filename}: {e}")
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# TERA ENDPOINTS
-# ══════════════════════════════════════════════════════════════════════════════
 
 @app.post("/preview")
 async def preview_report(data: dict):
     with_logo = data.get("logo_option", "without_logo") == "with_logo"
-    # Prefix with the same descriptive name /generate uses, so that if a
-    # browser ever saves this preview file directly (e.g. via its native PDF
-    # viewer's download button) it gets a sensible name instead of a bare UUID.
     try:
         fname = os.path.basename(os.path.splitext(_build_tera_filename(data, with_logo))[0])
     except Exception:
@@ -419,7 +366,6 @@ async def upload_excel(file: UploadFile = File(...)):
         return {"error": str(e), "rows": []}
 
 
-# ── TERA Draft (file-based, no Supabase required) ─────────────────────────────
 
 TERA_DRAFT_DIR = os.path.join(BASE_DIR, "drafts", "TERA")
 os.makedirs(TERA_DRAFT_DIR, exist_ok=True)
@@ -453,7 +399,6 @@ def load_draft(draft_type: str):
         return {"data": json.load(f)}
 
 
-# ── TERA Compare ───────────────────────────────────────────────────────────────
 
 @app.post("/tera/compare")
 async def tera_compare(manual: UploadFile = File(...), automated: UploadFile = File(...)):
@@ -489,7 +434,6 @@ async def tera_compare(manual: UploadFile = File(...), automated: UploadFile = F
             "manual_file": manual.filename, "auto_file": automated.filename}
 
 
-# ── Compare PDFs ───────────────────────────────────────────────────────────────
 
 
 def _norm(s): return re.sub(r'\s+', ' ', s).strip()
@@ -535,9 +479,6 @@ async def compare_pdf(file1: UploadFile = File(...), file2: UploadFile = File(..
     return {"html": html, "differences": [], "total_pages": total_pages}
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# PGTA ENDPOINTS
-# ══════════════════════════════════════════════════════════════════════════════
 
 @app.post("/pgta/upload-cnv")
 async def pgta_upload_cnv(file: UploadFile = File(...)):
@@ -563,10 +504,6 @@ def pgta_get_cnv_image(filename: str):
 async def pgta_preview(request: Request):
     try:
         data = await request.json()
-        # Prefix with a descriptive name (mirrors /pgta/generate's naming) so
-        # that if a browser ever saves this preview directly (e.g. via its
-        # native PDF viewer's download button) it gets a sensible name
-        # instead of a bare UUID.
         patient_data = data.get("patient_data", {})
         p_parts = [p for p in re.sub(r'[^a-zA-Z0-9 ]', '', str(patient_data.get("patient_name", "") or "")).strip().split() if p]
         name_seg = p_parts[0].upper() if p_parts else "PREVIEW"
@@ -666,8 +603,6 @@ async def pgta_generate(request: Request, background_tasks: BackgroundTasks):
 
 @app.get("/pgta/download/{filename}")
 def pgta_download(filename: str):
-    """Force a real file download (Content-Disposition: attachment) instead of letting the
-    browser open PDFs inline in its own viewer."""
     path = os.path.join(PGTA_REPORT_DIR, os.path.basename(filename))
     if not os.path.exists(path):
         raise HTTPException(404, "File not found")
@@ -676,7 +611,6 @@ def pgta_download(filename: str):
     return FileResponse(path, media_type=media_type, filename=filename)
 
 
-# ── PGTA Excel parsing ─────────────────────────────────────────────────────────
 
 async def _parse_pgta_excel_core(contents: bytes):
     xl = pd.ExcelFile(io.BytesIO(contents))
@@ -847,7 +781,6 @@ async def pgta_parse_excel_bulk(files: List[UploadFile] = File(...)):
         return {"error": str(e)}
 
 
-# ── PGTA Drafts ────────────────────────────────────────────────────────────────
 
 @app.post("/pgta/draft/save")
 async def pgta_save_draft(request: Request):
@@ -889,10 +822,6 @@ def pgta_delete_draft(filename: str):
         return {"status": "error", "error": str(e)}
 
 
-# ── PGTA shared autosave (MySQL-backed) ────────────────────────────────────────
-# Lets a colleague editing the same patient (Single Entry) or the same
-# uploaded batch (Bulk) see the latest saved version instead of redoing work.
-# Polled by the frontend; not live/real-time.
 
 @app.post("/pgta/autosave")
 async def pgta_autosave_push(request: Request):
@@ -917,7 +846,6 @@ async def pgta_autosave_pull(draft_key: str, mode: str):
     return {"data": json.loads(row["data"]), "updated_at": row["updated_at"]}
 
 
-# ── PGTA Compare ───────────────────────────────────────────────────────────────
 
 @app.post("/pgta/compare")
 async def pgta_compare(manual: UploadFile = File(...), automated: UploadFile = File(...)):
@@ -952,7 +880,6 @@ async def pgta_compare(manual: UploadFile = File(...), automated: UploadFile = F
     return {"html_diff": html, "total_changes": len(changes), "match": len(changes) == 0}
 
 
-# ── Folder-picker helper (Windows server only) ────────────────────────────────
 
 @app.get("/open-folder-dialog")
 async def open_folder_dialog():
@@ -985,7 +912,6 @@ async def open_folder_dialog():
         return {"error": str(e)}
 
 
-# ── Health check ───────────────────────────────────────────────────────────────
 
 @app.get("/health")
 def health():
@@ -998,23 +924,18 @@ def health():
     }
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# NIPT ENDPOINTS
-# ══════════════════════════════════════════════════════════════════════════════
 
 NIPT_REPORT_DIR = os.path.join(BASE_DIR, "reports-nipt")
 NIPT_DRAFT_DIR = os.path.join(BASE_DIR, "drafts", "NIPT")
 os.makedirs(NIPT_REPORT_DIR, exist_ok=True)
 os.makedirs(NIPT_DRAFT_DIR,  exist_ok=True)
 
-# Mount NIPT reports for static access
 app.mount("/reports-nipt", StaticFiles(directory=NIPT_REPORT_DIR),
           name="reports-nipt")
 
 
 @app.get("/nipt/download/{filename}")
 def nipt_download_file(filename: str):
-    """Force-download a NIPT report with Content-Disposition: attachment."""
     safe = os.path.basename(filename)
     fp = os.path.join(NIPT_REPORT_DIR, safe)
     if not os.path.exists(fp):
@@ -1025,7 +946,6 @@ def nipt_download_file(filename: str):
                         headers={"Content-Disposition": f'attachment; filename="{safe}"'})
 
 
-# ── Normalisation helpers (mirrors desktop nipt_report_generator.py) ──────────
 
 _HOSPITAL_ACRONYMS = {
     'AIIMS', 'JIPMER', 'NIMHANS', 'PGIMER', 'SGPGI', 'NIMS', 'AFMC', 'CMC', 'MGM', 'KMC',
@@ -1093,7 +1013,6 @@ def _norm_id(v) -> str:
     return s
 
 
-# ── Preview ───────────────────────────────────────────────────────────────────
 
 @app.post("/nipt/preview")
 async def nipt_preview(request: Request):
@@ -1103,10 +1022,6 @@ async def nipt_preview(request: Request):
         data = await request.json()
         p_info = _norm_patient(dict(data.get("patient_data", {})))
         show_logo = bool(data.get("show_logo", True))
-        # Prefix with the same descriptive name /nipt/generate uses, so that
-        # if a browser ever saves this preview directly (e.g. via its native
-        # PDF viewer's download button) it gets a sensible name instead of a
-        # bare UUID.
         try:
             fname = _nipt_base_filename(p_info.get("name", ""), show_logo)
         except Exception:
@@ -1132,7 +1047,6 @@ def nipt_preview_file(filename: str):
     return FileResponse(path, media_type="application/pdf")
 
 
-# ── Generate (single patient) ─────────────────────────────────────────────────
 
 @app.post("/nipt/generate")
 async def nipt_generate(request: Request):
@@ -1171,7 +1085,6 @@ async def nipt_generate(request: Request):
         return {"error": str(e)}
 
 
-# ── Generate batch (all patients in one request) ───────────────────────────────
 
 @app.post("/nipt/generate-batch")
 async def nipt_generate_batch(request: Request):
@@ -1221,7 +1134,6 @@ async def nipt_generate_batch(request: Request):
         return {"error": str(e)}
 
 
-# ── Parse Excel (batch) ────────────────────────────────────────────────────────
 
 @app.post("/nipt/parse-excel")
 async def nipt_parse_excel(file: UploadFile = File(...)):
@@ -1232,12 +1144,10 @@ async def nipt_parse_excel(file: UploadFile = File(...)):
         df = pd.read_excel(xls, sname)
         df.columns = [str(c).strip() for c in df.columns]
 
-        # QC filter
         if "QC" in df.columns:
             df = df[df["QC"].astype(str).str.strip(
             ).str.lower() == "pass"].reset_index(drop=True)
 
-        # Sheet2 Z-scores merge
         if "Sheet2" in xls.sheet_names:
             df_z = pd.read_excel(xls, "Sheet2")
             df_z.columns = [str(c).strip() for c in df_z.columns]
@@ -1327,7 +1237,6 @@ async def nipt_parse_excel(file: UploadFile = File(...)):
         return {"error": str(e), "patients": []}
 
 
-# ── Drafts ─────────────────────────────────────────────────────────────────────
 
 @app.post("/nipt/draft/save")
 async def nipt_save_draft(request: Request):
@@ -1373,7 +1282,6 @@ def nipt_delete_draft(filename: str):
     return {"status": "not_found"}
 
 
-# ── Compare PDFs (file mode — reuse existing pdfplumber logic) ─────────────────
 
 @app.post("/nipt/compare-pdf")
 async def nipt_compare_pdf(manual: UploadFile = File(...), automated: UploadFile = File(...)):
@@ -1422,7 +1330,6 @@ async def nipt_compare_pdf(manual: UploadFile = File(...), automated: UploadFile
     }
 
 
-# ── Compare directories (dir mode) ────────────────────────────────────────────
 
 @app.post("/nipt/compare-dir")
 async def nipt_compare_dir(request: Request):
@@ -1457,7 +1364,6 @@ async def nipt_compare_dir(request: Request):
         return {"error": str(e)}
 
 
-# ── Storage list ───────────────────────────────────────────────────────────────
 
 @app.get("/nipt/storage/list")
 async def nipt_storage_list():
@@ -1469,7 +1375,6 @@ async def nipt_storage_list():
         raise HTTPException(500, str(exc))
 
 
-# ── Karyotype report routes (web port of desktop Karyotype Report Generator) ──
 try:
     from karyotype_api import register_karyotype_routes
     register_karyotype_routes(app)
@@ -1477,7 +1382,6 @@ try:
 except Exception as _karyo_err:
     print(f"[KARYOTYPE] routes not loaded: {_karyo_err}")
 
-# ── HLA Typing report routes (web port of desktop HLA Report Generator) ────────
 if _hla_ok:
     app.include_router(hla_router)
     _hla_fonts_dir = os.path.join(BASE_DIR, "assets", "hla", "fonts")
@@ -1485,7 +1389,6 @@ if _hla_ok:
         app.mount("/hla-fonts", StaticFiles(directory=_hla_fonts_dir), name="hla-fonts")
     print("[HLA] routes loaded")
 
-# ── Access control routes (Admin page + per-report login) ─────────────────────
 if _access_ok:
     app.include_router(access_router)
     print("[Access] routes loaded" + ("" if _mysql_enabled else " (MySQL not configured yet)"))

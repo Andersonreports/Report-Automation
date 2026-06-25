@@ -1,7 +1,7 @@
-// hla.js — HLA Typing Report Generator (web)
-// Mirrors hla_report_generator.py (desktop) logic 1:1 against the FastAPI hla_api.py backend.
 
-const API = ""; // same-origin
+
+
+const API = ""; 
 
 const REPORT_TEMPLATES = [
   { name: "With CL", report_type: "single_hla" },
@@ -28,8 +28,8 @@ REPORT_TEMPLATES.forEach(t => TEMPLATE_TO_RTYPE[t.name] = t.report_type);
 const RTYPE_TO_TEMPLATE_NAME = {};
 REPORT_TEMPLATES.forEach(t => RTYPE_TO_TEMPLATE_NAME[t.report_type] = t.name);
 
-// One distinct color per template, used as a small dot + tinted background in
-// the bulk case list so mixed-template lists are visually scannable.
+
+
 const RTYPE_COLORS = {
   single_hla:        "#1f497d",
   rpl_couple:         "#8e44ad",
@@ -54,9 +54,9 @@ function rtypeColor(rtype) { return RTYPE_COLORS[rtype] || "#7f8c8d"; }
 
 const HLA_LOCI = ["A", "B", "C", "DRB1", "DQB1", "DPB1", "DRB3", "DPA1", "DQA1"];
 const HLA_LOCUS_LABELS = { DRB3: "DRB3/4/5" };
-// DRB3/DRB4/DRB5 are shown as THREE separate allele rows for every template
-// EXCEPT loci11, which merges them into a single combined "DRB3/4/5" row.
-const SEPARATE_DRB_RTYPES = ["ngs_photo", "transplant_donor"]; // kept for bulk splitDrb345 compat
+
+
+const SEPARATE_DRB_RTYPES = ["ngs_photo", "transplant_donor"]; 
 function isSeparateDrb(rtype) { return rtype !== "loci11"; }
 
 const DEFAULT_SIG_COUNTS = {
@@ -121,7 +121,7 @@ const DEFAULT_SIGNATORIES = [
   { name: "Dr. B. Rayvathy", title: "Consultant Microbiologist" },
 ];
 
-// ── App state ───────────────────────────────────────────────────────────────
+
 const state = {
   rtype: "single_hla",
   withLogo: true,
@@ -136,7 +136,7 @@ const state = {
   settings: { signatories: DEFAULT_SIGNATORIES, sig_counts: { ...DEFAULT_SIG_COUNTS }, with_logo: true, nabl: true, signature_stamp: false },
 };
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+
 const _pdfTokens = {};
 const _dirHandles = {};
 
@@ -237,9 +237,9 @@ function emptyPerson(extra = {}) {
   };
 }
 
-// ══════════════════════════════════════════════════════════════════════════
-// TAB SWITCHING
-// ══════════════════════════════════════════════════════════════════════════
+
+
+
 document.querySelectorAll(".tab").forEach(tab => {
   tab.addEventListener("click", () => {
     document.querySelectorAll(".tab").forEach(t => t.classList.remove("active"));
@@ -249,9 +249,9 @@ document.querySelectorAll(".tab").forEach(tab => {
   });
 });
 
-// ══════════════════════════════════════════════════════════════════════════
-// PATIENT DATA PERSISTENCE ACROSS TEMPLATE SWITCHES
-// ══════════════════════════════════════════════════════════════════════════
+
+
+
 function capturePatientForRestore() {
   try {
     const c = collectManualCase();
@@ -273,7 +273,7 @@ function restorePatientAfterRender() {
   function set(input, value) { if (input && value != null && String(value).trim()) input.value = value; }
   const g_a = p.gender_age || [p.gender, p.age].filter(Boolean).join(" / ");
 
-  // Standard templates
+  
   set(manualFields.patient_name, p.name);
   set(manualFields.gender_age, g_a);
   set(manualFields.pin, p.pin);
@@ -288,14 +288,14 @@ function restorePatientAfterRender() {
   set(manualFields.diagnosis, p.diagnosis);
   set(manualFields.referred_by, p.referred_by);
 
-  // HLA alleles
+  
   if (p._hla) {
     Object.entries(p._hla).forEach(([locus, [a1, a2]]) => {
       if (manualHlaFields[locus]) { set(manualHlaFields[locus][0], a1); set(manualHlaFields[locus][1], a2); }
     });
   }
 
-  // PRA templates
+  
   const pra = manualSpecialFields.pra && manualSpecialFields.pra.patient;
   if (pra) {
     set(pra.patient_name, p.name);
@@ -307,7 +307,7 @@ function restorePatientAfterRender() {
     set(pra.report_date, p.report_date);
   }
 
-  // Crossmatch templates
+  
   const xp = manualSpecialFields.crossmatch && manualSpecialFields.crossmatch.patient;
   if (xp) {
     set(xp.name, p.name); set(xp.gender_age, g_a); set(xp.pin, p.pin);
@@ -316,7 +316,7 @@ function restorePatientAfterRender() {
     set(xp.report_date, p.report_date);
   }
 
-  // SAB / Luminex / KIR — all use patient_name key
+  
   ["sab", "luminex", "kir"].forEach(key => {
     const sp = manualSpecialFields[key] && manualSpecialFields[key].patient;
     if (!sp) return;
@@ -327,9 +327,9 @@ function restorePatientAfterRender() {
   });
 }
 
-// ══════════════════════════════════════════════════════════════════════════
-// HEADER: TEMPLATE + LOGO SELECT
-// ══════════════════════════════════════════════════════════════════════════
+
+
+
 function initTemplateSelect() {
   const sel = document.getElementById("templateSelect");
   REPORT_TEMPLATES.forEach(t => {
@@ -340,7 +340,7 @@ function initTemplateSelect() {
     const activeTab = document.querySelector(".tab.active")?.dataset.tab;
     const bulkCase = state.bulkCases[state.bulkCurrentIndex];
     if (activeTab === "bulk" && bulkCase) {
-      // A bulk case is selected — retarget its report type instead of the manual form.
+      
       bulkCase.report_type = newRtype;
       renderBulkList();
       renderBulkEditor(state.bulkCurrentIndex);
@@ -354,7 +354,7 @@ function initTemplateSelect() {
   });
   document.getElementById("logoSelect").addEventListener("change", e => {
     state.withLogo = e.target.value === "true";
-    // Keep bulk logo checkbox in sync
+    
     const bulkChk = document.getElementById("bulkLogoChk");
     if (bulkChk) bulkChk.checked = state.withLogo;
     if (document.querySelector(".tab[data-tab='bulk']")?.classList.contains("active") && state.bulkCurrentIndex >= 0) {
@@ -367,9 +367,9 @@ function initTemplateSelect() {
   document.getElementById("globalStampChk").addEventListener("change", scheduleManualPreview);
 }
 
-// ══════════════════════════════════════════════════════════════════════════
-// MANUAL TAB — FORM BUILDER
-// ══════════════════════════════════════════════════════════════════════════
+
+
+
 const PAT_FIELDS = [
   ["patient_name", "Patient Name *", ""],
   ["gender_age", "Gender / Age", ""],
@@ -386,8 +386,8 @@ const PAT_FIELDS = [
   ["remarks", "Remarks", ""],
 ];
 
-// HLA-C's report layout depends on the specimen text — backend checks for
-// the substring "poc" (case-insensitive) to switch to the POC Result layout.
+
+
 const HLA_C_SPECIMEN_OPTIONS = ["Peripheral Blood", "DNA (POC)"];
 
 function buildPatientInfoCard(prefix, fieldsRef, rtype) {
@@ -478,7 +478,7 @@ async function browseOutputFolder(inputEl, btnEl) {
     }
     return;
   }
-  // Fallback for non-Chrome browsers
+  
   const originalHtml = btnEl.innerHTML;
   btnEl.disabled = true;
   btnEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Waiting…';
@@ -529,16 +529,16 @@ function buildGenBar(onGenerate) {
   return el("div", {}, [row1, row2]);
 }
 
-// Per-template field registries — rebuilt every render
+
 let manualFields = {};
 let manualHlaFields = {};
 let manualDonorFields = [];
 let manualDonorHlaFields = [];
-let manualDonorPhotoBytes = [];   // base64 strings, one per donor, parallel to manualDonorFields
+let manualDonorPhotoBytes = [];   
 let manualPatientPhoto = { bytes: null };
 let manualSpecialFields = {};
-let manualDonorsListEl = null;    // DOM container for dynamically added/removed donor cards
-let _ngsPhotoLastAutoInterp = ""; // tracks the last auto-generated interpretation text
+let manualDonorsListEl = null;    
+let _ngsPhotoLastAutoInterp = ""; 
 
 function _getNgsPhotoAutoInterp() {
   const pName = (manualFields.patient_name?.value || "").trim() || "—";
@@ -587,8 +587,8 @@ function _refreshLuminexInterp() {
 let _flowTLastAutoInterp = "";
 let _flowBLastAutoInterp = "";
 
-// T-CELLS MCS<45 NEGATIVE, 45-60 BORDERLINE, >60 POSITIVE
-// B-CELLS MCS<86 NEGATIVE, 86-116 BORDERLINE, >116 POSITIVE
+
+
 function _flowInterpFromMcs(raw, lowMax, highMax) {
   const v = parseFloat(String(raw || "").replace(/[<>]/g, "").trim());
   if (isNaN(v)) return null;
@@ -629,14 +629,14 @@ const SPECIALIZED_RTYPES = [
   "sab_class1", "sab_class2",
 ];
 
-// Templates whose Donor Information section supports more than one donor
-// (hla_report_generator.py _add_manual_donor / _remove_manual_donor).
-// loci11 shares the same backend builder/person-block loop as
-// transplant_donor (_build_transplant_donor iterates case["donors"] for
-// both), so it already supports donors — just needed the UI exposed.
+
+
+
+
+
 const MULTI_DONOR_RTYPES = ["transplant_donor", "rpl_couple", "ngs_photo", "loci11"];
-// Templates with a dedicated patient/donor Photo upload field
-// (hla_report_generator.py _upload_std_photo / _upload_cdc_photo / etc.).
+
+
 const PHOTO_RTYPES = ["ngs_photo", "cdc_crossmatch", "dsa_crossmatch", "flow_crossmatch", "luminex_typing"];
 
 function buildPhotoUploadField(label, onChange, existingB64 = null) {
@@ -662,7 +662,7 @@ function buildPhotoUploadField(label, onChange, existingB64 = null) {
   ]);
 }
 
-// ── Multi-donor helpers (MULTI_DONOR_RTYPES: transplant_donor, rpl_couple, ngs_photo) ──
+
 function buildManualDonorsSection(rtype, col) {
   const sectionTitle = rtype === "rpl_couple" ? "Spouse / Donor" : "Donor";
   const outerCard = el("div", { class: "card" });
@@ -795,13 +795,13 @@ function renderManualForm() {
   if (rtype === "single_locus") {
     const card = el("div", { class: "card" }, [el("h3", {}, "Single Locus Result")]);
     const grid = el("div", { class: "field-grid" });
-    // Locus — dropdown matching the bulk editor
+    
     const locusSel = el("select", { onchange: scheduleManualPreview },
       SINGLE_LOCUS_LOCI.map(l => el("option", { value: l }, l)));
     locusSel.value = "C";
     manualSpecialFields.sl_locus = locusSel;
     grid.appendChild(el("div", { class: "field" }, [el("label", {}, "Locus"), locusSel]));
-    // Allele 1, Allele 2, Note — text inputs
+    
     [["Allele 1", "sl_allele1"], ["Allele 2", "sl_allele2"], ["Note (optional)", "sl_note"]].forEach(([lbl, key]) => {
       const input = el("input", { type: "text", oninput: scheduleManualPreview });
       manualSpecialFields[key] = input;
@@ -847,7 +847,7 @@ function renderManualForm() {
   scheduleManualPreview();
 }
 
-// ── CDC / DSA / Flow crossmatch section ──────────────────────────────────────
+
 function buildCrossmatchSection(col, rtype) {
   const patCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-user" }), " Patient (Crossmatch)"])]);
   const patGrid = el("div", { class: "field-grid" });
@@ -928,7 +928,7 @@ function buildCrossmatchSection(col, rtype) {
   col.appendChild(resCard);
 }
 
-// ── Luminex section ────────────────────────────────────────────────────────
+
 function buildLuminexSection(col) {
   const patCard = el("div", { class: "card" }, [el("h3", {}, "Patient")]);
   const patGrid = el("div", { class: "field-grid" });
@@ -993,9 +993,9 @@ function buildLuminexSection(col) {
   manualSpecialFields.luminex = lx;
 }
 
-// ── KIR section ────────────────────────────────────────────────────────────
+
 const KIR_GENES = ["2DL1","2DL2","2DL3","2DL4","2DL5","2DS1","2DS2","2DS3","2DS4","2DS5","2DP1","3DL1","3DL2","3DL3","3DP1","3DS1"];
-// Older drafts may have stored "Present"/"Absent" before the dropdowns switched to "+"/"-".
+
 function _normalizeKirGeneVal(v) {
   if (v === "Present") return "+";
   if (v === "Absent") return "-";
@@ -1056,7 +1056,7 @@ function buildKirSection(col) {
   manualSpecialFields.kir = kir;
 }
 
-// ── PRA section ───────────────────────────────────────────────────────────
+
 function buildPraSection(col, rtype) {
   const patCard = el("div", { class: "card" }, [el("h3", {}, "Patient")]);
   const patGrid = el("div", { class: "field-grid" });
@@ -1125,7 +1125,7 @@ function buildPraSection(col, rtype) {
   manualSpecialFields.pra = pra;
 }
 
-// ── SAB Class I / II section ──────────────────────────────────────────────
+
 function applySabImportData(sab, data) {
   const fields = data.patient || {};
   Object.entries(fields).forEach(([k, v]) => {
@@ -1153,7 +1153,7 @@ function buildSabSection(col, rtype) {
   const sab = { patient: {} };
   manualSpecialFields.sab = sab;
 
-  // ── Patient Information ──────────────────────────────────────────────
+  
   const patCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-user" }), " Patient Information"])]);
   const patGrid = el("div", { class: "field-grid" });
   const SAB_PAT_FIELDS = [
@@ -1171,7 +1171,7 @@ function buildSabSection(col, rtype) {
   patCard.appendChild(patGrid);
   col.appendChild(patCard);
 
-  // ── SAB Class + % PRA ────────────────────────────────────────────────
+  
   const classCard = el("div", { class: "card" }, [el("h3", {}, "SAB Class & % PRA")]);
   const classSelect = el("select", {}, [el("option", { value: "I" }, "I"), el("option", { value: "II" }, "II")]);
   classSelect.value = rtype === "sab_class2" ? "II" : "I";
@@ -1184,7 +1184,7 @@ function buildSabSection(col, rtype) {
   ]));
   col.appendChild(classCard);
 
-  // ── Remarks / Comments ───────────────────────────────────────────────
+  
   const remCard = el("div", { class: "card" }, [el("h3", {}, "Remarks / Comments")]);
   const remarksInput = el("textarea", { oninput: scheduleManualPreview });
   const commentsInput = el("textarea", { oninput: scheduleManualPreview });
@@ -1203,7 +1203,7 @@ function buildSabSection(col, rtype) {
   praInput.addEventListener("input", refreshPra);
   classSelect.addEventListener("change", refreshPra);
 
-  // ── Allele Data ───────────────────────────────────────────────────────
+  
   const alleleCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-vial" }), " Allele Data (one per line: Allele,MFI)"])]);
   const alleleTextarea = el("textarea", {
     placeholder: "A*01:01,2126\nA*36:01,992\nDQA1*01:01, DQB1*05:01,1755",
@@ -1214,7 +1214,7 @@ function buildSabSection(col, rtype) {
   alleleCard.appendChild(el("div", { class: "field full" }, [alleleTextarea]));
   col.appendChild(alleleCard);
 
-  // ── Bead Specificity Chart ───────────────────────────────────────────
+  
   const chartCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-chart-bar" }), " Bead Specificity Chart"])]);
   const chartStatus = el("span", { style: "font-size:11px; color:var(--text-muted);" }, "No chart uploaded.");
   sab.chartStatus = chartStatus;
@@ -1236,9 +1236,9 @@ function buildSabSection(col, rtype) {
   col.appendChild(chartCard);
 }
 
-// ══════════════════════════════════════════════════════════════════════════
-// MANUAL TAB — CASE COLLECTION
-// ══════════════════════════════════════════════════════════════════════════
+
+
+
 function val(input) { return input ? input.value.trim() : ""; }
 function checked(input) { return input ? input.checked : false; }
 
@@ -1284,7 +1284,7 @@ function collectManualCase() {
         t_with_dtt: val(r.t_with_dtt) || "<10% Dead cells", t_without_dtt: val(r.t_with_dtt) || "<10% Dead cells",
         b_with_dtt: val(r.b_with_dtt) || "<10% Dead cells", b_without_dtt: val(r.b_with_dtt) || "<10% Dead cells",
       };
-      // Note: t_without_dtt mirrors t_with_dtt (single entry covers both columns)
+      
     } else if (rtype === "dsa_crossmatch") {
       const r = manualSpecialFields.dsa_results || {};
       c.dsa_results = {
@@ -1397,7 +1397,7 @@ function collectManualCase() {
     return c;
   }
 
-  // Default: NGS / RPL / single locus / HLA-C templates
+  
   patient = emptyPerson({
     name: val(manualFields.patient_name), gender_age: val(manualFields.gender_age),
     hospital_mr_no: val(manualFields.hospital_mr_no) || "NA", diagnosis: val(manualFields.diagnosis),
@@ -1434,14 +1434,14 @@ function collectManualCase() {
     c.rpl_reference = { hla_c_patient: manualSpecialFields.rpl_hla_c.value.trim() };
   }
   if (rtype === "single_locus") {
-    // Keys must match hla_template.py: case["locus"], case["sl_allele1"], case["sl_allele2"], case["sl_note"]
+    
     c.locus = manualSpecialFields.sl_locus ? manualSpecialFields.sl_locus.value.trim() : "";
     c.sl_allele1 = manualSpecialFields.sl_allele1 ? manualSpecialFields.sl_allele1.value.trim() : "";
     c.sl_allele2 = manualSpecialFields.sl_allele2 ? manualSpecialFields.sl_allele2.value.trim() : "";
     c.sl_note = manualSpecialFields.sl_note ? manualSpecialFields.sl_note.value.trim() : "";
   }
   if (rtype === "hla_c") {
-    // Keys must match hla_template.py: case["hlac_allele1"], case["hlac_allele2"], case["hlac_remark"]
+    
     c.hlac_allele1 = manualSpecialFields.hc_allele1 ? manualSpecialFields.hc_allele1.value.trim() : "";
     c.hlac_allele2 = manualSpecialFields.hc_allele2 ? manualSpecialFields.hc_allele2.value.trim() : "";
     c.hlac_remark = manualSpecialFields.hc_remark ? manualSpecialFields.hc_remark.value.trim() : "";
@@ -1454,9 +1454,9 @@ function collectManualCase() {
   return c;
 }
 
-// ══════════════════════════════════════════════════════════════════════════
-// MANUAL TAB — LIVE PREVIEW
-// ══════════════════════════════════════════════════════════════════════════
+
+
+
 function scheduleManualPreview() {
   _refreshNgsPhotoInterp();
   _refreshLuminexInterp();
@@ -1478,9 +1478,9 @@ async function refreshManualPreview() {
   try {
     const c = collectManualCase();
     const isSab = c.report_type === "sab_class1" || c.report_type === "sab_class2";
-    // SAB imports (especially Kit2/One Lambda) may carry only allele data with no
-    // patient name yet — preview that content immediately rather than blocking on
-    // a name the user hasn't typed in yet, matching the desktop app's behavior.
+    
+    
+    
     const hasPreviewableContent = isSab
       ? ((c.patient && c.patient.name) || (c.sab_alleles && c.sab_alleles.length))
       : (c.patient && c.patient.name);
@@ -1537,9 +1537,9 @@ async function generateManual() {
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════
-// MODAL HELPERS
-// ══════════════════════════════════════════════════════════════════════════
+
+
+
 function showInputModal(title, defaultValue) {
   return new Promise(resolve => {
     const backdrop = el("div", { class: "hla-modal-backdrop" });
@@ -1584,9 +1584,9 @@ function showPickerModal(title, items) {
   });
 }
 
-// ══════════════════════════════════════════════════════════════════════════
-// DRAFTS
-// ══════════════════════════════════════════════════════════════════════════
+
+
+
 async function saveDraft(scope) {
   let defaultName = scope === "manual" ? "single_entry_draft" : "bulk_draft";
   if (scope === "manual") {
@@ -1595,7 +1595,7 @@ async function saveDraft(scope) {
       if (c && c.patient && c.patient.name && c.patient.name.trim()) {
         defaultName = c.patient.name.trim();
       }
-    } catch (e) { /* keep fallback default */ }
+    } catch (e) {  }
   }
   const name = await showInputModal("Save Draft", defaultName);
   if (!name) return;
@@ -1614,7 +1614,7 @@ async function loadDraftFromPdf(file) {
     const r = await fetch("/hla/pdf-to-draft", { method: "POST", body: fd });
     if (!r.ok) {
       let msg = await r.text();
-      try { msg = JSON.parse(msg).detail || msg; } catch (_) { /* not JSON */ }
+      try { msg = JSON.parse(msg).detail || msg; } catch (_) {  }
       throw new Error(msg);
     }
     const result = await r.json();
@@ -1770,7 +1770,7 @@ function populateManualForm(c) {
     return;
   }
 
-  // Default: NGS / RPL / single locus / HLA-C / standard templates
+  
   Object.entries(manualFields).forEach(([key, input]) => {
     const map = { patient_name: "name" };
     const pk = map[key] || key;
@@ -1900,9 +1900,9 @@ function toggleBulkGenBar() {
   if (btn) btn.classList.toggle("collapsed", collapsed);
 }
 
-// ══════════════════════════════════════════════════════════════════════════
-// BULK TAB
-// ══════════════════════════════════════════════════════════════════════════
+
+
+
 function initBulkTab() {
   const fi = document.getElementById("bulkFileInput");
   const zone = document.getElementById("bulkExcelZone");
@@ -1978,7 +1978,7 @@ async function importSabToManual(sabFileInput, sabKitSelect) {
     const r = await fetch("/hla/parse-sab-excel", { method: "POST", body: fd });
     if (!r.ok) {
       let msg = await r.text();
-      try { msg = JSON.parse(msg).detail || msg; } catch (_) { /* not JSON */ }
+      try { msg = JSON.parse(msg).detail || msg; } catch (_) {  }
       throw new Error(msg);
     }
     const data = await r.json();
@@ -1997,8 +1997,8 @@ async function importSabToManual(sabFileInput, sabKitSelect) {
     statusEl.textContent = "";
     showToast("SAB import error: " + e.message, "error");
   } finally {
-    // Reset the hidden file input so re-selecting the same file (e.g. after a
-    // failed parse) reliably re-fires "change" in every browser.
+    
+    
     sabFileInput.value = "";
   }
 }
@@ -2015,7 +2015,7 @@ async function importBulkSabExcel(sabFileInput, sabKitSelect) {
     const r = await fetch("/hla/parse-sab-excel", { method: "POST", body: fd });
     if (!r.ok) {
       let msg = await r.text();
-      try { msg = JSON.parse(msg).detail || msg; } catch (_) { /* not JSON */ }
+      try { msg = JSON.parse(msg).detail || msg; } catch (_) {  }
       throw new Error(msg);
     }
     const data = await r.json();
@@ -2071,7 +2071,7 @@ async function parseBulkExcel() {
     const r = await fetch("/hla/parse-excel", { method: "POST", body: fd });
     if (!r.ok) {
       let msg = await r.text();
-      try { msg = JSON.parse(msg).detail || msg; } catch (_) { /* not JSON, use raw text */ }
+      try { msg = JSON.parse(msg).detail || msg; } catch (_) {  }
       throw new Error(msg);
     }
     const data = await r.json();
@@ -2145,9 +2145,9 @@ function selectBulkCase(i) {
   previewBulkCase(i);
 }
 
-// ── Shared bulk editor helper ──────────────────────────────────────────────
+
 function _bulkRefreshRow(editCol, i) {
-  // Refresh Preview button intentionally removed — preview auto-updates on case select
+  
 }
 
 function _buildBulkPatientCard(p, patFields, onChange) {
@@ -2163,7 +2163,7 @@ function _buildBulkPatientCard(p, patFields, onChange) {
   return card;
 }
 
-// ── Bulk Crossmatch (CDC / DSA / Flow) editor ──────────────────────────────
+
 function renderBulkCrossmatchEditor(editCol, c, i) {
   const p = c.patient || {};
   const d = (c.donors || [])[0] || {};
@@ -2273,7 +2273,7 @@ function renderBulkCrossmatchEditor(editCol, c, i) {
   _bulkRefreshRow(editCol, i);
 }
 
-// ── Bulk Luminex editor ────────────────────────────────────────────────────
+
 function renderBulkLuminexEditor(editCol, c, i) {
   const p = c.patient || {};
   const don = (c.donors || [])[0] || {};
@@ -2351,7 +2351,7 @@ function renderBulkLuminexEditor(editCol, c, i) {
 
   const interpCard = el("div", { class: "card" }, [el("h3", {}, "Interpretation")]);
   const matchScoreTA = el("input", { type: "text", placeholder: "e.g. 6 of 12 at High Resolution", value: c.luminex_match_score || "" });
-  // Auto-generate interpretation from match score when interpretation is empty
+  
   function _lxBulkAutoInterp() {
     const _pn = (p.name || "").trim() || "—";
     const _dn = ((c.donors && c.donors[0]?.name) || "").trim() || "—";
@@ -2393,7 +2393,7 @@ function renderBulkLuminexEditor(editCol, c, i) {
   _bulkRefreshRow(editCol, i);
 }
 
-// ── Bulk KIR editor ────────────────────────────────────────────────────────
+
 function renderBulkKirEditor(editCol, c, i) {
   const p = c.patient || {};
   const refresh = () => scheduleBulkPreview(i);
@@ -2446,7 +2446,7 @@ function renderBulkKirEditor(editCol, c, i) {
   _bulkRefreshRow(editCol, i);
 }
 
-// ── Bulk PRA editor ────────────────────────────────────────────────────────
+
 function renderBulkPraEditor(editCol, c, i) {
   const p = c.patient || {};
   const refresh = () => scheduleBulkPreview(i);
@@ -2490,7 +2490,7 @@ function renderBulkPraEditor(editCol, c, i) {
   _bulkRefreshRow(editCol, i);
 }
 
-// ── Bulk Single Locus editor ───────────────────────────────────────────────
+
 const SINGLE_LOCUS_LOCI = ["A", "B", "C", "DRB1", "DRB3", "DRB4", "DRB5", "DQA1", "DQB1", "DPA1", "DPB1"];
 
 function renderBulkSingleLocusEditor(editCol, c, i) {
@@ -2609,10 +2609,10 @@ function renderBulkSabEditor(editCol, c, i) {
   editCol.appendChild(chartCard);
 }
 
-// DRB3/DRB4/DRB5 may be stored under any of the three keys (bulk Excel imports
-// always merge them into "DRB3"; manual separate-mode entry stores each under
-// its own key) — these mirror hla_template.py's _merged_drb345 / _split_drb345
-// so the bulk editor displays whichever key actually has data.
+
+
+
+
 function mergeDrb345ForDisplay(hla) {
   for (const k of ["DRB3", "DRB4", "DRB5"]) {
     const v = hla[k];
@@ -2745,9 +2745,9 @@ function renderBulkEditor(i) {
     }
     dCard.appendChild(dHdr);
     const dgrid = el("div", { class: "field-grid" });
-    // Mirrors the manual tab's DONOR_FIELDS so bulk-edited donors expose the
-    // same fields as the patient editor (e.g. remarks, match score), not just
-    // a minimal subset.
+    
+    
+    
     const DONOR_BULK_FIELDS = [
       ["name", "Donor Name"], ["gender_age", "Gender / Age"],
       ["relationship", "Relationship"], ["hospital_mr_no", "Hospital MR No."],
@@ -2812,7 +2812,7 @@ function renderBulkEditor(i) {
   if (c.report_type === "ngs_photo") {
     const interpCard = el("div", { class: "card" }, [el("h3", {}, "Interpretation")]);
     const interpTA = el("textarea", {});
-    // Pre-fill with auto-generated sentence if not already set
+    
     if (!c.ngs_photo_interpretation) {
       const _pName = (c.patient?.name || "").trim() || "—";
       const _donors = c.donors || [];
@@ -2839,7 +2839,7 @@ async function previewBulkCase(i) {
   const body = document.getElementById("bulkPreviewBody");
   _pdfTokens["bulk"] = (_pdfTokens["bulk"] || 0) + 1;
   const myTok = _pdfTokens["bulk"];
-  // Apply current logo/nabl/stamp settings to preview (bulk cases store parse-time values)
+  
   const previewCase = {
     ...c, with_logo: state.withLogo,
     nabl: checked(document.getElementById("globalNablChk")),
@@ -2910,7 +2910,7 @@ async function generateBulk(mode) {
               await writable.close();
               written++;
             }
-          } catch (_) { /* best effort */ }
+          } catch (_) {  }
         }
       }
       progBar.style.width = "100%";
@@ -2926,13 +2926,13 @@ async function generateBulk(mode) {
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════
-// SETTINGS TAB
-// ══════════════════════════════════════════════════════════════════════════
+
+
+
 async function initSettingsTab() {
   try {
     state.settings = await apiGet("/hla/settings");
-  } catch (e) { /* use defaults */ }
+  } catch (e) {  }
 
   document.getElementById("settLogoChk").checked = state.settings.with_logo;
   document.getElementById("settNablChk").checked = state.settings.nabl;
@@ -2993,9 +2993,9 @@ async function saveAllSettings() {
   }
 }
 
-// ══════════════════════════════════════════════════════════════════════════
-// INIT
-// ══════════════════════════════════════════════════════════════════════════
+
+
+
 window.addEventListener("DOMContentLoaded", async () => {
   initTemplateSelect();
   renderManualForm();
@@ -3008,7 +3008,7 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (state.bulkCurrentIndex >= 0) previewBulkCase(state.bulkCurrentIndex);
   });
 
-  // Set PDF.js worker after script loads
+  
   const pdfLib = window['pdfjs-dist/build/pdf'];
   if (pdfLib) pdfLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 });

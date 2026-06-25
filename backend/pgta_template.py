@@ -51,9 +51,6 @@ class NumberedCanvas(canvas.Canvas):
         canvas.Canvas.save(self)
 
     def _draw_page_number(self, page_num, total_pages):
-        # Sit above the footer logo/banner (footer banner ≈70pt tall, GenQA logo
-        # top ≈102pt) and above the bottom-left QR DOSE stamps, inside the
-        # reserved bottom band. Centred so it never collides with the left QR.
         self.saveState()
         self.setFont("Helvetica-Bold", 9)
         self.setFillColorRGB(0.12, 0.29, 0.49)
@@ -62,8 +59,7 @@ class NumberedCanvas(canvas.Canvas):
 
 
 class PGTAReportTemplate:
-    """Template engine for PGT-A reports"""
-    
+ 
     COLORS = {
         'patient_info_bg': '#F1F1F7',
         'results_header_bg': '#F9BE8F',
@@ -72,29 +68,21 @@ class PGTAReportTemplate:
         'approval_blue': '#4F81BD'
     }
     
-    # Page dimensions (US Letter)
-    PAGE_WIDTH = 612  # points
-    PAGE_HEIGHT = 792  # points
-    MARGIN_LEFT = 58  # Reduced from 72 to allow title in single line
+    PAGE_WIDTH = 612
+    PAGE_HEIGHT = 792
+    MARGIN_LEFT = 58
     MARGIN_RIGHT = 58
     MARGIN_TOP = 90
-    # Reserve a clear band above the footer on EVERY page for the QR code that
-    # the external "DOSE" software stamps bottom-left. Applied in both modes so
-    # the QR space is consistent whether or not the in-report logo is shown.
     MARGIN_BOTTOM = 150
-    # Without logo the report is uploaded to DOSE, which also stamps its own
-    # header logo (top). Reserve a slightly larger top band in that mode too.
     DOSE_MARGIN_TOP = 100
     DOSE_MARGIN_BOTTOM = 150
-    CONTENT_WIDTH = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT  # 496 points
+    CONTENT_WIDTH = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT
     
-    # Asset paths
     ASSETS_DIR = "assets/pgta"
     HEADER_LOGO = os.path.join(ASSETS_DIR, "image_page1_0.png")
     FOOTER_BANNER = os.path.join(ASSETS_DIR, "image_page1_1.png")
     FOOTER_LOGO = os.path.join(ASSETS_DIR, "image_page1_2.png")
     
-    # Static content
     METHODOLOGY_TEXT = """Chromosomal aneuploidy analysis was performed using ChromInst® PGT-A kit from Yikon Genomics (Suzhou) Co., Ltd - China. The Yikon - ChromInst® PGT-A kit with the Genemind - SURFSeq 5000* High-throughput Sequencing Platform allows detection of aneuploidies in all 23 sets of Chromosomes. Probes are not covering the p arm of acrocentric chromosomes as they are rich in repeat regions and RNA markers and devoid of genes. Changes in this region will not be detected. However, these regions have less clinical significance due to the absence of genes. Chromosomal aneuploidy can be detected by copy number variations (CNVs), which represent a class of variation in which segments of the genome have been duplicated (gains) or deleted (losses). Large, genomic copy number imbalances can range from sub-chromosomal regions to entire chromosomes. Inherited and de-novo CNVs (up to 10 Mb) have been associated with many disease conditions. This assay was performed on DNA extracted from embryo biopsy samples."""
     
     MOSAICISM_TEXT = """Mosaicism arises in the embryo due to mitotic errors which lead to the production of karyotypically distinct cell lineages within a single embryo [1]. NGS has the sensitivity to detect mosaicism when 30% or the above cells are abnormal [2]. Mosaicism is reported in our laboratory as follows [3]."""
@@ -142,30 +130,25 @@ class PGTAReportTemplate:
         else:
             base_path = os.path.dirname(os.path.abspath(__file__))
             
-        # Join and then use abspath to normalize the path (fix slash direction etc)
         return os.path.abspath(os.path.join(base_path, relative_path))
 
     def __init__(self, assets_dir="assets/pgta"):
         """Initialize template with asset directory"""
-        # Resolve the assets directory relative to the script location
         self.ASSETS_DIR = self.get_resource_path(assets_dir)
         print(f"INFO: Assets Directory resolved to: {self.ASSETS_DIR}")
         
-        # Hardcode specific asset filenames
         self.HEADER_LOGO = os.path.join(self.ASSETS_DIR, "image_page1_0.png")
         self.FOOTER_BANNER = os.path.join(self.ASSETS_DIR, "image_page1_1.png")
         self.FOOTER_LOGO = os.path.join(self.ASSETS_DIR, "image_page1_2.png")
         self.GENQA_LOGO = os.path.join(self.ASSETS_DIR, "genqa_logo.png")
         self.SIGNS_IMAGE = os.path.join(self.ASSETS_DIR, "signs.png")
         
-        # Verify critical assets
         for label, path in [("Header", self.HEADER_LOGO), ("Footer", self.FOOTER_BANNER), ("Signs", self.SIGNS_IMAGE)]:
             if not os.path.exists(path):
                 print(f"CRITICAL: {label} missing at {path}")
             else:
                 print(f"FOUND: {label} ({os.path.getsize(path)} bytes)")
         
-        # Create custom styles
         self.styles = getSampleStyleSheet()
         self._register_fonts()
         self._create_custom_styles()
@@ -183,7 +166,6 @@ class PGTAReportTemplate:
         if not os.path.exists(fonts_dir):
             return
 
-        # Build case-insensitive lookup: lower(filename) → actual filename
         available = {}
         for fname in os.listdir(fonts_dir):
             available[fname.lower()] = fname
@@ -196,7 +178,6 @@ class PGTAReportTemplate:
                     return os.path.join(fonts_dir, available[key])
             return None
 
-        # Each entry: (logical_name, [possible_filenames...])
         font_configs = [
             ('SegoeUI',               ['SegoeUI.ttf', 'SEGOEUI.TTF']),
             ('SegoeUI-Bold',          ['SegoeUI-Bold.ttf', 'SEGOEUIB.TTF']),
@@ -223,13 +204,11 @@ class PGTAReportTemplate:
                 except Exception as e:
                     print(f"Error registering font {name}: {e}")
 
-        # Register font families (only for variants that are available)
         if 'SegoeUI' in registered and 'SegoeUI-Bold' in registered:
             registerFontFamily('SegoeUI', normal='SegoeUI', bold='SegoeUI-Bold',
                                italic=registered_or('SegoeUI-Italic', registered, 'SegoeUI'),
                                boldItalic=registered_or('SegoeUI-BoldItalic', registered, 'SegoeUI-Bold'))
         if 'GillSansMT-Bold' in registered:
-            # Regular Gill Sans may not be in the fonts dir; use Bold as fallback normal
             _gill_normal = 'GillSansMT' if 'GillSansMT' in registered else 'GillSansMT-Bold'
             registerFontFamily('GillSansMT', normal=_gill_normal, bold='GillSansMT-Bold',
                                italic=registered_or('GillSansMT-Italic', registered, _gill_normal),
@@ -251,7 +230,6 @@ class PGTAReportTemplate:
     def _create_custom_styles(self):
         """Create custom paragraph styles"""
 
-        # Title style — use Calibri-Bold (reliable on all platforms)
         self.styles.add(ParagraphStyle(
             name='PGTAReportTitle',
             parent=self.styles['Heading1'],
@@ -263,30 +241,27 @@ class PGTAReportTemplate:
             fontName=self._get_font('GillSansMT-Bold', 'Helvetica-Bold')
         ))
 
-        # Section header
         self.styles.add(ParagraphStyle(
             name='PGTASectionHeader',
             parent=self.styles['Heading2'],
             fontSize=11,
             leading=13,
-            textColor=colors.HexColor(self.COLORS['blue_title']), # Color as in source
+            textColor=colors.HexColor(self.COLORS['blue_title']),
             spaceBefore=12,
-            spaceAfter=3, # Reduced to accommodate line
+            spaceAfter=3,
             keepWithNext=True,
             fontName=self._get_font('SegoeUI-Bold', 'Helvetica-Bold')
         ))
         
-        # Body text
         self.styles.add(ParagraphStyle(
             name='PGTABodyText',
             parent=self.styles['Normal'],
-            fontSize=11,  # Matches source 11.04pt
+            fontSize=11,
             leading=13,
             alignment=TA_JUSTIFY,
             fontName=self._get_font('Calibri', 'Helvetica')
         ))
         
-        # Small text
         self.styles.add(ParagraphStyle(
             name='PGTASmallText',
             parent=self.styles['Normal'],
@@ -295,7 +270,6 @@ class PGTAReportTemplate:
             fontName=self._get_font('SegoeUI', 'Helvetica')
         ))
         
-        # Bold disclaimer (PNDT) - Light Bold (Segoe UI Semibold) as requested
         self.styles.add(ParagraphStyle(
             name='PGTADisclaimer',
             parent=self.styles['Normal'],
@@ -306,43 +280,38 @@ class PGTAReportTemplate:
             textColor=colors.black
         ))
         
-        # Bullet style
         self.styles.add(ParagraphStyle(
             name='PGTABulletText',
             parent=self.styles['Normal'],
-            fontSize=11, # Increased to match Methodology (11pt)
-            leading=13, # Increased leading
+            fontSize=11,
+            leading=13,
             leftIndent=20,
             bulletIndent=10,
             alignment=TA_JUSTIFY,
             fontName=self._get_font('Calibri', 'Helvetica')
         ))
         
-        # Signature Approval line style
         self.styles.add(ParagraphStyle(
             name='PGTASigApproval',
             parent=self.styles['Normal'],
-            fontSize=12.48, # Exact source size
+            fontSize=12.48,
             leading=14.5,
             textColor=colors.HexColor(self.COLORS['approval_blue']),
             fontName=self._get_font('SegoeUI-Bold', 'Helvetica-Bold')
         ))
         
-        # Centered Body style for reliable table alignment
         self.styles.add(ParagraphStyle(
             name='PGTACenteredBodyText',
             parent=self.styles['PGTABodyText'],
             alignment=TA_CENTER
         ))
         
-        # Left-aligned Body style for patient info values (no justify gaps)
         self.styles.add(ParagraphStyle(
             name='PGTALeftBodyText',
             parent=self.styles['PGTABodyText'],
             alignment=TA_LEFT
         ))
         
-        # Label text style (Force RIGHT alignment, NO justification)
         self.styles.add(ParagraphStyle(
             name='PGTALabelText',
             parent=self.styles['Normal'],
@@ -353,7 +322,6 @@ class PGTAReportTemplate:
             fontName=self._get_font('SegoeUI-Bold', 'Helvetica-Bold')
         ))
 
-        # Label text style (Force RIGHT alignment)
         self.styles.add(ParagraphStyle(
             name='PGTALabelTextRight',
             parent=self.styles['Normal'],
@@ -364,7 +332,6 @@ class PGTAReportTemplate:
             fontName=self._get_font('SegoeUI-Bold', 'Helvetica-Bold')
         ))
 
-        # Banner Value style (Matches Label metrics for alignment)
         self.styles.add(ParagraphStyle(
             name='PGTABannerValueText',
             parent=self.styles['Normal'],
@@ -383,11 +350,8 @@ class PGTAReportTemplate:
     def generate_pdf(self, output_path, patient_data, embryos_data, show_logo=True, show_grid=False):
         """Generate PGT-A report PDF"""
         self.show_grid = show_grid
-        # Without logo → bound for DOSE: reserve extra top/bottom space so the
-        # externally-stamped header logo and footer QR have clear room.
         top_margin = self.MARGIN_TOP if show_logo else self.DOSE_MARGIN_TOP
         bottom_margin = self.MARGIN_BOTTOM if show_logo else self.DOSE_MARGIN_BOTTOM
-        # Create PDF document
         doc = SimpleDocTemplate(
             output_path,
             pagesize=letter,
@@ -397,19 +361,13 @@ class PGTAReportTemplate:
             bottomMargin=bottom_margin
         )
         
-        # Store show_logo preference for the canvas callback
         self._show_logo = show_logo
         
-        # Build story (content)
         story = []
         
-        # Page 1: Cover with patient info and results summary
         story.extend(self._build_cover_page(patient_data, embryos_data))
-        # Methodology content (includes PGDIS note if any mosaic embryo)
         story.extend(self._build_methodology_page(embryos_data))
         
-        # Check if ALL embryos are "Low DNA concentration"
-        # If all are Low DNA, we skip all individual pages and add signature to Page 2
         all_low_dna = True if embryos_data else False
         for embryo in embryos_data:
             interp = str(embryo.get('interpretation', '')).upper()
@@ -419,28 +377,22 @@ class PGTAReportTemplate:
                 break
 
         if all_low_dna:
-            # For all Low DNA embryos, append signature directly after Methodology/References
             story.append(Spacer(1, 24))
             story.append(self._create_signature_table())
         else:
-            # Strict page break before embryo results as requested
             story.append(PageBreak())
         
-        # Pages 3+: Individual embryo results
         for idx, embryo in enumerate(embryos_data):
-            # Skip if Low DNA
             interp = str(embryo.get('interpretation', '')).upper()
             res = str(embryo.get('result_summary', '')).upper()
             if "LOW DNA" in interp or "LOW DNA" in res:
                 continue
                 
             story.extend(self._build_embryo_page(patient_data, embryo))
-            # Add signature under EACH embryo detail section as requested
             story.append(Spacer(1, 12))
             story.append(self._create_signature_table())
             story.append(PageBreak())
         
-        # Build PDF
         doc.build(story, onFirstPage=self._add_header_footer,
                   onLaterPages=self._add_header_footer,
                   canvasmaker=NumberedCanvas)
@@ -464,7 +416,6 @@ class PGTAReportTemplate:
                 return False
 
         if show_logo:
-            # Compute natural height from content width so images fill exactly without clipping
             def natural_height(b64, target_w):
                 try:
                     img = PILImage.open(BytesIO(base64.b64decode(b64)))
@@ -480,7 +431,6 @@ class PGTAReportTemplate:
             draw_b64_img(HEADER_LOGO_B64, self.MARGIN_LEFT, 792 - hdr_h, cw, hdr_h)
             draw_b64_img(FOOTER_BANNER_B64, self.MARGIN_LEFT, 0, cw, ftr_h)
 
-        # ALWAYS Draw GenQA Logo — right-aligned to content right edge
         if os.path.exists(self.GENQA_LOGO):
              try:
                  genqa_w = 67
@@ -495,26 +445,22 @@ class PGTAReportTemplate:
         """Build cover page with patient info and results summary"""
         elements = []
         
-        # Title - Blue color as in source PDF
         title_style = self.styles['PGTAReportTitle']
         title = Paragraph(
             "Preimplantation Genetic Testing for Aneuploidies (PGT-A)",
             title_style
         )
         elements.append(title)
-        elements.append(Spacer(1, 6)) # Fixed reduced spacer
+        elements.append(Spacer(1, 6))
         
-        # Patient information table
         patient_table = self._create_patient_info_table(patient_data)
         elements.append(patient_table)
         elements.append(Spacer(1, 12))
         
-        # PNDT Disclaimer in a grey box
         disclaimer = Paragraph(
             "<b>This test does not reveal sex of the fetus & confers to PNDT act, 1994</b>",
             self.styles['PGTADisclaimer']
         )
-        # Use a single-cell table for the background color (Clean white with line as requested)
         disclaimer_table = Table([[disclaimer]], colWidths=[490], hAlign='CENTER')
         disclaimer_table.setStyle(TableStyle([
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
@@ -526,24 +472,20 @@ class PGTAReportTemplate:
         elements.append(KeepTogether(disclaimer_table))
         elements.append(Spacer(1, 12))
         
-        # Indication
         if 'indication' in patient_data and patient_data['indication']:
             elements.append(self._create_section_header("Indication"))
-            elements.append(Spacer(1, 8)) # Gap after header line
+            elements.append(Spacer(1, 8))
             indication_text = Paragraph(patient_data['indication'], self.styles['PGTABodyText'])
             elements.append(indication_text)
             elements.append(Spacer(1, 12))
         
-        # Results summary header
         elements.append(self._create_section_header("Results summary"))
-        elements.append(Spacer(1, 8)) # Gap after header line
+        elements.append(Spacer(1, 8))
         
-        # Results summary table
         results_table = self._create_results_summary_table(embryos_data)
         elements.append(results_table)
         elements.append(Spacer(1, 8))
         
-        # Results summary comment (optional, appears below table)
         results_summary_comment = self._clean(patient_data.get('results_summary_comment', ''))
         if results_summary_comment:
             comment_para = Paragraph(results_summary_comment, self.styles['PGTABodyText'])
@@ -565,27 +507,21 @@ class PGTAReportTemplate:
         """Wrap text in a Paragraph for table cells, with automatic Line Break support"""
         if not text: return ""
         
-        # UI UX: Convert newlines (from Enter key) to PDF line breaks automatically
         content = str(text).replace('\r\n', '\n').replace('\r', '\n')
-        content = content.replace('\n', '<br/>\u00A0') # Non-breaking space ensures line has height
-        content = content.strip(' \t\r\f\v') # Strip horizontal whitespace
+        content = content.replace('\n', '<br/>\u00A0')
+        content = content.strip(' \t\r\f\v')
         
-        # Robust 'nan' check
-        if content.lower() == "nan" or content.lower() == "<br/>": # Skip if only nan or empty break
-            if content.lower() != "<br/>": # Keep explicit breaks if user intentionally added them? 
-                # Actually if it's JUST a break, they might want it. 
-                # Let's only skip 'nan'.
+        if content.lower() == "nan" or content.lower() == "<br/>":
+            if content.lower() != "<br/>":
                 return "" if content.lower() == "nan" else Paragraph(content, self.styles['PGTALeftBodyText'])
             
-        # Select appropriate style based on alignment
         if align == 'CENTER':
             style_name = 'PGTACenteredBodyText'
         elif align == 'LEFT':
-            style_name = 'PGTALeftBodyText'  # Use LEFT aligned style to avoid justify gaps
+            style_name = 'PGTALeftBodyText'
         else:
-            style_name = 'PGTABodyText'  # Default with justify
+            style_name = 'PGTABodyText'
         
-        # Determine style and font size override
         use_style = self.styles[style_name]
         if font_size:
             use_style = ParagraphStyle(
@@ -595,10 +531,8 @@ class PGTAReportTemplate:
                 leading=font_size * 1.2
             )
             
-        # Apply explicit bold tag if requested (and not already in content)
         final_text = content
         if bold:
-            # Avoid doubling bold tags if user/logic already added them
             if not (final_text.startswith('<b>') and final_text.endswith('</b>')):
                 final_text = f"<b>{content}</b>"
             
@@ -607,19 +541,14 @@ class PGTAReportTemplate:
     def _wrap_label(self, text):
         """Wrap label text with forced RIGHT alignment and no word gaps"""
         if not text: return ""
-        # Use <nobr> tags to prevent word breaking/justification
         return Paragraph(f"<nobr>{str(text)}</nobr>", self.styles['PGTALabelText'])
 
     def _create_patient_info_table(self, patient_data):
         """Create patient information table"""
-        # Prepare data with Paragraph wrapping to prevent overlap
-        # Standard widths for cover page: [108, 12, 131, 108, 12, 119] Total: 490pt
         
-        # Patient name and spouse name - spouse on new line
         import re
         patient_name = re.sub(r'\s+', ' ', self._clean(patient_data.get('patient_name'))).strip()
         spouse_name = re.sub(r'\s+', ' ', self._clean(patient_data.get('spouse_name'))).strip()
-        # Put spouse on new line with <br/> if present
         combined_name = f"{patient_name}<br/>{spouse_name}" if spouse_name else patient_name
         
         data = [
@@ -631,17 +560,14 @@ class PGTAReportTemplate:
             [self._wrap_text('<b>BIOPSY PERFORMED BY</b>', True), self._wrap_text(':'), self._wrap_text(f"<b>{self._clean(patient_data.get('biopsy_performed_by'))}</b>", max_width=140), self._wrap_text('<b>REPORT DATE</b>', True), self._wrap_text(':'), self._wrap_text(f"<b>{self._clean(patient_data.get('report_date'))}</b>", max_width=144)]
         ]
         
-        # Widths: left-label(108) + colon(12) + left-value(161) + right-label(108) + colon(12) + right-value(89) = 490pt
-        # Right-side block starts at 281pt from left edge (col0+col1+col2)
         table = Table(data, colWidths=[108, 12, 161, 108, 12, 89], hAlign='LEFT')
         
-        # Style table
         table.setStyle(TableStyle([
             ('FONTNAME', (0, 0), (-1, -1), self._get_font('SegoeUI-Bold', 'Helvetica-Bold')),
             ('FONTSIZE', (0, 0), (-1, -1), 10),
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('ALIGN', (0, 0), (0, -1), 'LEFT'), # Standard LEFT alignment
-            ('ALIGN', (3, 0), (3, -1), 'LEFT'), # Standard LEFT alignment
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('ALIGN', (3, 0), (3, -1), 'LEFT'),
             ('LEFTPADDING', (0, 0), (0, -1), 4),
             ('LEFTPADDING', (3, 0), (3, -1), 4),
             ('LEFTPADDING', (1, 0), (2, -1), 0),
@@ -650,7 +576,7 @@ class PGTAReportTemplate:
             ('TOPPADDING', (0, 0), (-1, -1), 2),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 2),
             ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor(self.COLORS['patient_info_bg'])),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 4), # Extra padding to fill box height
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
             ('TOPPADDING', (0, 0), (-1, -1), 4),
         ] + self._get_grid_style()))
         
@@ -658,21 +584,15 @@ class PGTAReportTemplate:
     
     def _create_results_summary_table(self, embryos_data):
         """Create results summary table"""
-        # Header row
         header_labels = ['S. No.', 'Sample', 'Result', 'MTcopy', 'Interpretation']
         data = [[self._wrap_text(label, bold=True, align='CENTER') for label in header_labels]]
 
-        # Add embryo rows
         for idx, embryo in enumerate(embryos_data, 1):
             raw_result = self._clean(embryo.get('result_summary') or embryo.get('result_description') or '')
             
-            # Map raw result (e.g., MCA) to pretty summary text using classification engine
             info = clf.classify_embryo(raw_result)
             res_sum = info["summary_text"]
 
-            # Interpretation: respect the user-edited interpretation field
-            # (falls back to the classification-derived value if not set),
-            # matching the per-embryo detail page behaviour.
             interp_text = self._clean(embryo.get('interpretation'), '')
             if not interp_text:
                 interp_text = info["classification"].replace("_", " ").title() if info["is_mosaic"] else "NA"
@@ -680,11 +600,9 @@ class PGTAReportTemplate:
 
             res_color = self._get_result_color(raw_result, interp_text)
 
-            # MTcopy: NA for non-euploid
             raw_mt = self._clean(embryo.get('mtcopy'), 'NA')
             mtcopy = raw_mt if interp_text.upper() == "EUPLOID" else "NA"
 
-            # Extract short embryo ID: if format is "PATIENTNAME-ID_REST", extract just "ID"
             full_id = self._clean(embryo.get('embryo_id'))
             short_id = full_id
             if '-' in full_id:
@@ -701,23 +619,16 @@ class PGTAReportTemplate:
                 self._wrap_text(self._wrap_colored(interp, res_color, bold=False), align='CENTER'),
             ])
         
-        # Create table [Total: 496pt - Ensuring it fills the full content width]
         table = Table(data, colWidths=[50, 95, 185, 80, 86])
         
-        # Style table
         table.setStyle(TableStyle([
             ('FONTNAME', (0, 0), (-1, 0), self._get_font('Calibri-Bold', 'Helvetica-Bold')),
             ('FONTNAME', (0, 1), (-1, -1), self._get_font('Calibri', 'Helvetica')),
             ('FONTSIZE', (0, 0), (-1, -1), 9),
-            # Header row - peach (exact from source)
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor(self.COLORS['results_header_bg'])),
-            # First column (S.No) - NO peach as per latest request (only header row)
-            # All other data cells - light blue-grey (exact from source)
-            # GRID updated: horizontal lines only (remove internal vertical lines)
             ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor(self.COLORS['patient_info_bg'])),
             ('LINEBELOW', (0, 0), (-1, -1), 0.5, colors.grey),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            # Explicitly ensure center alignment matching request for ALL data cells including S.No
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('LEFTPADDING', (0, 0), (-1, -1), 5),
             ('RIGHTPADDING', (0, 0), (-1, -1), 5),
@@ -731,7 +642,6 @@ class PGTAReportTemplate:
         """Build methodology and static content page - sections flow continuously"""
         elements = []
 
-        # Methodology section
         elements.append(self._create_section_header("Methodology"))
         elements.append(Spacer(1, 8))
         elements.append(Paragraph(self.METHODOLOGY_TEXT, self.styles['PGTABodyText']))
@@ -745,12 +655,10 @@ class PGTAReportTemplate:
             elements.append(Paragraph(f"• {bullet}", self.styles['PGTABulletText']))
         elements.append(Spacer(1, 6))
 
-        # PGDIS 2019 counselling note — only when a mosaic embryo exists
         if clf.any_mosaic(embryos_data or []):
             elements.append(Paragraph(self.MOSAICISM_CLINICAL, self.styles['PGTABodyText']))
         elements.append(Spacer(1, 12))
 
-        # Limitations (always 7 items)
         elements.append(self._create_section_header("Limitations"))
         elements.append(Spacer(1, 8))
         for limitation in self.LIMITATIONS:
@@ -759,9 +667,6 @@ class PGTAReportTemplate:
         elements.append(Spacer(1, 12))
         elements.append(Spacer(1, 12))
 
-        # References (always 7) — keep the heading together with its list so the
-        # title never gets orphaned at the bottom of a page while the items flow
-        # to the next page.
         ref_block = [self._create_section_header("References"), Spacer(1, 8)]
         for idx, ref in enumerate(self.REFERENCES, 1):
             ref_block.append(Paragraph(f"{idx}. {ref}", self.styles['PGTABodyText']))
@@ -773,7 +678,6 @@ class PGTAReportTemplate:
         """Build individual embryo results page"""
         elements = []
         
-        # Title repeated in embryo section as requested
         title = Paragraph(
             "Preimplantation Genetic Testing for Aneuploidies (PGT-A)",
             self.styles['PGTAReportTitle']
@@ -781,15 +685,12 @@ class PGTAReportTemplate:
         elements.append(title)
         elements.append(Spacer(1, 8))
         
-        # Prepare info data with sanitation
         def _wrap_banner(text):
             if not text: return ""
             return Paragraph(str(text), self.styles['PGTABannerValueText'])
 
-        # Patient name and spouse name - spouse on new line
         patient_name = self._clean(patient_data.get('patient_name'))
         spouse_name = self._clean(patient_data.get('spouse_name'))
-        # Put spouse on new line with <br/> if present
         combined_name = f"{patient_name}<br/>{spouse_name}" if spouse_name else patient_name
 
         info_data = [[
@@ -799,16 +700,14 @@ class PGTAReportTemplate:
             _wrap_banner(f"<b>{self._clean(patient_data.get('pin'))}</b>")
         ]]
         
-        # Optimized layout: Push PIN block right. PATIENT NAME (82pt), PIN (24pt)
-        # Shifted slightly left (-30pt on spacer column): 82 + 254 + 24 + 130 = 490pt
         info_table = Table(info_data, colWidths=[82, 254, 24, 130], hAlign='LEFT')
         info_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor(self.COLORS['patient_info_bg'])),
             ('FONTNAME', (0, 0), (-1, -1), self._get_font('SegoeUI-Bold', 'Helvetica-Bold')),
             ('FONTSIZE', (0, 0), (-1, -1), 10),
             ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-            ('ALIGN', (0, 0), (0, -1), 'LEFT'),  # Patient name label LEFT
-            ('ALIGN', (2, 0), (2, -1), 'RIGHT'),  # PIN label RIGHT
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('ALIGN', (2, 0), (2, -1), 'RIGHT'),
             ('LEFTPADDING', (0, 0), (0, -1), 4),
             ('LEFTPADDING', (1, 0), (1, -1), 0),
             ('LEFTPADDING', (2, 0), (2, -1), 0),
@@ -823,7 +722,6 @@ class PGTAReportTemplate:
         elements.append(info_table)
         elements.append(Spacer(1, 8))
         
-        # PNDT Disclaimer in a grey box (Exact grey from source)
         disclaimer = Paragraph(
             "<b>This test does not reveal sex of the fetus & confers to PNDT act, 1994</b>",
             self.styles['PGTADisclaimer']
@@ -839,14 +737,11 @@ class PGTAReportTemplate:
         elements.append(KeepTogether(disclaimer_table))
         elements.append(Spacer(1, 12))
         
-        # ── Classification ────────────────────────────────────────────────────
         raw_result = self._clean(embryo_data.get('result_summary') or embryo_data.get('result_description') or '')
         info = clf.classify_embryo(raw_result)
 
-        # Result field: always use the mapped full sentence
         res_text = info["result_text"]
 
-        # Autosomes: "Normal" if euploid, else auto-derive (respect existing if clean)
         existing_auto = self._clean(embryo_data.get('autosomes', ''))
         chr_statuses = embryo_data.get('chromosome_statuses') or {}
         if not chr_statuses:
@@ -854,47 +749,35 @@ class PGTAReportTemplate:
             chr_statuses = clf.validate_statuses(chr_statuses, raw_result)
         autosomes_text = clf.derive_autosomes(raw_result, chr_statuses, existing_auto)
 
-        # Sex chromosomes: sanitise — NEVER reveal XX/XY
         existing_sex = self._clean(embryo_data.get('sex_chromosomes', ''))
         sex_text = clf.sanitize_sex_chromosomes(existing_sex, raw_result, info["classification"])
 
-        # Interpretation always shown, mapped colors from source
         interp_text = self._clean(embryo_data.get('interpretation'), 'NA')
         interp_color = self._get_result_color(raw_result, interp_text)
         
-        # Red = Multiple chromosomal abnormalities (explicit result_summary check)
-        # Black = Normal/Euploid
         auto_color = colors.black
         auto_upper = autosomes_text.upper()
         
-        # Check for "Multiple chromosomal abnormalities" in result_summary first
         if "MULTIPLE CHROMOSOMAL ABNORMALITIES" in res_text.upper():
             auto_color = colors.red
-        # Check for Normal/Euploid
         elif 'NORMAL' in auto_upper or 'EUPLOID' in auto_upper or not autosomes_text.strip():
             auto_color = colors.black
-        # Mosaic = has % sign
         elif '%' in autosomes_text:
             auto_color = colors.blue
-        # Non-mosaic abnormalities (no % sign)
         elif any(x in auto_upper for x in ['DEL(', 'DUP(', '-', '+', 'STATUS L', 'STATUS G', 'STATUS SL', 'STATUS SG', ' SL', ' SG', ' L,', ' G,', ' L ', ' G ']) or auto_upper.endswith(' L') or auto_upper.endswith(' G'):
             auto_color = colors.red
         elif 'CNV STATUS' in auto_upper:
             auto_color = colors.red
         
-        # Sex Chromosome Color
         sex_color = colors.black
         if "ABNORMAL" in sex_text.upper():
             sex_color = colors.red
         elif "MOSAIC" in sex_text.upper():
             sex_color = colors.blue
 
-        # MTcopy: NA for non-euploid
         raw_mt = self._clean(embryo_data.get('mtcopy', ''), 'NA')
         mtcopy = raw_mt if interp_text.upper() == "EUPLOID" else "NA"
 
-        # Embryo Identification matching source style
-        # Font: Gill Sans MT,Bold, Size: 12.00
         detail_embryo_id = self._clean(embryo_data.get('embryo_id_detail')) or self._clean(embryo_data.get('embryo_id'))
         if '-' in detail_embryo_id:
             parts = detail_embryo_id.split('-')
@@ -921,11 +804,10 @@ class PGTAReportTemplate:
             [self._wrap_text(f"<b>MTcopy:</b> {mtcopy}", False)],
         ]
         
-        # Summary table in detailed section [Total: 496pt]
         detail_table = Table(detail_data, colWidths=[490], hAlign='CENTER')
         detail_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor(self.COLORS['patient_info_bg'])),
-            ('LEFTPADDING', (0, 0), (-1, -1), 0), # Alignment fix
+            ('LEFTPADDING', (0, 0), (-1, -1), 0),
             ('RIGHTPADDING', (0, 0), (-1, -1), 0),
             ('TOPPADDING', (0, 0), (-1, -1), 3),
             ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
@@ -935,17 +817,13 @@ class PGTAReportTemplate:
         elements.append(detail_table)
         elements.append(Spacer(1, 12))
         
-        # CNV Chart title - No line for this one
         elements.append(self._create_section_header("COPY NUMBER CHART", show_line=False))
         elements.append(Spacer(1, 6))
         
-        # CNV Chart Image
         if 'cnv_image_path' in embryo_data and embryo_data['cnv_image_path'] and os.path.exists(embryo_data['cnv_image_path']):
             try:
-                # Add image, keeping aspect ratio but fitting within width
                 img = Image(embryo_data['cnv_image_path'], width=self.CONTENT_WIDTH)
                 
-                # Adjust height proportionally
                 aspect = img.imageWidth / img.imageHeight
                 img.drawHeight = self.CONTENT_WIDTH / aspect
                 
@@ -955,12 +833,10 @@ class PGTAReportTemplate:
             except Exception as e:
                 print(f"Error loading image: {e}")
         
-        # CNV table - Skip for Inconclusive results (only skip table, not chart)
         result_summary = self._clean(embryo_data.get('result_summary', ''))
         result_desc = self._clean(embryo_data.get('result_description', ''))
         is_inconclusive = "INCONCLUSIVE" in result_summary.upper() or "INCONCLUSIVE" in result_desc.upper() or "INCONCLUSIVE" in interp_text.upper()
         
-        # Add inconclusive comment under CNV chart if present
         if is_inconclusive:
             inconclusive_comment = self._clean(embryo_data.get('inconclusive_comment', ''))
             if inconclusive_comment:
@@ -976,7 +852,6 @@ class PGTAReportTemplate:
             elements.append(cnv_table)
             elements.append(Spacer(1, 6))
             
-            # Legend
             legend = Paragraph(
                 "<i>N – Normal, G-Gain, L-Loss, SG-Segmental Gain, SL-Segmental Loss, "
                 "M-Mosaic, MG- Mosaic Gain, ML-Mosaic Loss, SMG-Segmental Mosaic Gain, "
@@ -990,7 +865,6 @@ class PGTAReportTemplate:
     
     def _create_cnv_table(self, embryo_data):
         """Create CNV status table"""
-        # Get chromosome statuses — auto-derive from result if not provided
         chr_statuses = embryo_data.get('chromosome_statuses') or {}
         if not chr_statuses:
             raw_result = self._clean(embryo_data.get('result_summary') or embryo_data.get('result_description') or '')
@@ -1001,14 +875,12 @@ class PGTAReportTemplate:
         autosomes = str(embryo_data.get('autosomes', '')).upper()
         sex_chrs = str(embryo_data.get('sex_chromosomes', '')).upper()
         
-        # Check for actual mosaic percentage values (not empty, not dash, must contain a digit)
         import re as re_mos
         has_mosaic = any(
             v and str(v).strip() and str(v).strip() != '-' and re_mos.search(r'\d', str(v))
             for v in mosaic_percentages.values()
         )
         
-        # Rule: If Autosomes is Normal/Euploid & Sex chromosome is Mosaic gain/loss -> omit Mosaic(%) row
         is_autosomes_normal = 'NORMAL' in autosomes or 'EUPLOID' in autosomes or not autosomes.strip()
         is_sex_mosaic = 'MOSAIC' in sex_chrs
         
@@ -1016,7 +888,6 @@ class PGTAReportTemplate:
             has_mosaic = False
             
         if has_mosaic:
-            # Header set to 9pt
             header = [self._wrap_text('Chromosome', bold=True, align='CENTER', font_size=9)] + [self._wrap_text(str(i), bold=True, align='CENTER', font_size=9) for i in range(1, 23)]
             cnv_row = [self._wrap_text('CNV status', bold=True, align='CENTER', font_size=9)]
             mosaic_row = [self._wrap_text('Mosaic (%)', bold=True, align='CENTER', font_size=9)]
@@ -1026,14 +897,11 @@ class PGTAReportTemplate:
                 perc = mosaic_percentages.get(str(i), '-')
                 s_color = self._get_status_color(status)
                 
-                # Dynamic font sizing for balancing visibility (Normal: 9pt, SMG/SML: 8pt)
                 f_size = 8 if len(status) > 2 else 9
                 cnv_row.append(self._wrap_text(self._wrap_colored(status, s_color, bold=True), bold=True, font_size=f_size, align='CENTER'))
                 mosaic_row.append(self._wrap_text(self._wrap_colored(str(perc), s_color, bold=True), bold=True, font_size=9, align='CENTER'))
             
             data = [header, cnv_row, mosaic_row]
-            # Final optimized width: "Chromosome" widened to 75pt to ensure NO wrap. 
-            # Remaining width (496 - 75 = 421) / 22 columns = ~19.13pt per data column
             col_widths = [75] + [19.13] * 22
         else:
             header = [self._wrap_text('Chromosome', bold=True, align='CENTER', font_size=9)] + [self._wrap_text(str(i), bold=True, align='CENTER', font_size=9) for i in range(1, 23)]
@@ -1042,28 +910,21 @@ class PGTAReportTemplate:
                 status = chr_statuses.get(str(i), 'N')
                 s_color = self._get_status_color(status)
                 
-                # Dynamic font sizing for balancing visibility (Normal: 9pt, SMG/SML: 8pt)
                 f_size = 8 if len(status) > 2 else 9
                 cnv_row.append(self._wrap_text(self._wrap_colored(status, s_color, bold=True), bold=True, font_size=f_size, align='CENTER'))
                 
             data = [header, cnv_row]
             col_widths = [75] + [19.13] * 22
         
-        # Create table
         table = Table(data, colWidths=col_widths)
         
-        # Style table
         table.setStyle(TableStyle([
             ('FONTNAME', (0, 0), (-1, -1), self._get_font('SegoeUI-Bold', 'Helvetica-Bold')),
             ('FONTSIZE', (0, 0), (-1, -1), 8),
-            # All cells - light blue-grey (exact from source) as requested
             ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor(self.COLORS['patient_info_bg'])),
-            # White grid lines for "white line gaps"
-            # White grid lines for "white line gaps"
             ('GRID', (0, 0), (-1, -1), 1.0, colors.white),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            # Zero padding for data columns to maximize horizontal space for 8pt/9pt fonts
             ('LEFTPADDING', (1, 0), (-1, -1), 0),
             ('RIGHTPADDING', (1, 0), (-1, -1), 0),
             ('TOPPADDING', (0, 0), (-1, -1), 3),
@@ -1076,15 +937,12 @@ class PGTAReportTemplate:
         """Create signature section with precise structural metrics from source PDF"""
         elements = []
         
-        # Leading text: exact color #4F81BD, size 12.48pt
         elements.append(Paragraph(
             "<b>This report has been reviewed and approved by: </b>", 
             self.styles['PGTASigApproval']
         ))
-        # Exact source vertical gap (12.7pt from text baseline to image top)
         elements.append(Spacer(1, 12.7))
         
-        # Individual Base64 images for signatures as requested
         try:
             from io import BytesIO
             def get_sig_img(b64):
@@ -1107,7 +965,6 @@ class PGTAReportTemplate:
         except Exception as e:
             print(f"Error drawing individual signatures: {e}")
 
-        # Names and Titles below signatures - Using SegoeUI Normal weight
         data = []
         names_row = []
         titles_row = []
@@ -1125,7 +982,6 @@ class PGTAReportTemplate:
         
         data = [names_row, titles_row]
         
-        # Table width 468 [3 x 156]
         table = Table(data, colWidths=[156, 156, 156])
         table.setStyle(TableStyle([
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
@@ -1151,15 +1007,12 @@ class PGTAReportTemplate:
         if not show_line:
             return KeepTogether([header])
             
-        # Create a single-cell table for the line
         header_table = Table([[header]], colWidths=[490], hAlign='CENTER')
         header_table.setStyle(TableStyle([
-            # Slight grey line, lighter than full black
             ("LINEBELOW", (0, 0), (-1, -1), 0.5, colors.HexColor("#989998")),
             ("LEFTPADDING", (0, 0), (-1, -1), 0),
             ("RIGHTPADDING", (0, 0), (-1, -1), 0),
             ("TOPPADDING", (0, 0), (-1, -1), 0),
-            # Increased bottom padding to 6pt as requested for visual gap between text and line
             ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
             ("ALIGN", (0, 0), (-1, -1), "LEFT"),
         ] + self._get_grid_style()))
@@ -1170,18 +1023,14 @@ class PGTAReportTemplate:
         res_up = result_text.upper() if result_text else ""
         int_up = interpretation_text.upper() if interpretation_text else ""
         
-        # Determination based on keywords and desktop logic
-        # Euploid = Black
         if "EUPLOID" in int_up and "ANEUPLOID" not in int_up:
             return colors.black
         
-        # Red Logic - Aneuploid and related abnormalities
         red_keywords = ["MONOSOMY", "TRISOMY", "SEGMENTAL GAIN", "SEGMENTAL LOSS", 
                         "MULTIPLE CHROMOSOMAL ABNORMALITIES", "ANEUPLOID", "CHAOTIC", "MCA"]
         if any(kw in res_up for kw in red_keywords) or any(kw in int_up for kw in red_keywords):
             return colors.red
             
-        # Blue Logic - Mosaic
         blue_keywords = ["MOSAIC", "LOW LEVEL", "HIGH LEVEL", "COMPLEX", "MG-", "ML-", "SML", "SMG"]
         if any(kw in res_up for kw in blue_keywords) or any(kw in int_up for kw in blue_keywords):
             return colors.blue
@@ -1192,10 +1041,8 @@ class PGTAReportTemplate:
         """Special color logic for autosomes field"""
         if not autosome_text: return colors.black
         txt = autosome_text.upper()
-        # Red: Multiple chromosomal abnormalities
         if "MULTIPLE CHROMOSOMAL ABNORMALITIES" in txt:
             return colors.red
-        # Blue: Mosaic variants
         if "MULTIPLE MOSAIC CHROMOSOME COMPLEMENT" in txt:
             return colors.blue
         return colors.black
@@ -1205,19 +1052,16 @@ class PGTAReportTemplate:
         if not status: return colors.black
         s = status.upper().strip()
         
-        # Combination codes (must check before single codes)
         red_combos = ["SL/SG", "SG/SL"]
         blue_combos = ["SML/SMG", "SMG/SML"]
         if s in red_combos: return colors.red
         if s in blue_combos: return colors.blue
         
-        # Single codes
         red_codes = ["G", "L", "SG", "SL"]
         blue_codes = ["M", "MG", "ML", "SMG", "SML"]
         if s in red_codes: return colors.red
         if s in blue_codes: return colors.blue
         
-        # Numeric check for mosaic percentage
         try:
             val = float(s.replace('%', ''))
             if val > 0: return colors.blue
@@ -1231,8 +1075,8 @@ class PGTAReportTemplate:
         if not text: return text
         if color == colors.black:
             return f"<b>{text}</b>" if bold else str(text)
-        hex_color = color.hexval()[2:] # Remove 0x prefix → RRGGBB or RRGGBBAA
-        if len(hex_color) > 6: hex_color = hex_color[:6] # Truncate alpha suffix if present
+        hex_color = color.hexval()[2:]
+        if len(hex_color) > 6: hex_color = hex_color[:6]
         
         if bold:
             return f'<b><font color="#{hex_color}">{text}</font></b>'
@@ -1240,10 +1084,8 @@ class PGTAReportTemplate:
 
 
 if __name__ == "__main__":
-    # Test the template
     template = PGTAReportTemplate()
     
-    # Sample data
     patient_data = {
         'patient_name': 'Mrs. Priya (PNM00791)',
         'patient_spouse': 'Mrs. Priya (PNM00791)',
@@ -1277,10 +1119,8 @@ if __name__ == "__main__":
         }
     ]
     
-    # Update chromosome 16 to Segmental Mosaic Loss (SML) to test font scaling
     embryos_data[0]['chromosome_statuses']['16'] = 'SML'
     
-    # Generate PDF
     output_path = "test_report.pdf"
     template.generate_pdf(output_path, patient_data, embryos_data, show_grid=True)
     print(f"Test report generated: {output_path}")

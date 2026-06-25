@@ -1,18 +1,3 @@
-"""
-genetics_auth_client.py - talks to IT's external auth gateway
-(integration.andrsn.in) for real mobile number + password + OTP login.
-
-Two layers of credentials are involved:
-  1. A service account (GENETICS_API_USERNAME/PASSWORD) exchanged for a
-     short-lived Bearer token via /auth/login. This authenticates *this
-     server* to IT's gateway - it has nothing to do with the end user.
-  2. The end user's own mobile number/password + OTP, sent under that
-     Bearer token via /genetics/login and /genetics/verify_otp.
-
-This module only proves "this person is who they say they are." Role and
-per-report access (the Admin page) are layered on top of it in
-access_api.py / mysql_client.py.
-"""
 
 import base64
 import json
@@ -31,7 +16,7 @@ _token_expiry = 0.0
 
 
 class GeneticsApiError(Exception):
-    """Raised when IT's auth gateway rejects a request or can't be reached."""
+    pass
 
 
 def is_configured() -> bool:
@@ -75,8 +60,6 @@ def _get_service_token(force_refresh: bool = False) -> str:
     if force_refresh or _token is None or time.time() >= _token_expiry:
         _token = _fetch_service_token()
         exp = _decode_jwt_exp(_token)
-        # Leave a 30s safety margin before the token's real expiry; fall back
-        # to a conservative 13 minutes if the token isn't a decodable JWT.
         _token_expiry = (exp - 30) if exp else (time.time() + 13 * 60)
     return _token
 
@@ -122,10 +105,6 @@ def _post(path: str, body: dict) -> dict:
 
 
 def genetics_login(mobile_number: str, password: str) -> dict:
-    """Validates the end user's credentials with IT's gateway. On success
-    this also triggers an OTP to their registered mobile. IT's response
-    shape is `{"message": "success", "data": "<hash>"}` — the hash needed
-    for verify_otp is the `data` field itself, not a nested `hash` key."""
     data = _post("/genetics/login", {"mobile_number": mobile_number, "password": password})
     otp_hash = data.get("hash")
     if not otp_hash:

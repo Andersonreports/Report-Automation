@@ -1,12 +1,3 @@
-"""
-Bulk insert users into the users table.
-Edit the USERS list below, then run:
-
-    python seed_users.py
-
-Safe to run multiple times — skips users that already exist.
-Delete this file after use.
-"""
 
 import os
 import uuid
@@ -17,18 +8,12 @@ load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env
 
 import mysql.connector
 
-# ── Edit this list ────────────────────────────────────────────────────────────
-# role:   "admin"  → access to all reports + admin page
-#         "user"   → access to one report only
-# report: "tera" | "pgta" | "karyotype" | "nipt" | "hla" | "billing"
-#         (ignored for admin, set to None)
 USERS = [
     {"mobile_number": "7358752950", "name": "Jeeva",       "role": "admin",  "report": None},
     {"mobile_number": "9876543210", "name": "Dr. Ravi",    "role": "user",   "report": "hla"},
     {"mobile_number": "9123456780", "name": "Priya",       "role": "user",   "report": "pgta"},
     {"mobile_number": "8888888888", "name": "Kumar",       "role": "user",   "report": "nipt"},
 ]
-# ─────────────────────────────────────────────────────────────────────────────
 
 VALID_REPORTS = {"tera", "pgta", "karyotype", "nipt", "hla", "billing"}
 

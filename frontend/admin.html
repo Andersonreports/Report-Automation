@@ -19,7 +19,7 @@
     }
     body.loaded { opacity: 1; }
 
-    /* ── Header (matches index.html) ── */
+    
     .app-header {
       position: fixed; top: 0; left: 0; right: 0; height: 72px; background: #fff;
       border-bottom: 1px solid #E5E7EB; display: flex; align-items: center;
@@ -40,7 +40,7 @@
     .admin-btn:hover { background: #E0E7FF; }
     .admin-btn i { font-size: 13px; }
 
-    /* ── Page ── */
+    
     .page { padding-top: 72px; min-height: 100vh; }
     .page-inner { padding: 40px 32px 80px; max-width: 1100px; margin: 0 auto; }
     .page-intro { margin-bottom: 28px; display: flex; align-items: center; justify-content: space-between; }
@@ -93,7 +93,7 @@
     .row-actions { display: flex; gap: 6px; }
     .empty-row { text-align: center; padding: 40px 16px; color: #9CA3AF; font-size: 13px; }
 
-    /* ── Modal ── */
+    
     .modal-overlay {
       position: fixed; inset: 0; background: rgba(17,24,39,0.5); z-index: 500;
       display: none; align-items: center; justify-content: center; padding: 20px;
@@ -124,7 +124,7 @@
     .toast-item.success { background: #059669; }
     .toast-item.error { background: #DC2626; }
     @keyframes toastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-  </style>
+</style>
   <script src="/static/idle-logout.js"></script>
 </head>
 <body>
@@ -188,7 +188,7 @@
     </div>
   </div>
 
-  <!-- ── Add/Edit User Modal ── -->
+  
   <div class="modal-overlay" id="userModal">
     <div class="modal-box">
       <h3 id="userModalTitle">Add User</h3>
@@ -225,17 +225,17 @@
 
   <script>
     const REPORT_LABELS = { tera: "TERA", pgta: "PGTA", karyotype: "Karyotyping", nipt: "NIPT", hla: "HLA Typing", billing: "Billing" };
-    // Default to every known report key so the "Report Access" dropdown is
-    // never empty, even before /access/users has returned (e.g. while MySQL
-    // isn't configured yet) — overwritten with the server's list once it loads.
+    
+    
+    
     let REPORT_KEYS = Object.keys(REPORT_LABELS);
     let editingUserId = null;
 
-    // ── Guard: admin only ──────────────────────────────────────────────────
-    // While MySQL isn't configured yet (arc_access_control !== 'true'), the
-    // access-control layer isn't operational — anyone authenticated can
-    // reach this page to configure it (matches the fail-open behavior on
-    // index.html and the report pages).
+    
+    
+    
+    
+    
     const _accessControlActive = localStorage.getItem('arc_access_control') === 'true';
     const _role = localStorage.getItem('arc_role');
     const _mobileNumber = localStorage.getItem('arc_mobile_number');
@@ -419,6 +419,6 @@
     }
 
     loadUsers();
-  </script>
+</script>
 </body>
 </html>

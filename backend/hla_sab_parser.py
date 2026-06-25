@@ -1,12 +1,3 @@
-"""
-hla_sab_parser.py
-Parses single-patient SAB (Single Antigen Bead) Class I/II Excel workbooks and
-free-text allele/MFI pastes into the case-shape consumed by hla_template.py.
-
-Ported verbatim (logic-for-logic) from the desktop HLA Report Generator's
-HLAReportGeneratorApp._parse_sab_excel_kit1 / _kit2 / _parse_sab_allele_text_static,
-de-coupled from PyQt6 so it can run server-side.
-"""
 
 import os
 import re
@@ -15,24 +6,20 @@ import zipfile
 from datetime import datetime, date
 
 
-# ─── Kit identification ──────────────────────────────────────────────────────
 
 def sab_kit_id(name: str) -> str:
-    """Map a Kit label to the stable internal id 'kit1'/'kit2'."""
     s = str(name or "").strip().lower()
     if "lambda" in s or "kit 2" in s or "kit2" in s:
         return "kit2"
     return "kit1"
 
 
-# ─── % PRA sentence helpers ───────────────────────────────────────────────────
 
 _AUTO_PRA_RE = re.compile(r"^\s*The SAB % PRA Class (?:I|II) is \d+%\.?\s*$",
                            re.IGNORECASE)
 
 
 def sab_pra_sentence(pct_text, sab_class) -> str:
-    """Build 'The SAB % PRA Class {I|II} is {n}%.' from a raw % value, or '' if none."""
     m = re.search(r"\d+", str(pct_text or ""))
     if not m:
         return ""
@@ -41,20 +28,11 @@ def sab_pra_sentence(pct_text, sab_class) -> str:
 
 
 def is_auto_pra_text(text) -> bool:
-    """True if `text` is an auto-generated % PRA sentence (safe to overwrite)."""
     return bool(_AUTO_PRA_RE.match(str(text or "")))
 
 
-# ─── Free-text allele/MFI paste parser ───────────────────────────────────────
 
 def parse_sab_allele_text(text: str) -> list:
-    """Parse allele text (allele,mfi per line) into [(allele, mfi_int), ...] desc.
-
-    The MFI is the trailing number; everything before the last separator is
-    the allele name. Splitting on the *last* comma/tab (not every comma) is
-    essential because DQ/DP allele names contain commas themselves, e.g.
-    'DQA1*01:01, DQB1*05:01,1755'.
-    """
     result = []
     for line in (text or "").strip().splitlines():
         line = line.strip()
@@ -74,32 +52,14 @@ def parse_sab_allele_text(text: str) -> list:
     return sorted(result, key=lambda x: -x[1])
 
 
-# ─── Excel parsing ────────────────────────────────────────────────────────────
 
 def parse_sab_excel(path: str, kit: str = "kit1") -> dict:
-    """Parse a single-patient SAB Class I/II Excel workbook.
-
-    The HLA team runs two SAB softwares that export different layouts, so the
-    caller passes the user-selected kit ('kit1' or 'kit2') and this dispatches
-    to the matching parser. Both return the same shape:
-        {patient, alleles, chart_bytes, pra_pct, sab_class}.
-    """
     if sab_kit_id(kit) == "kit2":
         return _parse_sab_excel_kit2(path)
     return _parse_sab_excel_kit1(path)
 
 
 def _parse_sab_excel_kit1(path: str) -> dict:
-    """Parse a Kit 1 (Immucor) single-patient SAB Class I/II Excel workbook.
-
-    Sheets are matched loosely by name:
-      • 'patient details'   — header row + one value row.
-      • '... REPORT ...'    — holds the 'Bead Detail' table
-        (Antigens / Raw Value columns) and the '% PRA' figure.
-      • '... CHART/CHAT ...'— holds the Bead Specificity Chart image.
-
-    Returns {patient, alleles, chart_bytes, pra_pct, sab_class}.
-    """
     def _fmt(v):
         if v is None:
             return ""
@@ -117,7 +77,6 @@ def _parse_sab_excel_kit1(path: str) -> dict:
                 self.value = value
 
         class _XlrdSheet:
-            """Thin openpyxl-compatible wrapper around an xlrd sheet."""
             def __init__(self, sh, datemode):
                 self._sh = sh
                 self._dm = datemode
@@ -126,7 +85,7 @@ def _parse_sab_excel_kit1(path: str) -> dict:
                 self.max_column = sh.ncols
                 self._images = []
 
-            def cell(self, row, col):  # openpyxl uses 1-based indexing
+            def cell(self, row, col):
                 r, c = row - 1, col - 1
                 if r < 0 or r >= self._sh.nrows or c < 0 or c >= self._sh.ncols:
                     return _XlrdCell(None)
@@ -151,7 +110,6 @@ def _parse_sab_excel_kit1(path: str) -> dict:
         import openpyxl
         wb = openpyxl.load_workbook(path, data_only=True)
 
-    # ── locate sheets ───────────────────────────────────────────────────────
     pat_ws = rep_ws = chart_ws = None
     for ws in wb.worksheets:
         t = (ws.title or "").lower()
@@ -161,11 +119,10 @@ def _parse_sab_excel_kit1(path: str) -> dict:
             rep_ws = ws
         elif chart_ws is None and ("chart" in t or "chat" in t or "bead" in t):
             chart_ws = ws
-    if rep_ws is None:  # fall back to the busiest non-patient/chart sheet
+    if rep_ws is None:
         cand = [w for w in wb.worksheets if w not in (pat_ws, chart_ws)]
         rep_ws = max(cand, key=lambda w: w.max_row * w.max_column) if cand else None
 
-    # ── patient details (header row + value row beneath) ────────────────────
     HEADER_MAP = {
         "patient name":           "patient_name",
         "gender/ age":            "gender_age",
@@ -201,7 +158,6 @@ def _parse_sab_excel_kit1(path: str) -> dict:
                 if key:
                     patient[key] = _fmt(pat_ws.cell(hdr_row + 1, c).value)
 
-    # ── allele bead-detail table + % PRA + class ─────────────────────────────
     alleles, pra_pct, sab_class = [], None, None
     if rep_ws is not None:
         title = f" {(rep_ws.title or '').upper()} "
@@ -248,10 +204,6 @@ def _parse_sab_excel_kit1(path: str) -> dict:
             if pra_pct is not None:
                 break
 
-    # ── chart image (largest embedded image) + its Excel rotation ───────────
-    # openpyxl drops the picture rotation, so read the workbook zip directly:
-    # the largest media file is the chart, and the drawing XML that embeds it
-    # carries the rotation Excel displays it with (OOXML rot = 1/60000 deg).
     chart_bytes, chart_rot = None, 0
     try:
         zf = zipfile.ZipFile(path)
@@ -278,7 +230,7 @@ def _parse_sab_excel_kit1(path: str) -> dict:
         zf.close()
     except Exception:
         chart_bytes, chart_rot = chart_bytes, 0
-    if chart_bytes is None:   # fall back to openpyxl's in-memory images
+    if chart_bytes is None:
         best = 0
         for ws in wb.worksheets:
             for im in getattr(ws, "_images", []):
@@ -289,15 +241,12 @@ def _parse_sab_excel_kit1(path: str) -> dict:
                 if blob and len(blob) > best:
                     best, chart_bytes = len(blob), blob
 
-    # Bake the Excel rotation into the bytes so the report pastes the chart
-    # exactly as it appears in Excel (no rotation needed downstream).
     if chart_bytes and chart_rot:
         try:
             from PIL import Image as PILImage
-            deg = (chart_rot / 60000.0) % 360      # OOXML hundred-thousandths
+            deg = (chart_rot / 60000.0) % 360
             if deg:
                 pi = PILImage.open(io.BytesIO(chart_bytes))
-                # OOXML rot is clockwise; PIL.rotate is counter-clockwise.
                 pi = pi.rotate(-deg, expand=True)
                 buf = io.BytesIO()
                 pi.save(buf, format="PNG")
@@ -315,25 +264,6 @@ def _parse_sab_excel_kit1(path: str) -> dict:
 
 
 def _parse_sab_excel_kit2(path: str) -> dict:
-    """Parse a Kit 2 (One Lambda LABScreen / Fusion) SAB Class I/II export.
-
-    Kit 2 is the second SAB software's "LABScreen Report", a single-sheet
-    Crystal Reports export (.xls). Cells are positioned by pixel so columns
-    are not fixed; the parser locates landmarks by their text instead:
-
-      • Allele table — a header row containing 'Allele Equiv' and 'Raw'; each
-        following row gives the allele (Allele Equiv column) and its MFI (Raw
-        column).
-      • '%PRA' figure — first numeric cell to the right of the '%PRA' label.
-      • Class — from the Catalog (LS1A…=I, LS2A…=II) or the 'SAB I/II' Session
-        ID (checked II-before-I since 'SAB I' is a prefix of 'SAB II').
-      • Sample ID — the value beside the 'Sample ID:' label.
-
-    The Crystal export embeds no extractable Bead Specificity Chart image, so
-    chart_bytes is None (upload the chart manually if one is needed).
-
-    Returns {patient, alleles, chart_bytes, pra_pct, sab_class}.
-    """
     def _s(v):
         if v is None:
             return ""
@@ -342,7 +272,6 @@ def _parse_sab_excel_kit2(path: str) -> dict:
         return str(v).strip()
 
     def _num(v):
-        """Return float for a numeric cell or numeric-looking text, else None."""
         if isinstance(v, bool):
             return None
         if isinstance(v, (int, float)):
@@ -350,7 +279,6 @@ def _parse_sab_excel_kit2(path: str) -> dict:
         s = _s(v)
         return float(s) if re.fullmatch(r"-?\d+(?:\.\d+)?", s) else None
 
-    # ── load the single worksheet into a value grid (xls → xlrd, else openpyxl)
     rows = []
     if os.path.splitext(path)[1].lower() == ".xls":
         import xlrd
@@ -362,7 +290,6 @@ def _parse_sab_excel_kit2(path: str) -> dict:
         sh = openpyxl.load_workbook(path, data_only=True).worksheets[0]
         rows = [list(r) for r in sh.iter_rows(values_only=True)]
 
-    # ── allele table: header with 'allele equiv' + 'raw' ─────────────────────
     allele_col = raw_col = hdr = None
     for ri, row in enumerate(rows):
         labels = {}
@@ -384,7 +311,6 @@ def _parse_sab_excel_kit2(path: str) -> dict:
             alleles.append((allele, int(round(mfi))))
         alleles.sort(key=lambda x: -x[1])
 
-    # ── class (catalog LS1A/LS2A or 'SAB I/II'; check II before I) ───────────
     blob = " ".join(_s(v).upper() for row in rows for v in row if _s(v))
     if "LS2A" in blob or "SAB II" in blob:
         sab_class = "II"
@@ -393,7 +319,6 @@ def _parse_sab_excel_kit2(path: str) -> dict:
     else:
         sab_class = None
 
-    # ── %PRA: first numeric cell to the right of the '%PRA' label ────────────
     pra_pct = None
     for row in rows:
         hit = next((ci for ci, v in enumerate(row) if "%pra" in _s(v).lower()),
@@ -407,7 +332,6 @@ def _parse_sab_excel_kit2(path: str) -> dict:
                 break
         break
 
-    # ── Sample ID → pin (the report's primary identifier) ────────────────────
     patient = {}
     for row in rows:
         hit = next((ci for ci, v in enumerate(row)

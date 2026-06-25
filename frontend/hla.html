@@ -11,7 +11,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   <script>
     (function(){ var p=window['pdfjs-dist/build/pdf']; if(p) p.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; })();
-  </script>
+</script>
   <style>
     :root {
       --primary: #1F497D;
@@ -56,7 +56,7 @@
       overflow: hidden;
     }
 
-    /* ── Page Header ── */
+    
     .page-hdr {
       display: flex;
       align-items: center;
@@ -104,7 +104,7 @@
       font-size: 12px; background: #fff; min-width: 160px;
     }
 
-    /* ── Tabs ── */
+    
     .tab-bar { display: flex; gap: 8px; flex-wrap: wrap; }
 
     .tab {
@@ -124,7 +124,7 @@
     .tab-content { display: none; }
     .tab-content.active { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow-y: auto; }
 
-    /* ── Cards ── */
+    
     .card {
       background: var(--panel);
       backdrop-filter: blur(12px);
@@ -146,9 +146,7 @@
     .field-grid .full { grid-column: 1/-1; }
 
     .field { display: flex; flex-direction: column; gap: 4px; }
-    /* Reserve room for a 2-line label (e.g. long Match/placeholder text) so a
-       wrapped label in one cell doesn't push its input out of line with the
-       single-line label/input pair beside it in the same grid row. */
+    
     .field label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; line-height: 1.3; min-height: 28px; display: flex; align-items: flex-end; }
     .field label .req { color: var(--danger); }
 
@@ -166,18 +164,18 @@
     .checkbox-item { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--text); }
     .checkbox-item input { width: 16px; height: 16px; }
 
-    /* ── HLA allele grid ── */
+    
     .allele-grid { display: flex; flex-direction: column; gap: 6px; }
     .allele-row { display: grid; grid-template-columns: 90px 1fr 1fr; gap: 8px; align-items: center; }
     .allele-row .locus-lbl { font-size: 12px; font-weight: 700; color: var(--primary); }
     .allele-row input { padding: 6px 9px; font-size: 12px; border: 1px solid var(--input-border); border-radius: 6px; }
 
-    /* ── Donor panels ── */
+    
     .donor-block { border: 1px solid var(--accent); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; background: #fff8f0; }
     .donor-block-hdr { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
     .donor-block-hdr h4 { font-size: 12px; color: var(--primary); font-weight: 700; }
 
-    /* ── Buttons ── */
+    
     .btn-sm {
       padding: 7px 16px; border-radius: 6px; font-size: 11.5px; font-weight: 600;
       cursor: pointer; border: 1.5px solid; transition: 0.2s; display: inline-flex; align-items: center; gap: 5px;
@@ -192,7 +190,7 @@
 
     .draft-btns { display: flex; gap: 8px; flex-wrap: wrap; }
 
-    /* ── Layout: form + preview split ── */
+    
     .split-layout { display: flex; gap: 16px; flex: 1; min-height: 0; }
     .form-col { flex: 1; overflow-y: auto; padding-right: 4px; min-width: 0; }
     .preview-col {
@@ -239,7 +237,7 @@
     }
     .btn-folder-sm:hover { background: var(--primary-hover); }
 
-    /* ── Bulk tab ── */
+    
     .bulk-topbar { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
     .drop-zone-compact {
       display: flex; align-items: center; gap: 10px; padding: 7px 14px;
@@ -270,9 +268,7 @@
       padding: 8px 10px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 11.5px; display: flex; align-items: center; gap: 6px;
     }
     .case-item:hover { filter: brightness(0.97); }
-    /* Per-template border/background color comes from an inline style (see
-       rtypeColor() in hla.js) — .selected uses an inset ring instead of
-       border-left/background so it doesn't get overridden by that. */
+    
     .case-item.selected { box-shadow: inset 0 0 0 2px var(--primary); }
     .case-item .ci-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
     .case-item .ci-name { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -280,7 +276,7 @@
     .select-row { display: flex; gap: 6px; margin-bottom: 8px; }
     .select-row .btn-sm { flex: 1; justify-content: center; padding: 5px; font-size: 10.5px; }
 
-    /* ── Settings table ── */
+    
     table.sig-table { width: 100%; border-collapse: collapse; font-size: 12px; }
     table.sig-table th { background: var(--primary); color: #fff; padding: 7px 10px; text-align: left; }
     table.sig-table td { padding: 6px 10px; border-bottom: 1px solid #eee; }
@@ -292,7 +288,7 @@
     .sig-count-item { display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; gap: 8px; }
     .sig-count-item input { width: 50px; padding: 4px 6px; text-align: center; border: 1px solid var(--input-border); border-radius: 4px; }
 
-    /* ── User guide ── */
+    
     .guide-content { font-size: 12.5px; line-height: 1.65; }
     .guide-content h3 { color: var(--primary); border-bottom: 1px solid #eee; padding: 10px 0 6px; margin-top: 12px; }
     .guide-content .tip { background: #e7f3ff; border: 1px solid #b8daff; border-radius: 6px; padding: 10px 14px; margin: 8px 0; font-style: italic; }
@@ -314,7 +310,7 @@
     .toast.error { background: var(--danger); }
     .toast.success { background: var(--success); }
 
-    /* ── Patient finder dropdown (anchored under the controls row, not a blocking modal) ── */
+    
     .hla-modal-backdrop {
       position: absolute; top: 100%; left: 0; margin-top: 6px; z-index: 50;
     }
@@ -355,14 +351,14 @@
       background: #fafafa; font-size: 10px; color: var(--text-muted); text-align: center;
     }
     .photo-upload-box img { width: 100%; height: 100%; object-fit: cover; }
-  </style>
+</style>
   <script src="/static/idle-logout.js"></script>
 </head>
 
 <body>
   <script>
-    // Interim client-side access guard — stand-in for IT's real
-    // mobile number + password + OTP system. See access_api.py / login.html.
+    
+    
     (function () {
       if (localStorage.getItem('arc_authenticated') !== 'true') {
         window.location.replace('/login.html');
@@ -385,9 +381,9 @@
         document.close();
       }
     })();
-  </script>
+</script>
   <div class="main">
-    <!-- ── Header ── -->
+    
     <div class="page-hdr">
       <div class="page-hdr-left">
         <a href="index.html" class="home-btn">&#8592; Home</a>
@@ -403,7 +399,7 @@
       </div>
     </div>
 
-    <!-- ── Settings row (Template / Logo) ── -->
+    
     <div class="hdr-right">
       <div class="hdr-select-group">
         <label>Template:</label>
@@ -427,7 +423,7 @@
       </div>
     </div>
 
-    <!-- ══════════════ TAB 1: SINGLE ENTRY ══════════════ -->
+    
     <div class="tab-content active" id="tab-manual">
       <div class="hla-patient-finder" style="position:relative; display:flex; align-items:flex-end; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
         <div class="hdr-select-group"><label>From Date:</label><input type="date" id="pfFromDate"></div>
@@ -449,7 +445,7 @@
       </div>
       <div class="split-layout">
         <div class="form-col" id="manualFormCol">
-          <!-- Filled dynamically by JS based on template -->
+          
         </div>
         <div class="preview-col">
           <div class="preview-hdr">
@@ -466,7 +462,7 @@
       </div>
     </div>
 
-    <!-- ══════════════ TAB 2: BULK UPLOAD ══════════════ -->
+    
     <div class="tab-content" id="tab-bulk">
       <div class="bulk-topbar">
         <label class="drop-zone-compact" id="bulkExcelZone" for="bulkFileInput">
@@ -530,7 +526,7 @@
       </button>
     </div>
 
-    <!-- ══════════════ TAB 3: SETTINGS ══════════════ -->
+    
     <div class="tab-content" id="tab-settings">
       <div class="card">
         <h3><i class="fas fa-sliders-h"></i> Report Options</h3>
@@ -561,7 +557,7 @@
       <button class="btn-sm btn-primary" id="sigSaveBtn" style="width:fit-content;"><i class="fas fa-save"></i> Save Settings</button>
     </div>
 
-    <!-- ══════════════ TAB 4: USER GUIDE ══════════════ -->
+    
     <div class="tab-content" id="tab-guide">
       <div class="card guide-content" style="overflow-y:auto;">
         <div class="guide-hdr">
@@ -775,6 +771,6 @@
         }
       });
     })();
-  </script>
+</script>
 </body>
 </html>

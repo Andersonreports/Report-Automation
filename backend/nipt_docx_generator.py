@@ -1,7 +1,3 @@
-"""
-DOCX Report Generator for NIPS (NIPT) Reports - Professional Suite
-Version: 3.0 (100% Accuracy Refinement)
-"""
 
 from docx import Document
 from docx.shared import Inches, Pt, RGBColor
@@ -18,7 +14,6 @@ from datetime import datetime
 from nipt_assets import HEADER_LOGO_B64, FOOTER_BANNER_B64
 
 class NIPTDocxGenerator:
-    """Generates DOCX reports for NIPS with 100% PDF Parity"""
     
     COLORS = {
         'blue_header': '1F497D',
@@ -30,7 +25,6 @@ class NIPTDocxGenerator:
         'grey_bg': 'F2F2F2'
     }
 
-    # Static Content
     METHODOLOGY_TEXT = """Maternal whole blood sample was taken from the pregnant mother after 10-week gestation with no risk to the fetus. The circulating cell-free placental DNA was isolated and purified, which was then converted into genomic DNA library using Yourgene cfDNA Library prep kit. This was followed by automated size selection of fragment lengths by QS250 for enriching fetal fraction. The enriched sample pool was subjected to high throughput sequencing using Ion GeneStudio S5 Plus™ System. Finally, analysis was performed using Sage Link V2."""
     
     LIMITATIONS_TEXT = [
@@ -60,9 +54,8 @@ class NIPTDocxGenerator:
         section.bottom_margin = Pt(50)
         section.left_margin = Pt(50)
         section.right_margin = Pt(50)
-        section.footer_distance = Pt(50)  # page number sits above the footer space
+        section.footer_distance = Pt(50)
         
-        # Add Footer with Page Number
         footer = section.footer
         p = footer.paragraphs[0]
         p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -100,7 +93,6 @@ class NIPTDocxGenerator:
                 os.unlink(footer_path)
             except: pass
         else:
-            # No address/contact text required per user request
             pass
 
     def _add_logo(self):
@@ -127,20 +119,16 @@ class NIPTDocxGenerator:
             run2.font.color.rgb = RGBColor.from_string(self.COLORS['blue_header'])
 
     def generate(self, data, z_scores, with_logo=True):
-        # Without logo: expand top/bottom margins by 20% of logo/footer area
         if not with_logo:
             section = self.doc.sections[0]
-            section.top_margin    = Pt(57)   # Pt(40) + 20% of ~83pt logo height
-            section.bottom_margin = Pt(63)   # Pt(50) + 20% of 66pt footer banner
+            section.top_margin    = Pt(57)
+            section.bottom_margin = Pt(63)
 
-        # Page 1
         if with_logo: self._add_logo()
         self._add_header_text(1)
         
-        # Patient Info Grid MUST be first
         self._add_patient_grid(data)
         
-        # PNDT disclaimer
         pndt = self.doc.add_paragraph()
         pndt_run = pndt.add_run("This test does not reveal sex of the fetus & confers to PNDT act, 1994")
         pndt_run.italic = True
@@ -168,7 +156,7 @@ class NIPTDocxGenerator:
         res_table.columns[0].width = Inches(3.25)
         res_table.columns[1].width = Inches(3.25)
         r0 = res_table.rows[0]
-        r0.height = Inches(0.4) # Increased for spaciousness
+        r0.height = Inches(0.4)
         self._set_cell_background(r0.cells[0], self.COLORS['patient_info_bg'])
         self._set_cell_background(r0.cells[1], self.COLORS['patient_info_bg'])
         p1 = r0.cells[0].paragraphs[0]
@@ -184,15 +172,13 @@ class NIPTDocxGenerator:
         
         self._add_summary_table(z_scores)
         
-        # Page 2
         self.doc.add_page_break()
         if with_logo: self._add_logo()
         self._add_header_text(2)
-        self.doc.add_paragraph() # Spacer
+        self.doc.add_paragraph()
         self._add_detailed_table(z_scores)
         self.doc.add_paragraph().add_run("*As per PCPNDT act, the reference Z scores for sex chromosomal aneuploidies will not be provided.").bold = True
         
-        # Page 3
         self.doc.add_page_break()
         if with_logo: self._add_logo()
         self._add_header_text(3)
@@ -229,7 +215,6 @@ class NIPTDocxGenerator:
             else:
                 self.doc.add_paragraph(p_text)
         
-        # Page 4
         self.doc.add_page_break()
         if with_logo: self._add_logo()
         self._add_header_text(4)
@@ -250,7 +235,6 @@ class NIPTDocxGenerator:
         self._add_section_header("Disclaimer")
         self.doc.add_paragraph("No irreversible actions should be taken based solely upon the results of this screening test. The manner in which this information is used to guide patient care is the responsibility of the health care provider, including advising for the need for genetic counseling or diagnostic testing. Any test should be interpreted in the context of all available clinical findings. As with any screening test, any positive result should be confirmed with diagnostic testing.")
         
-        # Page 5
         self.doc.add_page_break()
         if with_logo: self._add_logo()
         self._add_header_text(5)
@@ -278,7 +262,6 @@ class NIPTDocxGenerator:
         p2_cap.style.font.size = Pt(7)
         p2_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
         
-        # Page 6
         self.doc.add_page_break()
         if with_logo: self._add_logo()
         self._add_header_text(6)
@@ -337,7 +320,6 @@ class NIPTDocxGenerator:
         run.font.size = Pt(15)
         run.font.color.rgb = RGBColor.from_string(self.COLORS['blue_header'])
         
-        # Add a bottom border
         pborder = OxmlElement('w:pBdr')
         bottom = OxmlElement('w:bottom')
         bottom.set(qn('w:val'), 'single')
@@ -382,16 +364,12 @@ class NIPTDocxGenerator:
         ]
         
         for i, (l1, v1, l2, v2) in enumerate(mapping):
-            # Left Label
             p0 = table.rows[i].cells[0].paragraphs[0]
             p0.add_run(l1).bold = True
-            # Left Value
             p1 = table.rows[i].cells[1].paragraphs[0]
             p1.add_run(f": {v1}").bold = True
-            # Right Label
             p2 = table.rows[i].cells[2].paragraphs[0]
             p2.add_run(l2).bold = True
-            # Right Value
             p3 = table.rows[i].cells[3].paragraphs[0]
             p3.add_run(f": {v2}").bold = True
             
@@ -428,7 +406,7 @@ class NIPTDocxGenerator:
         ]
         for i, (name, val, thresh) in enumerate(targets, 1):
             row = table.rows[i]
-            row.height = Inches(0.30) # Compact for Page 1 fit
+            row.height = Inches(0.30)
             row.cells[0].text = name
             row.cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
             row.cells[0].vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER

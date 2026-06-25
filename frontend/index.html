@@ -19,9 +19,7 @@
     }
     body.loaded { opacity: 1; }
 
-    /* ────────────────────────────────
-       Top header (full width, no sidebar)
-    ──────────────────────────────── */
+    
     .app-header {
       position: fixed;
       top: 0; left: 0; right: 0;
@@ -71,9 +69,7 @@
     .admin-btn:hover { background: #E0E7FF; }
     .admin-btn i { font-size: 13px; }
 
-    /* ────────────────────────────────
-       Page content
-    ──────────────────────────────── */
+    
     .page {
       padding-top: 72px;
       min-height: 100vh;
@@ -89,7 +85,7 @@
       padding: clamp(48px, 6vh, 80px) clamp(32px, 5vw, 96px) clamp(64px, 8vh, 96px);
     }
 
-    /* ── Page intro ── */
+    
     .page-intro {
       margin-bottom: 32px;
     }
@@ -107,7 +103,7 @@
       line-height: 1.6;
     }
 
-    /* ── Section label ── */
+    
     .section-label {
       font-size: 11px;
       font-weight: 700;
@@ -117,9 +113,7 @@
       margin-bottom: 16px;
     }
 
-    /* ────────────────────────────────
-       Module grid & cards
-    ──────────────────────────────── */
+    
     .module-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -158,7 +152,7 @@
                   0 4px 12px rgba(0,0,0,0.07);
     }
 
-    /* Tiles the signed-in user has no access to */
+    
     .module-card.locked { opacity: 0.5; cursor: not-allowed; filter: grayscale(0.4); }
     .module-card.locked:hover { transform: none; box-shadow: 0 2px 8px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.05); border-color: #E5E7EB; }
     .module-lock-badge {
@@ -241,7 +235,7 @@
     .module-card:hover .module-arrow { background: var(--accent, #6B7280); }
     .module-card:hover .module-arrow i { color: #fff; }
 
-    /* Coming soon */
+    
     .module-card.cs { opacity: 0.65; }
     .module-card.cs:hover {
       transform: none;
@@ -267,9 +261,7 @@
       text-transform: uppercase;
     }
 
-    /* ────────────────────────────────
-       Modal
-    ──────────────────────────────── */
+    
     .modal-overlay {
       display: none;
       position: fixed; inset: 0;
@@ -339,12 +331,12 @@
       text-transform: uppercase;
       letter-spacing: 1px;
     }
-  </style>
+</style>
   <script src="/static/idle-logout.js"></script>
 </head>
 <body>
 
-  <!-- ── Header ── -->
+  
   <header class="app-header">
     <div class="header-brand">
       <img src="/static/anderson-logo.png" alt="Anderson Diagnostics &amp; Labs" class="header-logo" />
@@ -360,7 +352,7 @@
     </div>
   </header>
 
-  <!-- ── Page ── -->
+  
   <div class="page">
     <div class="page-inner">
 
@@ -372,7 +364,7 @@
 
       <div class="module-grid">
 
-        <!-- TERA -->
+        
         <a class="module-card" href="tera.html" data-report="tera"
            style="--accent:#D97706; --accent-bg:#FFFBEB;">
           <div class="module-icon icon-img"><img src="/static/Logos/tera.jpg" alt="TERA" /></div>
@@ -384,7 +376,7 @@
           </div>
         </a>
 
-        <!-- PGTA -->
+        
         <a class="module-card" href="pgta.html" data-report="pgta"
            style="--accent:#2563EB; --accent-bg:#EFF6FF;">
           <div class="module-icon icon-img"><img src="/static/Logos/PGT-A.jpg" alt="PGTA" /></div>
@@ -396,7 +388,7 @@
           </div>
         </a>
 
-        <!-- Karyotyping -->
+        
         <a class="module-card" href="karyotype.html" data-report="karyotype"
            style="--accent:#7C3AED; --accent-bg:#F5F3FF;">
           <div class="module-icon icon-img"><img src="/static/Logos/karyo.html.png" alt="Karyotyping" /></div>
@@ -408,7 +400,7 @@
           </div>
         </a>
 
-        <!-- NIPT -->
+        
         <a class="module-card" href="nipt.html" data-report="nipt"
            style="--accent:#E11D48; --accent-bg:#FFF1F2;">
           <div class="module-icon icon-img"><img src="/static/Logos/nips.jpg" alt="NIPS" /></div>
@@ -420,7 +412,7 @@
           </div>
         </a>
 
-        <!-- HLA Typing -->
+        
         <a class="module-card" href="hla.html" data-report="hla"
            style="--accent:#059669; --accent-bg:#ECFDF5;">
           <div class="module-icon icon-img"><img src="/static/Logos/hla.jpg" alt="HLA Typing" /></div>
@@ -432,12 +424,12 @@
           </div>
         </a>
 
-        <!-- Billing -->
+        
         <a class="module-card" href="billing.html" data-report="billing"
            style="--accent:#0D9488; --accent-bg:#ECFDF5;">
           <div class="module-icon"><i class="fas fa-file-invoice-dollar"></i></div>
           <div class="module-name">Billing</div>
-          <div class="module-desc">Sample &amp; Service Billing Invoices</div>
+          <div class="module-desc">Sample and Service Billing Invoices</div>
           <div class="module-footer">
             <span class="module-link-text">Open tool</span>
             <div class="module-arrow"><i class="fas fa-arrow-right"></i></div>
@@ -448,7 +440,7 @@
     </div>
   </div>
 
-  <!-- ── Modal ── -->
+  
   <div class="modal-overlay" id="modal" onclick="handleOverlayClick(event)">
     <div class="modal-box">
       <button class="modal-close" onclick="closeModal()"><i class="fas fa-times"></i></button>
@@ -464,14 +456,7 @@
       window.location.replace('/login.html');
     }
     document.body.classList.add('loaded');
-
-    // ── Per-report access control ───────────────────────────────────────────
-    // Interim client-side check against the mobile_number/role/report set at
-    // login (see login.html / access_api.py) — a stand-in for IT's real
-    // mobile number + password + OTP system. While MySQL isn't configured yet
-    // (arc_access_control !== 'true'), the access-control layer isn't
-    // operational, so fail OPEN — full access for everyone, same as before
-    // this feature existed — instead of locking everyone out.
+    
     const _accessControlActive = localStorage.getItem('arc_access_control') === 'true';
     const _role   = localStorage.getItem('arc_role');
     const _report = localStorage.getItem('arc_report');
@@ -518,6 +503,6 @@
       if (e.target === document.getElementById('modal')) closeModal();
     }
     document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
-  </script>
+</script>
 </body>
 </html>

@@ -1,17 +1,3 @@
-"""
-Karyotype Report — Web API
-==========================================================
-Faithful web port of the PyQt desktop "Karyotype Report Generator".
-
-All report-generation logic is delegated to the EXACT same generator the
-desktop app uses (``karyotype_template.KaryotypeReportGenerator``), so the
-produced PDFs are pixel-identical to the desktop output.
-
-This module only re-implements the desktop *application* layer (data model,
-report-type templates, ISCN auto-detection, Excel bulk parsing, sample-number
-image discovery) as HTTP endpoints, and is wired into the FastAPI ``app`` via
-``register_karyotype_routes(app)`` from ``main.py``.
-"""
 
 import os
 import re
@@ -28,7 +14,6 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from karyotype_template import KaryotypeReportGenerator
 
-# ── Paths ────────────────────────────────────────────────────────────────────
 BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
 FRONTEND_DIR = os.environ.get("FRONTEND_DIR") or os.path.join(os.path.dirname(BASE_DIR), "frontend")
 
@@ -41,7 +26,6 @@ for _d in (KARYO_REPORT_DIR, KARYO_TEMP_DIR, KARYO_IMG_DIR, KARYO_DRAFT_DIR):
     os.makedirs(_d, exist_ok=True)
 
 
-# ── Report type templates (verbatim from desktop) ────────────────────────────
 REPORT_TEMPLATES = {
     "Normal Male": {
         "INTERPRETATION": "Karyotype shows an apparently normal male.",
@@ -151,7 +135,6 @@ REPORT_TEMPLATES = {
 
 REPORT_TYPE_OPTIONS = list(REPORT_TEMPLATES.keys())
 
-# (display_label, key, widget_type, placeholder_or_options) — verbatim from desktop
 FIELD_DEFS = [
     ("Patient Name",              "NAME",                      "line",  ""),
     ("Gender",                    "GENDER",                    "combo", ["Male", "Female"]),
@@ -176,7 +159,6 @@ FIELD_DEFS = [
 ]
 
 
-# ── Helpers (verbatim logic from desktop) ────────────────────────────────────
 def _clean(v) -> str:
     s = str(v).strip()
     return "" if s in ("nan", "NaT", "None", "NaN", "") else s
@@ -219,13 +201,6 @@ def _detect_report_type(iscn: str) -> str:
 
 
 def _find_images_for_sample(sample_no: str, search_dir: str) -> list:
-    """Find images matching a sample number inside ``search_dir``.
-
-    Mirrors the desktop auto-discovery:
-      - Exact:    260154818.jpg
-      - Numbered: 260161295 1.jpg, 260161295 2.jpg
-    Returns server-relative names (relative to KARYO_IMG_DIR).
-    """
     if not sample_no or not search_dir or not os.path.isdir(search_dir):
         return []
     sample_no = str(sample_no).strip()
@@ -253,7 +228,6 @@ def _find_images_for_sample(sample_no: str, search_dir: str) -> list:
 
 
 def _safe_component(name: str) -> str:
-    """Sanitize a path component (no traversal, keep human-readable chars)."""
     name = os.path.basename(str(name or ""))
     return re.sub(r'[^\w\s\-\(\)\.]', '_', name).strip() or "file"
 
@@ -343,7 +317,6 @@ def _inline_image_to_file(item: dict) -> str:
 
 
 def _resolve_images(image_names) -> list:
-    """Resolve image names or inline browser image payloads into local files."""
     paths = []
     base = os.path.realpath(KARYO_IMG_DIR)
     for item in (image_names or []):
@@ -364,7 +337,6 @@ def _resolve_images(image_names) -> list:
 
 
 def _normalize_row(row: dict) -> dict:
-    """Apply the same per-row normalisation the desktop bulk loader does."""
     row = {k: _clean(v) for k, v in row.items()}
     for k, v in list(row.items()):
         canonical = ALIAS_TO_FIELD.get(_column_key(k))
@@ -381,10 +353,8 @@ def _normalize_row(row: dict) -> dict:
     return row
 
 
-# ── Route registration ───────────────────────────────────────────────────────
 def register_karyotype_routes(app):
 
-    # ----- Page -----
     @app.get("/karyotype")
     @app.get("/karyotype.html")
     def karyotype_page():
@@ -393,7 +363,6 @@ def register_karyotype_routes(app):
             return FileResponse(p)
         return JSONResponse({"error": "karyotype.html not found"}, status_code=404)
 
-    # ----- Metadata (templates / field defs) -----
     @app.get("/karyotype/meta")
     def karyotype_meta():
         return {
@@ -407,7 +376,6 @@ def register_karyotype_routes(app):
             ],
         }
 
-    # ----- Static file serving (reports / preview / images) -----
     @app.get("/reports-karyotype/{filename}")
     def karyotype_report_file(filename: str):
         p = os.path.join(KARYO_REPORT_DIR, os.path.basename(filename))
@@ -430,7 +398,6 @@ def register_karyotype_routes(app):
             return FileResponse(candidate)
         return JSONResponse({"error": "not found"}, status_code=404)
 
-    # ----- Image upload (manual entry: 1..3 karyograms) -----
     @app.post("/karyotype/upload-image")
     async def karyotype_upload_image(file: UploadFile = File(...)):
         ext = os.path.splitext(file.filename or "")[1].lower() or ".jpg"
@@ -445,7 +412,6 @@ def register_karyotype_routes(app):
                 "original": file.filename,
                 "url": f"/karyotype/image/{stored}"}
 
-    # ----- Preview (live PDF) -----
     @app.post("/karyotype/preview")
     async def karyotype_preview(request: Request):
         body = await request.json()
@@ -475,7 +441,6 @@ def register_karyotype_routes(app):
             return JSONResponse({"error": str(e), "trace": traceback.format_exc()},
                                 status_code=500)
 
-    # ----- Generate single report -----
     @app.post("/karyotype/generate")
     async def karyotype_generate(request: Request):
         body = await request.json()
@@ -494,7 +459,6 @@ def register_karyotype_routes(app):
             return JSONResponse({"error": str(e), "trace": traceback.format_exc()},
                                 status_code=500)
 
-    # ----- Generate many (bulk: All / Selected) -----
     @app.post("/karyotype/generate-bulk")
     async def karyotype_generate_bulk(request: Request):
         body = await request.json()
@@ -514,15 +478,12 @@ def register_karyotype_routes(app):
                 errors.append(f"{name}: {e}")
         return {"generated": len(results), "results": results, "errors": errors}
 
-    # ----- Bulk Excel parse (+ optional karyogram images for auto-discovery) -----
     @app.post("/karyotype/parse-excel")
     async def karyotype_parse_excel(file: UploadFile = File(...),
                                     images: list[UploadFile] = File(default=[])):
         try:
             contents = await file.read()
             import io as _io
-            # Save any uploaded karyogram images into a fresh batch folder,
-            # preserving (sanitised) original names so sample-number matching works.
             batch_id = uuid.uuid4().hex[:10]
             batch_dir = os.path.join(KARYO_IMG_DIR, batch_id)
             saved_any = False
@@ -570,7 +531,6 @@ def register_karyotype_routes(app):
             return JSONResponse({"error": str(e), "trace": traceback.format_exc()},
                                 status_code=500)
 
-    # ----- Drafts (save / list / load / delete) -----
     @app.post("/karyotype/draft/save")
     async def karyotype_save_draft(request: Request):
         body = await request.json()
@@ -607,7 +567,6 @@ def register_karyotype_routes(app):
             return {"deleted": filename}
         return JSONResponse({"error": "not found"}, status_code=404)
 
-    # ----- Generated-report listing -----
     @app.get("/karyotype/storage/list")
     def karyotype_storage_list():
         try:

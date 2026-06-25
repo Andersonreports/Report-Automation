@@ -1,7 +1,5 @@
-// Session-based idle logout — per IT's requirement: if the page sits idle
-// for 30 minutes, clear the session and send the user back to login.
-// Activity timestamp lives in localStorage so it's shared across tabs —
-// being active in one tab keeps the whole session alive, not just that tab.
+
+
 (function () {
   var IDLE_LIMIT_MS = 30 * 60 * 1000;
   var CHECK_INTERVAL_MS = 15 * 1000;

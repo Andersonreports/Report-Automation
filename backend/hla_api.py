@@ -1,8 +1,3 @@
-"""
-hla_api.py  —  FastAPI router for HLA Typing Report module.
-All PDF generation is delegated to hla_template.py / hla_data_parser.py
-(copied verbatim from the desktop application).
-"""
 
 import os
 import io
@@ -27,7 +22,6 @@ from hla_data_parser import (
 from hla_sab_parser import parse_sab_excel, parse_sab_allele_text, sab_pra_sentence
 import hla_assets
 
-# ── Paths ──────────────────────────────────────────────────────────────────────
 _BASE       = os.path.dirname(os.path.abspath(__file__))
 HLA_REPORT_DIR = os.path.join(_BASE, "reports-hla")
 HLA_TEMP_DIR   = os.path.join(_BASE, "temp")
@@ -41,7 +35,6 @@ for d in (HLA_REPORT_DIR, HLA_TEMP_DIR, HLA_DRAFT_DIR, HLA_UPLOAD_DIR, HLA_SAB_U
 
 router = APIRouter(prefix="/hla", tags=["hla"])
 
-# ── Template / report-type catalogue (mirrors REPORT_TEMPLATES in generator) ──
 REPORT_TEMPLATES = [
     {"name": "With CL",                                    "report_type": "single_hla"},
     {"name": "RPL",                                        "report_type": "rpl_couple"},
@@ -96,7 +89,6 @@ DEFAULT_SIGNATORIES = [
 HLA_LOCI = ["A", "B", "C", "DRB1", "DQB1", "DPB1", "DRB3", "DPA1", "DQA1"]
 
 
-# ── Settings helpers ───────────────────────────────────────────────────────────
 
 def _load_settings() -> dict:
     if os.path.exists(HLA_SETTINGS_FILE):
@@ -125,10 +117,8 @@ def _get_sig_counts() -> dict:
     return counts
 
 
-# ── Base64 decode helper (sab_chart_bytes arrives from the browser as base64) ─
 
 def _decode_b64_field(obj: dict, key: str) -> None:
-    """In-place decode a base64 string field to bytes."""
     val = obj.get(key)
     if isinstance(val, str) and val:
         try:
@@ -138,7 +128,6 @@ def _decode_b64_field(obj: dict, key: str) -> None:
 
 
 def _auto_compute_derived_fields(case: dict) -> None:
-    """Auto-compute rpl_reference for rpl_couple and hla_c_patient for single_rpl."""
     rtype = case.get("report_type", "")
     if rtype == "rpl_couple":
         ref = case.get("rpl_reference") or {}
@@ -165,23 +154,16 @@ def _auto_compute_derived_fields(case: dict) -> None:
 
 
 def _decode_case_binary_fields(case: dict) -> None:
-    """In-place: decode all base64-encoded binary fields back to raw bytes
-    before handing the case dict to generate_pdf()."""
-    # SAB chart
     _decode_b64_field(case, "sab_chart_bytes")
-    # Patient photo
     if isinstance(case.get("patient"), dict):
         _decode_b64_field(case["patient"], "photo_bytes")
-    # Donor photos
     for d in case.get("donors", []):
         if isinstance(d, dict):
             _decode_b64_field(d, "photo_bytes")
-    # Luminex case-level photos
     _decode_b64_field(case, "luminex_pat_photo")
     _decode_b64_field(case, "luminex_don_photo")
 
 
-# ── Signatory assembly (mirrors GenerateWorker logic) ─────────────────────────
 
 def _build_signatories(report_type: str, nabl: bool, sig_counts: dict,
                        signatories: list, sig_name_overrides: dict = None) -> list:
@@ -201,7 +183,6 @@ def _build_signatories(report_type: str, nabl: bool, sig_counts: dict,
             "is_png":   sign_info["is_png"],
         }
         out.append(entry)
-    # Apply per-case overrides
     if sig_name_overrides:
         _title_lookup = {s["name"]: s["title"] for s in DEFAULT_SIGNATORIES}
         for slot_str, sig_name in sig_name_overrides.items():
@@ -219,7 +200,6 @@ def _build_signatories(report_type: str, nabl: bool, sig_counts: dict,
     return out
 
 
-# ── Insufficient-data guard ────────────────────────────────────────────────────
 
 def _has_insufficient_data(person: dict) -> bool:
     if person.get("_has_insufficient_hla", False):
@@ -233,13 +213,9 @@ def _has_insufficient_data(person: dict) -> bool:
     return False
 
 
-# ══════════════════════════════════════════════════════════════════════════════
-# ROUTES
-# ══════════════════════════════════════════════════════════════════════════════
 
 @router.get("/templates")
 def get_templates():
-    """Return list of available report templates."""
     return {"templates": REPORT_TEMPLATES, "sig_names": list(hla_assets.SIGN_BY_NAME.keys())}
 
 
@@ -265,12 +241,10 @@ async def save_settings(request_body: dict):
 
 @router.post("/preview")
 async def preview(request_body: dict):
-    """Generate a preview PDF for a case dict. Returns a URL the browser can embed directly."""
     case = request_body.get("case", {})
     if not case:
         raise HTTPException(400, "case is required")
 
-    # Attach signatories
     settings = _load_settings()
     sig_counts   = {**DEFAULT_SIG_COUNTS, **settings.get("sig_counts", {})}
     signatories  = settings.get("signatories", DEFAULT_SIGNATORIES)
@@ -288,9 +262,6 @@ async def preview(request_body: dict):
             if "rayvathy" in s["name"].lower():
                 s["seal_b64"] = hla_assets.SEAL_REVATHY_B64
 
-    # Prefix with the same descriptive name /generate uses, so that if a
-    # browser ever saves this preview file directly (e.g. via its native PDF
-    # viewer's download button) it gets a sensible name instead of a bare UUID.
     try:
         fname = make_filename(c)
     except Exception:
@@ -317,7 +288,6 @@ def preview_file(filename: str):
 
 @router.post("/generate")
 async def generate(request_body: dict):
-    """Generate a single report PDF and stream it back to the browser."""
     case       = request_body.get("case", {})
     output_dir = request_body.get("output_dir") or None
     if not case:
@@ -358,7 +328,6 @@ async def generate(request_body: dict):
 
 @router.post("/generate-bulk")
 async def generate_bulk(request_body: dict):
-    """Generate PDFs for a list of cases. Returns success/failed lists."""
     cases      = request_body.get("cases", [])
     output_dir = request_body.get("output_dir") or None
     with_logo  = request_body.get("with_logo", True)
@@ -381,7 +350,6 @@ async def generate_bulk(request_body: dict):
         rtype = c.get("report_type", "single_hla")
         nabl  = c.get("nabl", True)
 
-        # Skip Insufficient Data cases (not applicable to SAB, which carries no HLA alleles)
         if rtype not in ("sab_class1", "sab_class2") and _has_insufficient_data(c.get("patient", {})):
             failed.append({"filename": c.get("patient", {}).get("name", "?"), "error": "Insufficient Data"})
             continue
@@ -411,11 +379,6 @@ async def generate_bulk(request_body: dict):
 
 
 _PDF_LABEL_KEYS = [
-    # (label text as it appears in the PDF, canonical field key. Keys
-    # starting with "_" are recognised as segment boundaries but not
-    # carried into the output — "Relationship" is excluded because the
-    # template renders it as "<relation> Of <patient name>", which would
-    # duplicate the patient name if fed back into the relationship field.)
     ("Patient name", "_person_name"),
     ("Donor name", "_donor_marker"),
     ("Gender / Age", "gender_age"),
@@ -438,20 +401,6 @@ _PDF_LABEL_KEYS = [
 
 
 def _extract_patient_donor_from_pdf(content: bytes) -> dict:
-    """Best-effort extraction of the demographic header block (patient +
-    donor, if present) from a previously generated HLA report PDF.
-
-    Deliberately does NOT try to recover HLA allele results — a returning
-    patient gets a fresh test, so only the demographic fields (name, PIN,
-    age/gender, sample number, dates, etc.) are worth pulling back out.
-    Report layouts render this block as plain "Label : Value" text via
-    ReportLab table cells, which pdfplumber extracts cleanly in order.
-
-    The patient and donor demographic blocks each have their own allele
-    results table (headed "LOCUS") directly after them on the same page,
-    so those tables are stripped out wherever they appear rather than
-    just truncating after the first one.
-    """
     import pdfplumber
 
     text_parts = []
@@ -459,9 +408,7 @@ def _extract_patient_donor_from_pdf(content: bytes) -> dict:
         for page in pdf.pages:
             text_parts.append(page.extract_text() or "")
     text = " ".join(text_parts).replace("\n", " ")
-    # "—" / "�" are the template's placeholder glyphs for empty/unset fields.
     text = text.replace("—", "").replace("�", "")
-    # Strip each allele-results table (no use to a fresh re-test anyway).
     text = re.sub(r"LOCUS\b.*?(?=Donor name\s*:|Patient name\s*:|$)", " ", text,
                   flags=re.IGNORECASE)
 
@@ -509,10 +456,6 @@ def _extract_patient_donor_from_pdf(content: bytes) -> dict:
 
 @router.post("/pdf-to-draft")
 async def pdf_to_draft(file: UploadFile = File(...)):
-    """Extract demographic fields from a previously generated HLA report PDF
-    and save them as a named draft, so a returning patient (whose record IT's
-    gateway no longer lists once approved) can be pulled back into the editor
-    via the existing Load Draft flow instead of being re-typed from scratch."""
     content = await file.read()
     try:
         case = _extract_patient_donor_from_pdf(content)
@@ -535,7 +478,6 @@ async def parse_excel_file(
     file: UploadFile = File(...),
     nabl: bool = Form(True),
 ):
-    """Parse an uploaded HLA Excel file. Returns parsed cases + summary."""
     tmp_path = os.path.join(HLA_UPLOAD_DIR, file.filename or "upload.xlsx")
     try:
         content = await file.read()
@@ -556,7 +498,6 @@ async def parse_excel_file(
                 "filename/sheet layout matches one of the supported formats (see User Guide).",
             )
         summary = get_case_summary(cases)
-        # Serialize: convert any bytes fields to base64 for JSON transport
         serialized = []
         for case in cases:
             c = copy.deepcopy(case)
@@ -599,10 +540,6 @@ async def parse_sab_excel_file(
     file: UploadFile = File(...),
     kit: str = Form("kit1"),
 ):
-    """Parse a single-patient SAB Class I/II Excel workbook (Immucor/One Lambda).
-
-    Returns {patient, alleles, chart_bytes (base64 or None), pra_pct, sab_class}.
-    """
     tmp_path = os.path.join(HLA_SAB_UPLOAD_DIR, file.filename or "sab_upload.xlsx")
     try:
         content = await file.read()
@@ -632,7 +569,6 @@ async def parse_sab_excel_file(
 
 @router.post("/parse-sab-allele-text")
 async def parse_sab_allele_text_endpoint(request_body: dict):
-    """Parse a free-text allele/MFI paste (one 'Allele,MFI' pair per line)."""
     text = request_body.get("text", "")
     return {"alleles": parse_sab_allele_text(text)}
 
@@ -643,14 +579,13 @@ async def get_c_supertype(request_body: dict):
     return {"supertype": c_supertype(allele)}
 
 
-# ── Draft management ───────────────────────────────────────────────────────────
 
 @router.get("/drafts")
 def list_drafts():
     files = []
     for f in os.listdir(HLA_DRAFT_DIR):
         if f.endswith(".json") and f != "hla_settings.json":
-            files.append(f[:-5])  # strip .json
+            files.append(f[:-5])
     return {"drafts": sorted(files)}
 
 
@@ -681,7 +616,6 @@ def delete_draft(name: str):
     return {"ok": True}
 
 
-# ── Download generated report ──────────────────────────────────────────────────
 
 @router.get("/download")
 def download_report(path: str):
