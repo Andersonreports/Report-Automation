@@ -67,8 +67,7 @@ async def verify_otp(body: dict):
         raise HTTPException(401, str(e))
 
     if not db.mysql_enabled:
-        # No local table to look up role/report — fail open, same as the
-        # rest of this module does while MySQL isn't configured.
+        
         return {"mobile_number": mobile, "role": "user", "report": None, "access_control": False}
 
     user = db.get_user_by_mobile_number(mobile)

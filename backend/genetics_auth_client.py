@@ -102,12 +102,15 @@ def _post(path: str, body: dict) -> dict:
         )
 
     token = _get_service_token()
+    safe_body = {k: ("***" if k == "password" else v) for k, v in body.items()}
     try:
         resp, data = _do_post(path, body, token)
-        
+        print(f"[genetics] POST {path} body={safe_body} -> status={resp.status_code} data={data}")
+
         if resp.status_code == 401 and data.get("message") != "success":
             token = _get_service_token(force_refresh=True)
             resp, data = _do_post(path, body, token)
+            print(f"[genetics] retry POST {path} -> status={resp.status_code} data={data}")
     except requests.RequestException as e:
         raise GeneticsApiError(f"Could not reach {path}: {e}")
 
