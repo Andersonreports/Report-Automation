@@ -1,5 +1,4 @@
 import os
-import uuid
 import mysql.connector
 from mysql.connector import pooling
 
@@ -50,33 +49,82 @@ def _init_schema():
                 created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
+        conn.commit()
 
         cur.execute("""
-            CREATE TABLE IF NOT EXISTS users (
-                id            VARCHAR(36) PRIMARY KEY,
-                mobile_number VARCHAR(255) UNIQUE NOT NULL,
-                password      VARCHAR(255),
-                name          VARCHAR(255),
-                role          VARCHAR(10) NOT NULL,
-                report        VARCHAR(50),
-                created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            CREATE TABLE IF NOT EXISTS pgta_autosave (
+                id          INT AUTO_INCREMENT PRIMARY KEY,
+                draft_key   VARCHAR(255) NOT NULL,
+                mode        VARCHAR(20) NOT NULL,
+                data        LONGTEXT NOT NULL,
+                updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY uniq_draft_key_mode (draft_key, mode)
             )
         """)
         conn.commit()
-        cur.execute("ALTER TABLE users MODIFY password VARCHAR(255) NULL")
-        conn.commit()
-        try:
-            cur.execute("ALTER TABLE users ADD COLUMN name VARCHAR(255) NULL")
+
+        cur.execute("""
+            SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME   = 'users'
+              AND COLUMN_NAME  = 'id'
+        """)
+        id_type_row = cur.fetchone()
+        if id_type_row and id_type_row[0].lower() == 'varchar':
+            print("[mysql_client] Migrating users table from UUID/VARCHAR to INT/BIGINT schema...")
+            cur.execute("SELECT mobile_number, name, role, report FROM users")
+            old_users = cur.fetchall()
+            cur.execute("DROP TABLE users")
             conn.commit()
-        except Exception:
-            pass  # column already exists
+            cur.execute("""
+                CREATE TABLE users (
+                    id            INT AUTO_INCREMENT PRIMARY KEY,
+                    mobile_number BIGINT UNIQUE NOT NULL,
+                    name          VARCHAR(255),
+                    role          VARCHAR(10) NOT NULL,
+                    report        VARCHAR(50),
+                    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            conn.commit()
+            for (mobile, uname, urole, ureport) in old_users:
+                try:
+                    cur.execute(
+                        "INSERT INTO users (mobile_number, name, role, report) VALUES (%s, %s, %s, %s)",
+                        (int(str(mobile).strip()), uname, urole, ureport),
+                    )
+                except Exception as e:
+                    print(f"[mysql_client] Could not re-insert {mobile}: {e}")
+            conn.commit()
+            print(f"[mysql_client] Migration done - {len(old_users)} user(s) preserved.")
+        else:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS users (
+                    id            INT AUTO_INCREMENT PRIMARY KEY,
+                    mobile_number BIGINT UNIQUE NOT NULL,
+                    name          VARCHAR(255),
+                    role          VARCHAR(10) NOT NULL,
+                    report        VARCHAR(50),
+                    created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
+            conn.commit()
+            try:
+                cur.execute("ALTER TABLE users MODIFY mobile_number BIGINT NOT NULL")
+                conn.commit()
+            except Exception:
+                pass
+            try:
+                cur.execute("ALTER TABLE users DROP COLUMN password")
+                conn.commit()
+            except Exception:
+                pass
+
         cur.execute("SELECT COUNT(*) FROM users")
         if cur.fetchone()[0] == 0:
-            
             print(
-                "[mysql_client] `users` table is empty — no admin configured. "
-                "Insert one manually with a real IT-provisioned mobile number; "
-                "see the comment above this line for the SQL."
+                "[mysql_client] `users` table is empty - no admin configured. "
+                "Run seed_users.py or insert a user via the Admin page."
             )
         cur.close()
     finally:
@@ -86,10 +134,10 @@ def _init_schema():
 mysql_enabled = _is_configured()
 
 
-# ── User / access-control helpers ──────────────────────────────────────────
+# -- User / access-control helpers --------------------------------------
 
 def _row_to_user(row: dict) -> dict:
-    return {k: v for k, v in row.items() if k != "password"}
+    return dict(row)
 
 
 def list_users():
@@ -105,8 +153,6 @@ def list_users():
 
 
 def get_user_by_mobile_number(mobile_number: str):
-    """Looks up role/report by mobile number only — identity is verified
-    upstream by the genetics auth gateway, not by a local password."""
     conn = _get_pool().get_connection()
     try:
         cur = conn.cursor(dictionary=True)
@@ -126,12 +172,12 @@ def create_user(mobile_number: str, role: str, report: str | None, password: str
         if cur.fetchone():
             cur.close()
             raise ValueError("That mobile number already exists.")
-        user_id = str(uuid.uuid4())
         cur.execute(
-            "INSERT INTO users (id, mobile_number, password, name, role, report) VALUES (%s, %s, %s, %s, %s, %s)",
-            (user_id, mobile_number, password, name, role, None if role == "admin" else report),
+            "INSERT INTO users (mobile_number, name, role, report) VALUES (%s, %s, %s, %s)",
+            (mobile_number, name, role, None if role == "admin" else report),
         )
         conn.commit()
+        user_id = cur.lastrowid
         cur.execute("SELECT * FROM users WHERE id = %s", (user_id,))
         row = cur.fetchone()
         cur.close()
@@ -140,7 +186,7 @@ def create_user(mobile_number: str, role: str, report: str | None, password: str
         conn.close()
 
 
-def update_user(user_id: str, **fields):
+def update_user(user_id: int, **fields):
     conn = _get_pool().get_connection()
     try:
         cur = conn.cursor(dictionary=True)
@@ -151,7 +197,6 @@ def update_user(user_id: str, **fields):
             raise LookupError("User not found.")
 
         mobile_number = fields.get("mobile_number", existing["mobile_number"]) or existing["mobile_number"]
-        password = fields.get("password") or existing["password"]
         name = fields.get("name") if "name" in fields else existing.get("name")
         role = fields.get("role", existing["role"]) or existing["role"]
         report = fields["report"] if "report" in fields else existing["report"]
@@ -165,8 +210,8 @@ def update_user(user_id: str, **fields):
                 raise ValueError("That mobile number already exists.")
 
         cur.execute(
-            "UPDATE users SET mobile_number=%s, password=%s, name=%s, role=%s, report=%s WHERE id=%s",
-            (mobile_number, password, name, role, report, user_id),
+            "UPDATE users SET mobile_number=%s, name=%s, role=%s, report=%s WHERE id=%s",
+            (mobile_number, name, role, report, user_id),
         )
         conn.commit()
         cur.execute("SELECT * FROM users WHERE id = %s", (user_id,))
@@ -177,7 +222,7 @@ def update_user(user_id: str, **fields):
         conn.close()
 
 
-def delete_user(user_id: str):
+def delete_user(user_id: int):
     conn = _get_pool().get_connection()
     try:
         cur = conn.cursor(dictionary=True)
@@ -228,5 +273,46 @@ def save_report(user_id, file_url, report_type):
         )
         conn.commit()
         cur.close()
+    finally:
+        conn.close()
+
+
+# -- PGT-A shared autosave (lets a colleague editing the same patient/batch
+# see the latest saved version instead of redoing work) ----------------
+
+def pgta_autosave_save(draft_key: str, mode: str, data: str) -> dict:
+    conn = _get_pool().get_connection()
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """INSERT INTO pgta_autosave (draft_key, mode, data) VALUES (%s, %s, %s)
+               ON DUPLICATE KEY UPDATE data = VALUES(data), updated_at = CURRENT_TIMESTAMP""",
+            (draft_key, mode, data),
+        )
+        conn.commit()
+        cur.execute(
+            "SELECT updated_at FROM pgta_autosave WHERE draft_key = %s AND mode = %s",
+            (draft_key, mode),
+        )
+        row = cur.fetchone()
+        cur.close()
+        return {"updated_at": row[0].isoformat() if row else None}
+    finally:
+        conn.close()
+
+
+def pgta_autosave_get(draft_key: str, mode: str):
+    conn = _get_pool().get_connection()
+    try:
+        cur = conn.cursor(dictionary=True)
+        cur.execute(
+            "SELECT data, updated_at FROM pgta_autosave WHERE draft_key = %s AND mode = %s",
+            (draft_key, mode),
+        )
+        row = cur.fetchone()
+        cur.close()
+        if not row:
+            return None
+        return {"data": row["data"], "updated_at": row["updated_at"].isoformat()}
     finally:
         conn.close()

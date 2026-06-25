@@ -1474,98 +1474,6 @@
       flex-shrink: 0;
     }
 
-    /* ── Cloud Browser Modal ── */
-    .modal-overlay {
-      position: fixed; inset: 0;
-      background: rgba(0,0,0,0.45);
-      display: flex; align-items: center; justify-content: center;
-      z-index: 9000;
-    }
-    .cloud-modal {
-      background: #fff;
-      border-radius: 14px;
-      width: 520px; max-width: 94vw;
-      max-height: 82vh;
-      display: flex; flex-direction: column;
-      box-shadow: 0 8px 40px rgba(0,0,0,0.22);
-      overflow: hidden;
-    }
-    .cloud-modal-hdr {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 16px 20px 12px;
-      border-bottom: 1px solid #e5e7eb;
-    }
-    .cloud-modal-hdr h3 {
-      font-size: 15px; font-weight: 700; color: var(--primary);
-      display: flex; align-items: center; gap: 8px;
-    }
-    .cloud-modal-close {
-      background: none; border: none; cursor: pointer;
-      font-size: 20px; color: var(--text-muted); line-height: 1;
-      padding: 2px 6px; border-radius: 6px;
-    }
-    .cloud-modal-close:hover { background: #f0f4f8; color: var(--text); }
-    .cloud-modal-breadcrumb {
-      padding: 6px 20px;
-      font-size: 11px; color: var(--text-muted);
-      background: #f8fafc;
-      border-bottom: 1px solid #e5e7eb;
-    }
-    .cloud-modal-body {
-      flex: 1; overflow-y: auto; padding: 10px 12px;
-    }
-    .cloud-modal-footer {
-      padding: 12px 20px;
-      border-top: 1px solid #e5e7eb;
-      display: flex; align-items: center; justify-content: flex-end; gap: 10px;
-    }
-    .cloud-folder-item, .cloud-file-item {
-      display: flex; align-items: center; gap: 10px;
-      padding: 9px 12px; border-radius: 8px;
-      cursor: pointer; font-size: 12px; color: var(--text);
-      transition: background 0.12s;
-      border: 1px solid transparent;
-    }
-    .cloud-folder-item:hover { background: #f0f4f8; }
-    .cloud-folder-item.active { background: rgba(31,73,125,0.08); border-color: var(--primary); color: var(--primary); font-weight: 600; }
-    .cloud-folder-item i { color: #f59e0b; font-size: 15px; flex-shrink: 0; }
-    .cloud-file-item { cursor: default; color: var(--text-muted); }
-    .cloud-file-item i { font-size: 13px; flex-shrink: 0; }
-    .cloud-file-item i.fa-file-excel { color: #16a34a; }
-    .cloud-file-item i.fa-image { color: #2563eb; }
-    .selectable-excel { cursor: pointer !important; color: var(--text) !important; }
-    .selectable-excel:hover { background: #f0f4f8; }
-    .selectable-excel.active { background: #dcfce7; border: 1px solid #16a34a; color: #15803d !important; font-weight: 600; }
-    .cloud-badge {
-      font-size: 9px; font-weight: 700; padding: 1px 5px;
-      border-radius: 4px; margin-left: auto;
-    }
-    .cloud-badge.excel { background: #dcfce7; color: #15803d; }
-    .cloud-badge.image { background: #dbeafe; color: #1d4ed8; }
-    .cloud-back-btn {
-      display: flex; align-items: center; gap: 8px;
-      padding: 7px 12px; border-radius: 7px; cursor: pointer;
-      font-size: 12px; font-weight: 600; color: var(--primary);
-      background: rgba(31,73,125,0.06);
-      border: 1px solid rgba(31,73,125,0.12);
-      margin-bottom: 8px; width: fit-content;
-      transition: background 0.12s;
-    }
-    .cloud-back-btn:hover { background: rgba(31,73,125,0.12); }
-    .cloud-status-msg {
-      padding: 16px; text-align: center;
-      font-size: 12px; color: var(--text-muted);
-    }
-    .cloud-status-msg.error { color: #ef4444; }
-    .cloud-status-msg.warn { color: #d97706; }
-    .cloud-select-btn {
-      padding: 8px 20px;
-      background: var(--primary); color: #fff;
-      border: none; border-radius: 8px; font-size: 12px; font-weight: 700;
-      cursor: pointer; transition: background 0.15s;
-    }
-    .cloud-select-btn:hover { background: var(--primary-hover); }
-    .cloud-select-btn:disabled { opacity: 0.45; cursor: not-allowed; }
     .cnv-mapped-badge {
       font-size: 9px; font-weight: 700; padding: 2px 6px;
       border-radius: 5px; background: #dbeafe; color: #1d4ed8;
@@ -2930,6 +2838,12 @@
             <!-- PATIENT INFORMATION -->
             <div class="card">
               <h3> Patient Information</h3>
+              <div style="display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; margin-bottom:12px;">
+                <div class="field" style="margin:0;"><label>From Date</label><input type="date" id="pfFromDate"></div>
+                <div class="field" style="margin:0;"><label>To Date</label><input type="date" id="pfToDate"></div>
+                <button class="btn-sm btn-outline" id="pfFindBtn" type="button"><i class="fas fa-search"></i> Find Patients</button>
+                <span id="pfStatus" style="font-size:11.5px; color:var(--text-muted);"></span>
+              </div>
               <div class="field-grid">
                 <div class="field"><label>Patient Name <span class="req">*</span></label><textarea id="f_patient_name"
                     rows="2" placeholder="Mrs. Priya Sharma" oninput="schedulePreview()"></textarea></div>
@@ -3083,11 +2997,11 @@
           <!-- Compact: File Upload + Output Folder in one bar -->
           <div class="bulk-top-bar">
             <div class="bulk-top-file">
-              <div class="drop-zone-compact" id="dropZone" onclick="openCloudBrowser()">
-                <i class="fas fa-cloud" style="color:var(--primary);font-size:14px;flex-shrink:0;"></i>
-                <span id="dropZoneLabel">Click to browse cloud folders &nbsp;<small style="color:var(--text-muted);">(or drag &amp; drop local Excel)</small></span>
+              <div class="drop-zone-compact" id="dropZone" onclick="document.getElementById('bulkFileInput').click()">
+                <i class="fas fa-file-excel" style="color:var(--primary);font-size:14px;flex-shrink:0;"></i>
+                <span id="dropZoneLabel">Click to browse or drag &amp; drop local Excel/CSV</span>
               </div>
-              <input type="file" id="bulkFileInput" style="display:none;" accept=".xlsx,.xls" multiple>
+              <input type="file" id="bulkFileInput" style="display:none;" accept=".xlsx,.xls,.csv" multiple>
             </div>
             <!-- CNV Auto-Fetch button (visible after Excel is loaded) -->
             <div class="bulk-top-sep"></div>
@@ -3472,7 +3386,6 @@
 
   <script src="xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     // ═══════════════════════════════════════════════
     // CONFIG & AUTH
@@ -3483,7 +3396,6 @@
         : (_h === ""
             ? "https://tera-report-automation.onrender.com"  // opened as file://
             : "");                          // hosted by IT server → relative paths
-    let sb = null;
     document.body.classList.add("loaded");
 
     document.getElementById("userBtn").addEventListener("click", e => {
@@ -3495,7 +3407,6 @@
       document.getElementById("userMenu").style.display = "none";
     });
     async function signOut() {
-      if (sb) await sb.auth.signOut();
       localStorage.removeItem("tera_role");
       localStorage.removeItem("tera_user_name");
       window.location.href = "/";
@@ -3962,6 +3873,7 @@
     function schedulePreview() {
       if (state.previewTimer) clearTimeout(state.previewTimer);
       state.previewTimer = setTimeout(generatePreview, 800);
+      if (typeof scheduleManualAutosave === "function") scheduleManualAutosave();
     }
     function triggerPreview() { generatePreview(); }
 
@@ -4184,11 +4096,11 @@
         const allKeys = Object.keys(localStorage).filter(k => k.startsWith("pgta_draft_")).sort();
         while (allKeys.length > 30) { localStorage.removeItem(allKeys.shift()); }
       } catch(e) {}
-      // Also save to Supabase drafts table (fire-and-forget)
+      // Also save server-side so it shows up in the shared draft list (fire-and-forget)
       fetch(`${BASE}/save-draft/pgta_manual`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(draftData)
-      }).catch(e => console.warn("Supabase manual draft save failed:", e));
+      }).catch(e => console.warn("Server manual draft save failed:", e));
       // Also download as a JSON backup file — timestamp makes each save unique
       const filename = `pgta_draft_${patientName}_${todayStr()}_${Date.now()}.json`;
       const blob = new Blob([JSON.stringify(draftData, null, 2)], { type: "application/json" });
@@ -4281,11 +4193,11 @@
       } catch(e) {
         showToast("Storage full — cannot save draft", "error"); return;
       }
-      // Also save to Supabase drafts table (fire-and-forget)
+      // Also save server-side so it shows up in the shared draft list (fire-and-forget)
       fetch(`${BASE}/save-draft/pgta_bulk`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(draftData)
-      }).catch(e => console.warn("Supabase bulk draft save failed:", e));
+      }).catch(e => console.warn("Server bulk draft save failed:", e));
       showToast(`Draft saved: ${patientsToSave.length} patient(s)`, "success");
     }
 
@@ -4443,6 +4355,198 @@
     }
 
     // ═══════════════════════════════════════════════
+    // SHARED AUTOSAVE (MySQL-backed)
+    // Lets a colleague editing the same patient (Single Entry) or the same
+    // uploaded batch (Bulk) show up here without redoing their work. This
+    // polls + pushes periodically — it is NOT live/real-time typing sync.
+    // ═══════════════════════════════════════════════
+    const _autosave = {
+      manual: { key: null, lastUpdatedAt: null, lastSnapshot: null, timer: null },
+      bulk:   { key: null, lastUpdatedAt: null, lastSnapshot: null, timer: null },
+    };
+
+    function _normalizeAutosaveKey(s) {
+      return (s || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+    }
+
+    function _autosaveBanner(mode, onReload) {
+      let bar = document.getElementById("autosaveBanner");
+      if (bar) bar.remove();
+      bar = document.createElement("div");
+      bar.id = "autosaveBanner";
+      bar.style.cssText = "position:fixed;top:0;left:50%;transform:translateX(-50%);z-index:9500;background:#1F497D;color:#fff;padding:10px 18px;border-radius:0 0 10px 10px;font-size:12.5px;display:flex;align-items:center;gap:12px;box-shadow:0 4px 14px rgba(0,0,0,0.25);";
+      const msg = document.createElement("span");
+      msg.innerHTML = `<i class="fas fa-cloud"></i>&nbsp; Newer changes were saved ${mode === "bulk" ? "to this batch" : "for this patient"} by someone else.`;
+      const reloadBtn = document.createElement("button");
+      reloadBtn.textContent = "Reload";
+      reloadBtn.style.cssText = "background:#fff;color:#1F497D;border:none;padding:4px 12px;border-radius:6px;font-weight:700;cursor:pointer;font-size:11.5px;";
+      reloadBtn.onclick = () => { onReload(); bar.remove(); };
+      const dismissBtn = document.createElement("button");
+      dismissBtn.innerHTML = "&#x2715;";
+      dismissBtn.style.cssText = "background:none;border:none;color:#fff;cursor:pointer;font-size:13px;opacity:0.8;";
+      dismissBtn.onclick = () => bar.remove();
+      bar.appendChild(msg); bar.appendChild(reloadBtn); bar.appendChild(dismissBtn);
+      document.body.appendChild(bar);
+    }
+
+    async function _autosavePush(mode, key, data) {
+      if (!key) return;
+      try {
+        const res = await fetch(`${BASE}/pgta/autosave`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ draft_key: key, mode, data }),
+        });
+        if (!res.ok) return;
+        const r = await res.json();
+        _autosave[mode].lastUpdatedAt = r.updated_at;
+      } catch (e) { /* best-effort — ignore if offline or MySQL not configured */ }
+    }
+
+    async function _autosaveCheck(mode, key, onNewer) {
+      if (!key) return;
+      try {
+        const res = await fetch(`${BASE}/pgta/autosave?draft_key=${encodeURIComponent(key)}&mode=${mode}`);
+        if (!res.ok) return; // 404 = nothing saved yet, or MySQL not configured
+        const r = await res.json();
+        if (_autosave[mode].key !== key) return; // user moved on to something else meanwhile
+        if (_autosave[mode].lastUpdatedAt && r.updated_at === _autosave[mode].lastUpdatedAt) return; // already current (likely our own push)
+        onNewer(r);
+      } catch (e) { /* offline / not configured */ }
+    }
+
+    function scheduleManualAutosave() {
+      const key = _normalizeAutosaveKey(document.getElementById("f_patient_name")?.value);
+      if (!key) return;
+      const isNewKey = _autosave.manual.key !== key;
+      _autosave.manual.key = key;
+      if (isNewKey) {
+        _autosave.manual.lastUpdatedAt = null;
+        _autosaveCheck("manual", key, (r) => {
+          _autosaveBanner("manual", () => { _applyManualDraft(r.data); _autosave.manual.lastUpdatedAt = r.updated_at; });
+        });
+      }
+      const draftData = {
+        patientData: getPatientData(), summaryRows: state.summaryRows,
+        embryoForms: state.embryoForms, embryoCount: state.embryoCount,
+        cnvImages: state.cnvImages, _type: "pgta_manual_draft",
+        _savedAt: new Date().toISOString(),
+      };
+      const snapshot = JSON.stringify(draftData);
+      if (snapshot === _autosave.manual.lastSnapshot) return;
+      _autosave.manual.lastSnapshot = snapshot;
+      if (_autosave.manual.timer) clearTimeout(_autosave.manual.timer);
+      _autosave.manual.timer = setTimeout(() => _autosavePush("manual", key, draftData), 2500);
+    }
+
+    function _trackBulkAutosaveKey(filename) {
+      const key = _normalizeAutosaveKey(filename);
+      if (!key) return;
+      _autosave.bulk.key = key;
+      _autosave.bulk.lastUpdatedAt = null;
+      _autosave.bulk.lastSnapshot = null;
+      _autosaveCheck("bulk", key, (r) => {
+        _autosaveBanner("bulk", () => { _applyBulkDraft(r.data); _autosave.bulk.lastUpdatedAt = r.updated_at; });
+      });
+    }
+
+    function scheduleBulkAutosave() {
+      const key = _autosave.bulk.key;
+      if (!key || !state.bulkPatients.length) return;
+      const draftData = {
+        patients: JSON.parse(JSON.stringify(state.bulkPatients)),
+        _type: "pgta_bulk_draft", _savedAt: new Date().toISOString(),
+      };
+      const snapshot = JSON.stringify(draftData);
+      if (snapshot === _autosave.bulk.lastSnapshot) return;
+      _autosave.bulk.lastSnapshot = snapshot;
+      if (_autosave.bulk.timer) clearTimeout(_autosave.bulk.timer);
+      _autosave.bulk.timer = setTimeout(() => _autosavePush("bulk", key, draftData), 2500);
+    }
+
+    // Periodic poll so a colleague's later save surfaces while we're still
+    // editing the same patient/batch, not just at the moment we switch to it.
+    setInterval(() => {
+      if (_autosave.manual.key) {
+        _autosaveCheck("manual", _autosave.manual.key, (r) => {
+          _autosaveBanner("manual", () => { _applyManualDraft(r.data); _autosave.manual.lastUpdatedAt = r.updated_at; });
+        });
+      }
+      if (_autosave.bulk.key) {
+        scheduleBulkAutosave();
+        _autosaveCheck("bulk", _autosave.bulk.key, (r) => {
+          _autosaveBanner("bulk", () => { _applyBulkDraft(r.data); _autosave.bulk.lastUpdatedAt = r.updated_at; });
+        });
+      }
+    }, 15000);
+
+    // ═══════════════════════════════════════════════
+    // FIND PATIENTS (date range lookup against IT's patient gateway)
+    // ═══════════════════════════════════════════════
+    function _pfFillField(id, value) {
+      if (value === undefined || value === null || value === "") return;
+      const el = document.getElementById(id);
+      if (el) el.value = value;
+    }
+
+    function _pfApplyPatient(p) {
+      _pfFillField("f_patient_name", p.patient_name);
+      _pfFillField("f_pin", p.patient_no);
+      _pfFillField("f_age", p.age);
+      _pfFillField("f_sample_number", p.lab_no);
+      const isoDate = (p.sample_receipt_date || "").split(" ")[0];
+      const [y, m, d] = isoDate.split("-");
+      const displayDate = (y && m && d) ? `${d}-${m}-${y}` : "";
+      _pfFillField("f_sample_collection_date", displayDate);
+      _pfFillField("f_sample_receipt_date", displayDate);
+      schedulePreview();
+      const statusEl = document.getElementById("pfStatus");
+      if (statusEl) statusEl.textContent = "Patient details applied.";
+    }
+
+    document.getElementById("pfFindBtn")?.addEventListener("click", async () => {
+      const findBtn = document.getElementById("pfFindBtn");
+      const fromEl = document.getElementById("pfFromDate");
+      const toEl = document.getElementById("pfToDate");
+      const statusEl = document.getElementById("pfStatus");
+      const listEl = document.getElementById("pfModalList");
+      const fromDate = fromEl.value, toDate = toEl.value;
+      if (!fromDate || !toDate) { statusEl.textContent = "Pick both dates first."; return; }
+      statusEl.textContent = "Searching...";
+      try {
+        const res = await fetch(`${BASE}/access/patients`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ from_date: fromDate, to_date: toDate, reporting_type: "PGTA" }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { statusEl.textContent = data.detail || "Search failed."; return; }
+        const patients = data.patients || [];
+        statusEl.textContent = `${patients.length} found`;
+        listEl.innerHTML = "";
+        if (!patients.length) {
+          listEl.innerHTML = '<div style="padding:10px;font-size:12px;color:#64748b;">No patients in this date range.</div>';
+        } else {
+          patients.forEach(p => {
+            const item = document.createElement("button");
+            item.type = "button";
+            item.textContent = `${p.patient_name} - ${p.gender || ""}/${p.age ?? ""} - ${p.patient_no} - ${(p.sample_receipt_date || "").split(" ")[0]}`;
+            item.style.cssText = "text-align:left;padding:9px 12px;border:1px solid #e2e8f0;border-radius:8px;background:#fff;cursor:pointer;font-size:12px;width:100%;transition:0.12s;";
+            item.onmouseover = () => item.style.background = "#f0f4f8";
+            item.onmouseout = () => item.style.background = "#fff";
+            item.onclick = () => _pfApplyPatient(p);
+            listEl.appendChild(item);
+          });
+        }
+        const overlay = document.getElementById("pfModalOverlay");
+        const rect = findBtn.getBoundingClientRect();
+        overlay.style.top = (window.scrollY + rect.bottom + 6) + "px";
+        overlay.style.left = (window.scrollX + rect.left) + "px";
+        overlay.style.display = "block";
+      } catch (err) {
+        statusEl.textContent = "Could not reach the server.";
+      }
+    });
+
+    // ═══════════════════════════════════════════════
     // BULK UPLOAD
     // ═══════════════════════════════════════════════
     const dropZone = document.getElementById("dropZone");
@@ -4454,10 +4558,10 @@
       if (files.length === 0) return;
       
       const lbl = document.getElementById("dropZoneLabel");
-      const excelFiles = Array.from(files).filter(f => f.name.toLowerCase().endsWith('.xlsx') || f.name.toLowerCase().endsWith('.xls'));
-      
+      const excelFiles = Array.from(files).filter(f => /\.(xlsx|xls|csv)$/i.test(f.name));
+
       if (excelFiles.length === 0) {
-        showToast("No Excel file found in selection", "error");
+        showToast("No Excel or CSV file found in selection", "error");
         return;
       }
       
@@ -4471,6 +4575,7 @@
         const patients = await parseExcelClientSide(excelFile);
         if (!patients.length) throw new Error("No patient rows found in Excel file.");
         state.bulkPatients = patients;
+        _trackBulkAutosaveKey(excelFile.name);
 
         // Auto-match images using 3-pass algorithm (same as Load CNV Charts button)
         let mapped = 0;
@@ -4911,437 +5016,6 @@
       }
     }
 
-    // ═══════════════════════════════════════════════
-    // CLOUD BROWSER
-    // ═══════════════════════════════════════════════
-    let _cloudSelectedFolder = null;
-    let _cloudFolderFiles    = [];
-    let _cloudSelectedExcel  = null;   // the Excel file object the user clicked
-    let _cloudSubfolders     = [];     // patient image subfolders inside the batch folder
-    let _cloudDirectImages   = [];     // image files sitting directly alongside the Excel (flat layout)
-
-    function openCloudBrowser() {
-      // Fallback: if Supabase client not ready, open local file picker instead
-      if (!sb) {
-        document.getElementById("bulkFileInput").click();
-        return;
-      }
-      _cloudSelectedFolder = null;
-      _cloudFolderFiles    = [];
-      const footer = document.getElementById("cloudBrowserFooter");
-      const btn    = document.getElementById("cloudConfirmBtn");
-      if (footer) footer.style.display = "none";
-      if (btn)    btn.disabled = true;
-      document.getElementById("cloudBreadcrumb").textContent = "Report-inputs /";
-      document.getElementById("cloudBrowserModal").style.display = "flex";
-      _cloudLoadFolders();
-    }
-
-    function closeCloudBrowser() {
-      document.getElementById("cloudBrowserModal").style.display = "none";
-    }
-
-    async function _cloudLoadFolders() {
-      const list = document.getElementById("cloudBrowserList");
-      list.innerHTML = '<div class="cloud-status-msg"><i class="fas fa-spinner fa-spin"></i>&nbsp; Loading folders…</div>';
-      try {
-        // Use backend endpoint (service-role key) — list bucket root (batch folders are at root level)
-        const res = await fetch("/pgta/storage/list?path=");
-        if (!res.ok) throw new Error(`Server error ${res.status}: ${await res.text()}`);
-        const { items: rawItems } = await res.json();
-        console.log("[CloudBrowser] root items:", rawItems);
-
-        const items = (rawItems || []).filter(f => f.name !== ".emptyFolderPlaceholder");
-
-        // Folders have id===null; files have a UUID id or a metadata.mimetype
-        const isFolder = f => f.id === null || f.id == null || !f.metadata || !f.metadata.mimetype;
-        let visibleFolders = items.filter(isFolder);
-        if (visibleFolders.length === 0) {
-          visibleFolders = items.filter(f => !f.name.includes("."));
-        }
-
-        list.innerHTML = "";
-
-        if (visibleFolders.length === 0) {
-          list.innerHTML = `<div class="cloud-status-msg warn" style="text-align:left;">
-            <i class="fas fa-info-circle"></i>&nbsp; No batch run folders found in <code>Report-inputs</code>.
-            <br><small style="display:block;margin-top:6px;color:#555;">
-              Create a folder (e.g. <code>pgta_run_48/</code>) and upload your Excel + patient subfolders inside it.
-            </small>
-          </div>`;
-        } else {
-          visibleFolders.forEach(folder => {
-            const div = document.createElement("div");
-            div.className = "cloud-folder-item";
-            div.innerHTML = `<i class="fas fa-folder"></i><span style="flex:1;">${esc(folder.name)}</span><i class="fas fa-chevron-right" style="color:#ccc;font-size:10px;"></i>`;
-            div.onclick = () => _cloudOpenFolder(folder.name, div);
-            list.appendChild(div);
-          });
-        }
-
-        // Always show local-file fallback at the bottom
-        _appendLocalFallback(list);
-      } catch (err) {
-        console.error("[CloudBrowser] list error:", err);
-        list.innerHTML = `<div class="cloud-status-msg error">
-          <i class="fas fa-exclamation-triangle"></i>&nbsp; <strong>Could not load folders:</strong> ${esc(err.message || String(err))}
-          <br><small style="display:block;margin-top:4px;">Check bucket policies or your network connection.</small>
-        </div>`;
-        _appendLocalFallback(list);
-      }
-    }
-
-    function _appendLocalFallback(container) {
-      const sep = document.createElement("div");
-      sep.style.cssText = "margin:12px 0 6px;border-top:1px solid #e5e7eb;padding-top:10px;text-align:center;font-size:11px;color:var(--text-muted);";
-      sep.textContent = "— or —";
-      container.appendChild(sep);
-      const btn = document.createElement("button");
-      btn.style.cssText = "display:block;margin:0 auto;padding:6px 18px;background:var(--primary);color:#fff;border:none;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;";
-      btn.innerHTML = '<i class="fas fa-folder-open"></i>&nbsp; Use local Excel file';
-      btn.onclick = () => { closeCloudBrowser(); document.getElementById("bulkFileInput").click(); };
-      container.appendChild(btn);
-    }
-
-    async function _cloudOpenFolder(folderName, el) {
-      document.querySelectorAll(".cloud-folder-item").forEach(d => d.classList.remove("active"));
-      if (el) el.classList.add("active");
-      _cloudSelectedFolder = folderName;
-      _cloudFolderFiles    = [];
-      _cloudSelectedExcel  = null;
-      _cloudSubfolders     = [];
-      _cloudDirectImages   = [];
-      document.getElementById("cloudBreadcrumb").textContent = `Report-inputs / ${folderName}`;
-      const list   = document.getElementById("cloudBrowserList");
-      const footer = document.getElementById("cloudBrowserFooter");
-      const btn    = document.getElementById("cloudConfirmBtn");
-      if (footer) footer.style.display = "none";
-      if (btn)    btn.disabled = true;
-      list.innerHTML = '<div class="cloud-status-msg"><i class="fas fa-spinner fa-spin"></i>&nbsp; Loading files…</div>';
-      try {
-        const _listRes = await fetch(`/pgta/storage/list?path=${encodeURIComponent(folderName)}`);
-        if (!_listRes.ok) throw new Error(`Server error ${_listRes.status}: ${await _listRes.text()}`);
-        const { items: rawData } = await _listRes.json();
-
-        _cloudFolderFiles = (rawData || []).filter(f => f.name !== ".emptyFolderPlaceholder");
-        const xlsxFiles  = _cloudFolderFiles.filter(f => /\.xlsx?$/i.test(f.name));
-        const isFolder   = f => f.id === null || f.id == null || !f.metadata || !f.metadata.mimetype;
-        _cloudSubfolders   = _cloudFolderFiles.filter(f => isFolder(f) && !/\.xlsx?$/i.test(f.name));
-        // Images sitting directly in the same folder as the Excel (flat layout)
-        _cloudDirectImages = _cloudFolderFiles.filter(f => /\.(png|jpe?g)$/i.test(f.name) && !isFolder(f));
-
-        list.innerHTML = "";
-
-        // ── Back button ──────────────────────────────────────
-        const back = document.createElement("div");
-        back.className = "cloud-back-btn";
-        back.innerHTML = '<i class="fas fa-arrow-left"></i> Back to folders';
-        back.onclick = openCloudBrowser;
-        list.appendChild(back);
-
-        if (_cloudFolderFiles.length === 0) {
-          list.innerHTML += '<div class="cloud-status-msg warn"><i class="fas fa-folder-open"></i>&nbsp; Folder is empty</div>';
-          return;
-        }
-
-        if (xlsxFiles.length === 0) {
-          const warn = document.createElement("div");
-          warn.className = "cloud-status-msg warn";
-          warn.style.marginTop = "8px";
-          warn.innerHTML = '<i class="fas fa-exclamation-triangle"></i>&nbsp; No Excel file found in this folder';
-          list.appendChild(warn);
-          return;
-        }
-
-        // ── Excel selection header ────────────────────────────
-        const xlsxHdr = document.createElement("div");
-        xlsxHdr.style.cssText = "font-size:11px;font-weight:700;color:var(--primary);text-transform:uppercase;letter-spacing:.5px;margin:8px 0 4px;padding:0 2px;";
-        xlsxHdr.innerHTML = `<i class="fas fa-file-excel" style="color:#1d6f42;margin-right:4px;"></i>Select Excel file (${xlsxFiles.length} found):`;
-        list.appendChild(xlsxHdr);
-
-        xlsxFiles.forEach(file => {
-          const div = document.createElement("div");
-          div.className = "cloud-file-item selectable-excel";
-          div.style.cursor = "pointer";
-          div.innerHTML = `<i class="fas fa-file-excel" style="color:#1d6f42;"></i><span style="flex:1;overflow:hidden;text-overflow:ellipsis;">${esc(file.name)}</span><span class="cloud-badge excel">EXCEL</span>`;
-          div.onclick = () => _selectCloudExcel(file, div);
-          list.appendChild(div);
-        });
-
-        // ── CNV image subfolders (info only) ──────────────────
-        if (_cloudSubfolders.length > 0) {
-          const isNumbered = _cloudSubfolders.every(sf => /^\d+$/.test(sf.name.trim()));
-          const sfHdr = document.createElement("div");
-          sfHdr.style.cssText = "font-size:11px;font-weight:700;color:#b45309;text-transform:uppercase;letter-spacing:.5px;margin:12px 0 4px;padding:0 2px;";
-          sfHdr.innerHTML = isNumbered
-            ? `<i class="fas fa-images" style="color:#f59e0b;margin-right:4px;"></i>CNV image folders (${_cloudSubfolders.length}) — auto-mapped by embryo number:`
-            : `<i class="fas fa-folder" style="color:#f59e0b;margin-right:4px;"></i>Patient image folders (${_cloudSubfolders.length}) — auto-loaded per patient:`;
-          list.appendChild(sfHdr);
-          _cloudSubfolders.forEach(sf => {
-            const div = document.createElement("div");
-            div.className = "cloud-folder-item";
-            div.style.cssText = "opacity:.75;cursor:default;pointer-events:none;";
-            div.innerHTML = `<i class="fas fa-folder" style="color:#f59e0b;"></i><span style="flex:1;">${esc(sf.name)}</span><span class="cloud-badge" style="background:#fef3c7;color:#92400e;">IMAGES</span>`;
-            list.appendChild(div);
-          });
-        }
-
-        // ── Direct CNV images in same folder (flat layout) ────
-        if (_cloudDirectImages.length > 0) {
-          const imgHdr = document.createElement("div");
-          imgHdr.style.cssText = "font-size:11px;font-weight:700;color:#1d4ed8;text-transform:uppercase;letter-spacing:.5px;margin:12px 0 4px;padding:0 2px;";
-          imgHdr.innerHTML = `<i class="fas fa-images" style="color:#2563eb;margin-right:4px;"></i>CNV Charts detected in this folder (${_cloudDirectImages.length} images — will be auto-mapped):`;
-          list.appendChild(imgHdr);
-          _cloudDirectImages.slice(0, 8).forEach(img => {
-            const div = document.createElement("div");
-            div.className = "cloud-file-item";
-            div.style.cssText = "cursor:default;opacity:.85;";
-            div.innerHTML = `<i class="fas fa-image" style="color:#2563eb;"></i><span style="flex:1;overflow:hidden;text-overflow:ellipsis;">${esc(img.name)}</span><span class="cloud-badge" style="background:#dbeafe;color:#1d4ed8;">CNV</span>`;
-            list.appendChild(div);
-          });
-          if (_cloudDirectImages.length > 8) {
-            const more = document.createElement("div");
-            more.style.cssText = "font-size:10px;color:#64748b;padding:2px 4px;font-style:italic;";
-            more.textContent = `…and ${_cloudDirectImages.length - 8} more images`;
-            list.appendChild(more);
-          }
-        }
-
-      if (footer) footer.style.display = "flex";
-      const summary = document.getElementById("cloudFolderSummary");
-      if (summary) {
-        const cntMsg = _cloudDirectImages.length > 0
-          ? ` &nbsp;·&nbsp; <span style="color:#1d4ed8;font-weight:700;">${_cloudDirectImages.length} CNV image${_cloudDirectImages.length > 1 ? 's' : ''} detected</span>`
-          : '';
-        summary.innerHTML = `Click an Excel file to select it${cntMsg}`;
-      }
-
-      } catch (err) {
-        list.innerHTML = `<div class="cloud-status-msg error">${esc(err.message)}</div>`;
-      }
-    }
-
-    function _selectCloudExcel(file, el) {
-      document.querySelectorAll(".selectable-excel").forEach(d => d.classList.remove("active"));
-      el.classList.add("active");
-      _cloudSelectedExcel = file;
-      const btn = document.getElementById("cloudConfirmBtn");
-      if (btn) btn.disabled = false;
-      const summary = document.getElementById("cloudFolderSummary");
-      if (summary) summary.innerHTML = `<i class="fas fa-check-circle" style="color:#16a34a;margin-right:4px;"></i>Selected: <strong>${esc(file.name)}</strong>`;
-    }
-
-    async function confirmCloudFolder() {
-      if (!_cloudSelectedFolder || !_cloudSelectedExcel) return;
-      closeCloudBrowser();
-      const xlsxFile = _cloudSelectedExcel;
-      const lbl  = document.getElementById("dropZoneLabel");
-      const spin = `<span class="spinner" style="border-color:#1F497D;border-top-color:#4F81BD;width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:6px;border-width:2px;border-style:solid;border-radius:50%;animation:spin 0.7s linear infinite;"></span>`;
-      if (lbl) lbl.innerHTML = `${spin}Downloading <strong>${esc(xlsxFile.name)}</strong>…`;
-      try {
-        // 1. Download & parse Excel via public URL (bucket is PUBLIC — no auth needed for reads)
-        const xlsxPublicUrl = sb.storage.from("Report-inputs").getPublicUrl(`${_cloudSelectedFolder}/${xlsxFile.name}`).data.publicUrl;
-        const xlsxFetchRes = await fetch(xlsxPublicUrl);
-        if (!xlsxFetchRes.ok) throw new Error(`Failed to download Excel: HTTP ${xlsxFetchRes.status}`);
-        const xlsxBlob   = await xlsxFetchRes.blob();
-        const xlsxFileObj = new File([xlsxBlob], xlsxFile.name, { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-        await handleBulkFile(xlsxFileObj);
-
-        // 2. Auto-map CNV images (flat layout first — images in same folder as Excel)
-        if (state.bulkPatients.length > 0) {
-          if (lbl) lbl.innerHTML = `${spin}Mapping CNV images (${_cloudDirectImages.length > 0 ? _cloudDirectImages.length + ' found in same folder' : 'searching subfolders'})…`;
-          await _autoMapCnvImages(_cloudSelectedFolder, _cloudSubfolders, _cloudDirectImages);
-        }
-
-        // Count how many ended up with CNV charts mapped
-        const cnvMappedCount = state.bulkPatients.reduce((acc, p) =>
-          acc + (p.embryos || []).filter(e => e.cnv_image_b64).length, 0);
-        const cnvMsg = cnvMappedCount > 0
-          ? ` &nbsp;<small style="color:#16a34a;font-weight:bold;">(+${cnvMappedCount} CNVs mapped ✓)</small>`
-          : '';
-        if (lbl) lbl.innerHTML = `<i class="fas fa-cloud" style="color:var(--primary);"></i>&nbsp;<strong>${esc(_cloudSelectedFolder)} / ${esc(xlsxFile.name)}</strong> &mdash; ${state.bulkPatients.length} patient(s)${cnvMsg} &nbsp;<small style="color:var(--text-muted);text-decoration:underline;">(click to change)</small>`;
-      } catch (err) {
-        if (lbl) lbl.innerHTML = `<span style="color:#c00;"><i class="fas fa-exclamation-triangle"></i> Cloud error: ${esc(err.message)}</span>&nbsp;<small style="text-decoration:underline;">(click to retry)</small>`;
-        showToast("Cloud download failed: " + err.message, "error");
-      }
-    }
-
-    /**
-     * Auto-map CNV images from cloud storage to bulkPatients embryos.
-     *
-     * Supports three layouts:
-     *   Flat      — run_folder/PS1.png, run_folder/PS2.png  (Excel + images in same folder)
-     *   Numbered  — run_folder/1/cnv_chart.png, run_folder/2/cnv_chart.png …
-     *   Named     — run_folder/PatientName/Embryo1/cnv_chart.png
-     *
-     * @param {string}   batchFolder       - Supabase folder name (e.g. "pgta_run_48")
-     * @param {Array}    subfolders        - Subfolder objects from _cloudSubfolders
-     * @param {Array}    preloadedRootImages - Image file objects already listed from the
-     *                                        root folder (avoids re-fetching; flat layout)
-     */
-    async function _autoMapCnvImages(batchFolder, subfolders, preloadedRootImages = []) {
-      const startTime = Date.now();
-      console.log(`[CNV Mapping] 🚀 Starting Engine | Folder: ${batchFolder} | Preloaded: ${preloadedRootImages.length}`);
-      
-      const isFolder = f => f.id === null || f.id == null || !f.metadata || !f.metadata.mimetype;
-
-      async function fetchB64(storagePath) {
-        console.log(`[CNV Mapping] 📥 Downloading: ${storagePath}`);
-        const publicUrl = sb.storage.from("Report-inputs").getPublicUrl(storagePath).data.publicUrl;
-        const blob = await fetch(publicUrl).then(r => r.ok ? r.blob() : null).catch(() => null);
-        if (!blob) { console.error(`[CNV Mapping] ❌ Failed to download: ${storagePath}`); return null; }
-        return new Promise(resolve => {
-          const reader = new FileReader();
-          reader.onload = ev => resolve(ev.target.result);
-          reader.onerror = () => resolve(null);
-          reader.readAsDataURL(blob);
-        });
-      }
-
-      const alphaNorm = s => (s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-      const extractNum = s => {
-        const m = s.match(/\d+/);
-        return m ? parseInt(m[0]) : null;
-      };
-
-      let totalMapped = 0;
-      let allMappedFiles = new Set(); // track used files to prevent duplicates
-
-      // 1. Gather all candidates
-      let allCandidates = []; // { name, path }
-      try {
-          if (preloadedRootImages.length > 0) {
-            preloadedRootImages.forEach(f =>
-              allCandidates.push({ name: f.name, path: `${batchFolder}/${f.name}` }));
-          } else {
-            const rootRes = await fetch(`/pgta/storage/list?path=${encodeURIComponent(batchFolder.replace(/\/+$/, ""))}`);
-            if (rootRes.ok) {
-                const { items } = await rootRes.json();
-                (items || []).filter(f => /\.(png|jpe?g)$/i.test(f.name)).forEach(f =>
-                  allCandidates.push({ name: f.name, path: `${batchFolder.replace(/\/+$/, "")}/${f.name}` }));
-            }
-          }
-          for (const sf of subfolders) {
-              const sfRes = await fetch(`/pgta/storage/list?path=${encodeURIComponent(`${batchFolder.replace(/\/+$/, "")}/${sf.name}`)}`);
-              if (sfRes.ok) {
-                  const { items } = await sfRes.json();
-                  (items || []).filter(f => /\.(png|jpe?g)$/i.test(f.name)).forEach(f =>
-                    allCandidates.push({ name: f.name, path: `${batchFolder.replace(/\/+$/, "")}/${sf.name}/${f.name}` }));
-              }
-          }
-      } catch (err) { console.error("[CNV Mapping] ❌ Exhaustive listing failed:", err); }
-
-      console.log(`[CNV Mapping] 🔍 Found ${allCandidates.length} potential images.`);
-
-      // Create a flat list of unmapped embryos to track progress
-      let unmappedEmbryos = [];
-      state.bulkPatients.forEach((p, pi) => {
-        (p.embryos || []).forEach((e, ei) => {
-          unmappedEmbryos.push({ pi, ei, id: (e.embryo_id || "").trim() });
-        });
-      });
-
-      // ── GLOBAL PASS 1: Exact Match (ID == Name without ext) ────────────────
-      console.log("[CNV Mapping] 🎯 Pass 1: Exact matches...");
-      for (const item of [...unmappedEmbryos]) {
-        const target = item.id.toLowerCase();
-        const matched = allCandidates.find(c => {
-          if (allMappedFiles.has(c.path)) return false;
-          const nameNoExt = c.name.replace(/\.[^.]+$/, "").toLowerCase();
-          return nameNoExt === target;
-        });
-
-        if (matched) {
-          const b64 = await fetchB64(matched.path);
-          if (b64) {
-            state.bulkPatients[item.pi].embryos[item.ei].cnv_image_b64  = b64;
-            state.bulkPatients[item.pi].embryos[item.ei].cnv_image_name = matched.name;
-            allMappedFiles.add(matched.path);
-            unmappedEmbryos = unmappedEmbryos.filter(x => x !== item);
-            totalMapped++;
-          }
-        }
-      }
-
-      // ── GLOBAL PASS 2: Delimited Match (ID surrounded by non-alnum) ────────
-      console.log("[CNV Mapping] 🎯 Pass 2: Delimited matches...");
-      for (const item of [...unmappedEmbryos]) {
-        const target = item.id.toLowerCase();
-        const re = new RegExp(`(^|[^a-z0-9])${target.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z0-9]|$)`, "i");
-        const matched = allCandidates.find(c => !allMappedFiles.has(c.path) && re.test(c.name));
-
-        if (matched) {
-          const b64 = await fetchB64(matched.path);
-          if (b64) {
-            state.bulkPatients[item.pi].embryos[item.ei].cnv_image_b64  = b64;
-            state.bulkPatients[item.pi].embryos[item.ei].cnv_image_name = matched.name;
-            allMappedFiles.add(matched.path);
-            unmappedEmbryos = unmappedEmbryos.filter(x => x !== item);
-            totalMapped++;
-          }
-        }
-      }
-
-      // ── GLOBAL PASS 3: Fuzzy / Normalization ───────────────────────────────
-      console.log("[CNV Mapping] 🎯 Pass 3: Fuzzy matches...");
-      for (const item of [...unmappedEmbryos]) {
-        const targetNorm = alphaNorm(item.id);
-        const targetNum  = extractNum(item.id);
-        
-        const matched = allCandidates.find(c => {
-          if (allMappedFiles.has(c.path)) return false;
-          const nameNorm = alphaNorm(c.name);
-          if (!nameNorm.includes(targetNorm)) return false;
-          
-          // Refinement: If ID is numeric, the file's numeric part should match
-          if (targetNum !== null) {
-            const fileNum = extractNum(c.name);
-            if (fileNum !== null && fileNum !== targetNum) return false;
-          }
-          return true;
-        });
-
-        if (matched) {
-          const b64 = await fetchB64(matched.path);
-          if (b64) {
-            state.bulkPatients[item.pi].embryos[item.ei].cnv_image_b64  = b64;
-            state.bulkPatients[item.pi].embryos[item.ei].cnv_image_name = matched.name;
-            allMappedFiles.add(matched.path);
-            unmappedEmbryos = unmappedEmbryos.filter(x => x !== item);
-            totalMapped++;
-          }
-        }
-      }
-
-      // ── LAST RESORT: Global Order Fallback ────────────────────────────────
-      const available = allCandidates.filter(c => !allMappedFiles.has(c.path));
-      if (unmappedEmbryos.length > 0 && unmappedEmbryos.length === available.length) {
-          console.log("[CNV Mapping] ⚠️ Exact count match. Performing order-based fallback.");
-          unmappedEmbryos.sort((a, b) => (extractNum(a.id) || 0) - (extractNum(b.id) || 0));
-          available.sort((a, b) => (extractNum(a.name) || 0) - (extractNum(b.name) || 0));
-
-          for (let i = 0; i < unmappedEmbryos.length; i++) {
-              const u = unmappedEmbryos[i];
-              const a = available[i];
-              const b64 = await fetchB64(a.path);
-              if (b64) {
-                state.bulkPatients[u.pi].embryos[u.ei].cnv_image_b64  = b64;
-                state.bulkPatients[u.pi].embryos[u.ei].cnv_image_name = a.name;
-                allMappedFiles.add(a.path);
-                totalMapped++;
-              }
-          }
-      }
-
-      console.log(`[CNV Mapping] ✅ Finished in ${Date.now() - startTime}ms. Mapped: ${totalMapped}`);
-      if (totalMapped > 0) {
-        showToast(`Auto-mapped ${totalMapped} CNV image${totalMapped > 1 ? "s" : ""} from cloud ☁`, "success");
-        renderBulkEditor(bulkSelectedIndex >= 0 ? bulkSelectedIndex : 0);
-      } else {
-        showToast("Auto-mapping failed. Check Embryo IDs match filenames.", "warning");
-      }
-    }
-
     let bulkSelectedIndex = -1;
 
     function renderBulkPatients() {
@@ -5720,7 +5394,7 @@
           });
           const data = await res.json(); if (data.error) throw new Error(data.error);
           // Save generated files to locally-picked output folder (via File System Access API handle)
-          // Use local_url (same-origin, always valid) for fetching instead of Supabase URL
+          // Use local_url (same-origin, always valid) for fetching the generated file back
           const folderHandle = _dirHandles["bulkOutputDir"];
           if (folderHandle) {
             const saveLocal = async (localUrl, filename) => {
@@ -5958,6 +5632,16 @@ ${d.html_diff || "<p>No differences found.</p>"}
   </script>
 
   <!-- ── Draft Picker Modal ── -->
+  <div id="pfModalOverlay" style="display:none;position:absolute;z-index:5000;">
+    <div style="background:#fff;border-radius:14px;width:420px;max-width:95vw;max-height:380px;display:flex;flex-direction:column;box-shadow:0 8px 32px rgba(0,0,0,0.25);border:1px solid #e2e8f0;">
+      <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
+        <div style="font-weight:700;font-size:14px;color:#1F497D;">Select Patient</div>
+        <button onclick="document.getElementById('pfModalOverlay').style.display='none'" style="background:none;border:none;cursor:pointer;font-size:22px;color:#94a3b8;line-height:1;">&times;</button>
+      </div>
+      <div id="pfModalList" style="overflow-y:auto;flex:1;padding:10px 12px;display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
+  </div>
+
   <div id="draftPickerModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.48);align-items:center;justify-content:center;">
     <div style="background:#fff;border-radius:14px;width:520px;max-width:95vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.28);">
       <!-- Header -->
@@ -5978,25 +5662,6 @@ ${d.html_diff || "<p>No differences found.</p>"}
     </div>
   </div>
 
-  <!-- ╔══════════════ CLOUD BROWSER MODAL ══════════════╗ -->
-  <div id="cloudBrowserModal" class="modal-overlay" style="display:none;" onclick="if(event.target===this)closeCloudBrowser()">
-    <div class="cloud-modal">
-      <div class="cloud-modal-hdr">
-        <h3><i class="fas fa-cloud"></i> Cloud Storage — Report-inputs</h3>
-        <button class="cloud-modal-close" onclick="closeCloudBrowser()">&#x2715;</button>
-      </div>
-      <div class="cloud-modal-breadcrumb" id="cloudBreadcrumb">Report-inputs /</div>
-      <div class="cloud-modal-body" id="cloudBrowserList">
-        <div class="cloud-status-msg">Loading…</div>
-      </div>
-      <div class="cloud-modal-footer" id="cloudBrowserFooter" style="display:none;">
-        <span id="cloudFolderSummary" style="font-size:11px;color:var(--text-muted);flex:1;"></span>
-        <button class="cloud-select-btn" id="cloudConfirmBtn" onclick="confirmCloudFolder()" disabled>
-          <i class="fas fa-check"></i> Use this folder
-        </button>
-      </div>
-    </div>
-  </div>
 
 </body>
 

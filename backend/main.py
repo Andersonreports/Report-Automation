@@ -35,6 +35,7 @@ from tera_template import TERAReportGenerator
 import os
 import io
 import re
+import time
 import uuid
 import json
 import math
@@ -67,6 +68,36 @@ PGTA_DRAFT_DIR = os.path.join(BASE_DIR, "drafts", "PGTA")
 
 for d in (REPORT_DIR, PGTA_REPORT_DIR, TEMP_DIR, PGTA_CNV_DIR, PGTA_DRAFT_DIR):
     os.makedirs(d, exist_ok=True)
+
+# ── Temp folder auto-cleanup (preview PDFs/images pile up and can fill the disk) ──
+TEMP_CLEANUP_INTERVAL_SECONDS = 24 * 60 * 60
+TEMP_MAX_AGE_SECONDS = 24 * 60 * 60
+
+
+def _cleanup_temp_dir():
+    now = time.time()
+    for dirpath, dirnames, filenames in os.walk(TEMP_DIR, topdown=False):
+        for name in filenames:
+            fp = os.path.join(dirpath, name)
+            try:
+                if now - os.path.getmtime(fp) >= TEMP_MAX_AGE_SECONDS:
+                    os.remove(fp)
+            except OSError:
+                pass
+        if dirpath != TEMP_DIR:
+            try:
+                os.rmdir(dirpath)
+            except OSError:
+                pass
+
+
+async def _temp_cleanup_loop():
+    while True:
+        try:
+            await asyncio.to_thread(_cleanup_temp_dir)
+        except Exception as e:
+            print(f"[TempCleanup] failed: {e}")
+        await asyncio.sleep(TEMP_CLEANUP_INTERVAL_SECONDS)
 
 # ── Import report generators ───────────────────────────────────────────────────
 
@@ -106,8 +137,12 @@ except Exception as _access_err:
 # ── MySQL database ─────────────────────────────────────────────────────────────
 _mysql_enabled = False
 upload_pdf = upload_pgta_file = save_report = None
+pgta_autosave_save = pgta_autosave_get = None
 try:
-    from mysql_client import mysql_enabled as _mysql_enabled, upload_pdf, save_report, upload_pgta_file
+    from mysql_client import (
+        mysql_enabled as _mysql_enabled, upload_pdf, save_report, upload_pgta_file,
+        pgta_autosave_save, pgta_autosave_get,
+    )
 except Exception:
     pass
 
@@ -123,6 +158,11 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def _start_temp_cleanup():
+    asyncio.create_task(_temp_cleanup_loop())
 
 # ── Static mounts ──────────────────────────────────────────────────────────────
 app.mount("/reports",      StaticFiles(directory=REPORT_DIR),      name="reports")
@@ -849,6 +889,34 @@ def pgta_delete_draft(filename: str):
         return {"status": "error", "error": str(e)}
 
 
+# ── PGTA shared autosave (MySQL-backed) ────────────────────────────────────────
+# Lets a colleague editing the same patient (Single Entry) or the same
+# uploaded batch (Bulk) see the latest saved version instead of redoing work.
+# Polled by the frontend; not live/real-time.
+
+@app.post("/pgta/autosave")
+async def pgta_autosave_push(request: Request):
+    if not (_mysql_enabled and pgta_autosave_save):
+        raise HTTPException(503, "MySQL is not configured — shared autosave is unavailable.")
+    body = await request.json()
+    draft_key = (body.get("draft_key") or "").strip().lower()
+    mode = (body.get("mode") or "").strip()
+    if not draft_key or mode not in ("manual", "bulk"):
+        raise HTTPException(400, "draft_key and a valid mode ('manual' or 'bulk') are required.")
+    result = pgta_autosave_save(draft_key, mode, json.dumps(body.get("data") or {}))
+    return result
+
+
+@app.get("/pgta/autosave")
+async def pgta_autosave_pull(draft_key: str, mode: str):
+    if not (_mysql_enabled and pgta_autosave_get):
+        raise HTTPException(503, "MySQL is not configured — shared autosave is unavailable.")
+    row = pgta_autosave_get(draft_key.strip().lower(), mode)
+    if not row:
+        raise HTTPException(404, "No autosave found.")
+    return {"data": json.loads(row["data"]), "updated_at": row["updated_at"]}
+
+
 # ── PGTA Compare ───────────────────────────────────────────────────────────────
 
 @app.post("/pgta/compare")
@@ -882,21 +950,6 @@ async def pgta_compare(manual: UploadFile = File(...), automated: UploadFile = F
     changes = [(t, i1, i2, j1, j2) for t, i1, i2, j1, j2 in difflib.SequenceMatcher(
         None, ml, al).get_opcodes() if t != "equal"]
     return {"html_diff": html, "total_changes": len(changes), "match": len(changes) == 0}
-
-
-# ── PGTA local storage list ────────────────────────────────────────────────────
-
-@app.get("/pgta/storage/list")
-async def pgta_storage_list(path: str = ""):
-    try:
-        files = sorted(
-            [f for f in os.listdir(PGTA_REPORT_DIR) if not f.startswith(".")],
-            reverse=True,
-        )
-        items = [{"name": f, "id": None, "metadata": None} for f in files]
-        return {"items": items, "path": path}
-    except Exception as exc:
-        raise HTTPException(500, str(exc))
 
 
 # ── Folder-picker helper (Windows server only) ────────────────────────────────
