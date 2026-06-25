@@ -6,6 +6,7 @@ All PDF generation is delegated to hla_template.py / hla_data_parser.py
 
 import os
 import io
+import re
 import copy
 import json
 import uuid
@@ -407,6 +408,126 @@ async def generate_bulk(request_body: dict):
             failed.append({"filename": fname, "error": str(e)})
 
     return {"success": success, "failed": failed}
+
+
+_PDF_LABEL_KEYS = [
+    # (label text as it appears in the PDF, canonical field key. Keys
+    # starting with "_" are recognised as segment boundaries but not
+    # carried into the output — "Relationship" is excluded because the
+    # template renders it as "<relation> Of <patient name>", which would
+    # duplicate the patient name if fed back into the relationship field.)
+    ("Patient name", "_person_name"),
+    ("Donor name", "_donor_marker"),
+    ("Gender / Age", "gender_age"),
+    ("Gender/ Age", "gender_age"),
+    ("Hospital MR No", "hospital_mr_no"),
+    ("Diagnosis", "diagnosis"),
+    ("Referred By", "referred_by"),
+    ("Hospital/Clinic", "hospital_clinic"),
+    ("Hospital / Clinic", "hospital_clinic"),
+    ("Relationship stated/Claimed", "_relationship"),
+    ("Relationship", "_relationship"),
+    ("PIN", "pin"),
+    ("Sample Number", "sample_number"),
+    ("Specimen", "specimen"),
+    ("Sample collection date", "collection_date"),
+    ("Collection Date", "collection_date"),
+    ("Sample receipt date", "receipt_date"),
+    ("Report date", "report_date"),
+]
+
+
+def _extract_patient_donor_from_pdf(content: bytes) -> dict:
+    """Best-effort extraction of the demographic header block (patient +
+    donor, if present) from a previously generated HLA report PDF.
+
+    Deliberately does NOT try to recover HLA allele results — a returning
+    patient gets a fresh test, so only the demographic fields (name, PIN,
+    age/gender, sample number, dates, etc.) are worth pulling back out.
+    Report layouts render this block as plain "Label : Value" text via
+    ReportLab table cells, which pdfplumber extracts cleanly in order.
+
+    The patient and donor demographic blocks each have their own allele
+    results table (headed "LOCUS") directly after them on the same page,
+    so those tables are stripped out wherever they appear rather than
+    just truncating after the first one.
+    """
+    import pdfplumber
+
+    text_parts = []
+    with pdfplumber.open(io.BytesIO(content)) as pdf:
+        for page in pdf.pages:
+            text_parts.append(page.extract_text() or "")
+    text = " ".join(text_parts).replace("\n", " ")
+    # "—" / "�" are the template's placeholder glyphs for empty/unset fields.
+    text = text.replace("—", "").replace("�", "")
+    # Strip each allele-results table (no use to a fresh re-test anyway).
+    text = re.sub(r"LOCUS\b.*?(?=Donor name\s*:|Patient name\s*:|$)", " ", text,
+                  flags=re.IGNORECASE)
+
+    labels_sorted = sorted(_PDF_LABEL_KEYS, key=lambda kv: -len(kv[0]))
+    label_alt = "|".join(re.escape(lbl) for lbl, _ in labels_sorted)
+    pattern = re.compile(
+        rf"({label_alt})\s*:\s*(.*?)(?=\s*(?:{label_alt})\s*:|$)",
+        re.IGNORECASE,
+    )
+    label_to_key = {lbl.lower(): key for lbl, key in _PDF_LABEL_KEYS}
+
+    matches = list(pattern.finditer(text))
+    donor_start = next((m.start() for m in matches if m.group(1).lower() == "donor name"), None)
+
+    def _collect(field_matches):
+        out = {}
+        for m in field_matches:
+            key = label_to_key.get(m.group(1).lower())
+            value = m.group(2).strip()
+            if not key or key.startswith("_") or not value:
+                continue
+            out[key] = value
+        return out
+
+    if donor_start is not None:
+        patient_fields = _collect(m for m in matches if m.start() < donor_start)
+        donor_fields = _collect(m for m in matches if m.start() >= donor_start)
+        name_match = next((m for m in matches if m.group(1).lower() == "donor name" and m.start() >= donor_start), None)
+        if name_match:
+            donor_fields["name"] = name_match.group(2).strip()
+    else:
+        patient_fields = _collect(matches)
+        donor_fields = None
+
+    name_match = next((m for m in matches if m.group(1).lower() == "patient name"), None)
+    if name_match:
+        patient_fields["name"] = name_match.group(2).strip()
+
+    return {
+        "report_type": "transplant_donor" if donor_fields else "single_hla",
+        "patient": patient_fields,
+        "donors": [donor_fields] if donor_fields else [],
+    }
+
+
+@router.post("/pdf-to-draft")
+async def pdf_to_draft(file: UploadFile = File(...)):
+    """Extract demographic fields from a previously generated HLA report PDF
+    and save them as a named draft, so a returning patient (whose record IT's
+    gateway no longer lists once approved) can be pulled back into the editor
+    via the existing Load Draft flow instead of being re-typed from scratch."""
+    content = await file.read()
+    try:
+        case = _extract_patient_donor_from_pdf(content)
+    except Exception as e:
+        raise HTTPException(400, f"Could not read this PDF: {e}")
+    if not case["patient"].get("name"):
+        raise HTTPException(422, "Could not find a 'Patient name' field in this PDF.")
+
+    name = re.sub(r'[^a-zA-Z0-9 ]', '', case["patient"]["name"]).strip().replace(" ", "_") or "pdf_import"
+    draft_name = f"{name}_from_pdf"
+    data = {"rtype": case["report_type"], "case": case}
+    path = os.path.join(HLA_DRAFT_DIR, f"{draft_name}.json")
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+    return {"ok": True, "draft_name": draft_name, "case": case}
 
 
 @router.post("/parse-excel")

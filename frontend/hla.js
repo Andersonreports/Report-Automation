@@ -505,9 +505,19 @@ function buildGenBar(onGenerate) {
     browseBtn,
     el("button", { class: "btn-sm btn-primary", onclick: onGenerate }, [el("i", { class: "fas fa-file-pdf" }), " Generate Report"]),
   ]);
+  const pdfDraftInput = el("input", { type: "file", accept: ".pdf", class: "hidden" });
+  pdfDraftInput.addEventListener("change", () => {
+    if (pdfDraftInput.files.length) loadDraftFromPdf(pdfDraftInput.files[0]);
+    pdfDraftInput.value = "";
+  });
   const row2 = el("div", { class: "gen-bar" }, [
     el("button", { class: "btn-sm btn-outline", onclick: () => saveDraft("manual") }, [el("i", { class: "fas fa-save" }), " Save Draft"]),
     el("button", { class: "btn-sm btn-outline", onclick: () => loadDraft("manual") }, [el("i", { class: "fas fa-folder-open" }), " Load Draft"]),
+    el("button", {
+      class: "btn-sm btn-outline", title: "A returning patient no longer listed in Find Patients? Upload their previous report PDF to pull their details back in.",
+      onclick: () => pdfDraftInput.click(),
+    }, [el("i", { class: "fas fa-file-pdf" }), " Load from PDF"]),
+    pdfDraftInput,
     el("button", {
       class: "btn-sm btn-danger-outline", onclick: () => {
         renderManualForm();
@@ -1594,6 +1604,24 @@ async function saveDraft(scope) {
     await apiPost("/hla/drafts/save", { name, data });
     showToast("Draft saved: " + name, "success");
   } catch (e) { showToast("Error saving draft", "error"); }
+}
+
+async function loadDraftFromPdf(file) {
+  const fd = new FormData();
+  fd.append("file", file);
+  try {
+    showToast("Reading PDF…");
+    const r = await fetch("/hla/pdf-to-draft", { method: "POST", body: fd });
+    if (!r.ok) {
+      let msg = await r.text();
+      try { msg = JSON.parse(msg).detail || msg; } catch (_) { /* not JSON */ }
+      throw new Error(msg);
+    }
+    const result = await r.json();
+    showToast(`Saved as draft "${result.draft_name}" — open it via Load Draft.`, "success");
+  } catch (e) {
+    showToast("Could not read this PDF: " + e.message, "error");
+  }
 }
 
 async function loadDraft(scope) {
