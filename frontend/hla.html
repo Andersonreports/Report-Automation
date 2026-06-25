@@ -314,24 +314,28 @@
     .toast.error { background: var(--danger); }
     .toast.success { background: var(--success); }
 
-    /* ── Custom modal ── */
+    /* ── Patient finder dropdown (anchored under the controls row, not a blocking modal) ── */
     .hla-modal-backdrop {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 1000;
-      display: flex; align-items: center; justify-content: center;
+      position: absolute; top: 100%; left: 0; margin-top: 6px; z-index: 50;
     }
     .hla-modal {
       background: #fff; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.25);
-      min-width: 320px; max-width: 440px; width: 90%; padding: 24px;
-      display: flex; flex-direction: column; gap: 14px;
+      border: 1px solid var(--input-border);
+      width: 420px; max-width: min(420px, 92vw); padding: 16px;
+      display: flex; flex-direction: column; gap: 10px;
+      max-height: 380px;
     }
     .hla-modal h4 { font-size: 14px; font-weight: 700; color: var(--primary); margin: 0; }
-    .hla-modal-list { display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto; }
+    .hla-modal-list { display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow-y: auto; }
     .hla-modal-item {
       padding: 9px 14px; border-radius: 7px; border: 1px solid var(--input-border);
-      font-size: 12px; cursor: pointer; transition: 0.15s; text-align: left;
+      font-size: 12px; cursor: grab; transition: 0.15s; text-align: left;
       background: #fff; color: var(--text); font-family: 'Inter', sans-serif;
     }
     .hla-modal-item:hover { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .hla-modal-item.dragging { opacity: 0.4; }
+    .pf-drop-target { transition: 0.15s; }
+    .pf-drop-target.drag-over { border-color: var(--primary) !important; background: var(--primary) !important; color: #fff !important; }
     .hla-modal input[type="text"] {
       width: 100%; padding: 8px 11px; border: 1px solid var(--input-border); border-radius: 7px;
       font-size: 13px; font-family: 'Inter', sans-serif; color: var(--text);
@@ -425,11 +429,14 @@
 
     <!-- ══════════════ TAB 1: SINGLE ENTRY ══════════════ -->
     <div class="tab-content active" id="tab-manual">
-      <div class="hla-patient-finder" style="display:flex; align-items:flex-end; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
+      <div class="hla-patient-finder" style="position:relative; display:flex; align-items:flex-end; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
         <div class="hdr-select-group"><label>From Date:</label><input type="date" id="pfFromDate"></div>
         <div class="hdr-select-group"><label>To Date:</label><input type="date" id="pfToDate"></div>
         <button class="btn-sm btn-outline" id="pfFindBtn" type="button"><i class="fas fa-search"></i> Find Patients</button>
         <span id="pfStatus" style="font-size:11.5px; color:var(--text-muted);"></span>
+        <button class="btn-sm btn-outline pf-drop-target" id="pfPatientDrop" type="button" title="Drag a result here to fill the Patient fields"><i class="fas fa-user"></i> Patient</button>
+        <button class="btn-sm btn-outline pf-drop-target" id="pfDonorDrop" type="button" title="Drag a result here to fill the Donor fields"><i class="fas fa-user-friends"></i> Donor</button>
+        <button class="btn-sm btn-outline" id="pfDownloadCsvBtn" type="button"><i class="fas fa-file-csv"></i> Download CSV</button>
       </div>
       <div class="hla-modal-backdrop" id="pfModalBackdrop" style="display:none;">
         <div class="hla-modal">
@@ -464,13 +471,13 @@
       <div class="bulk-topbar">
         <label class="drop-zone-compact" id="bulkExcelZone" for="bulkFileInput">
           <i class="fas fa-file-excel" style="font-size:15px; color:var(--primary); flex-shrink:0;"></i>
-          <span id="bulkDropzoneLabel">Click to browse or drag Excel file (.xlsx / .xls)</span>
-          <input type="file" id="bulkFileInput" accept=".xlsx,.xls" class="hidden">
+          <span id="bulkDropzoneLabel">Click to browse or drag Excel/CSV file (.xlsx / .xls / .csv)</span>
+          <input type="file" id="bulkFileInput" accept=".xlsx,.xls,.csv" class="hidden">
         </label>
         <div class="bulk-top-sep"></div>
         <span style="font-size:11.5px; font-weight:600; color:var(--text-muted); white-space:nowrap;">Output Folder:</span>
         <div class="folder-pick-row">
-          <input type="text" class="folder-pick-display" id="bulkOutputInput" placeholder="No folder selected — click Browse or type a path">
+          <input type="text" class="folder-pick-display" id="bulkOutputInput" placeholder="No folder selected - click Browse or type a path">
           <button class="btn-folder-sm" id="bulkOutputBrowseBtn"><i class="fas fa-folder-open"></i> Browse</button>
         </div>
       </div>
@@ -559,15 +566,15 @@
       <div class="card guide-content" style="overflow-y:auto;">
         <div class="guide-hdr">
           <h1>HLA Typing Report Generator</h1>
-          <p>Automated HLA NGS typing report generation — Anderson Diagnostic Services</p>
+          <p>Automated HLA NGS typing report generation - Anderson Diagnostic Services</p>
         </div>
 
-        <h3>Quick Start — Bulk Upload</h3>
+        <h3>Quick Start - Bulk Upload</h3>
         <ol style="margin-left:18px;">
           <li>Go to <b>Bulk Upload</b> tab</li>
-          <li>Browse and select your Excel file (HLA typing, Luminex, CDC, DSA, Flow or PRA)</li>
+          <li>Browse and select your Excel file (HLA typing, Luminex, CDC, DSA, Flow or PRA). CDC, DSA, Flow, PRA and KIR also accept a single-sheet CSV export; HLA typing and Luminex need the full multi-sheet Excel workbook.</li>
           <li>Tick <b>NABL-Accredited</b> for MINISEQ files; untick for SURFSEQ</li>
-          <li>The file is parsed automatically — report type is auto-detected from the file name and sheet contents</li>
+          <li>The file is parsed automatically - report type is auto-detected from the file name and sheet contents</li>
           <li>Select a case from the list to review and edit it in the editor</li>
           <li>Select output folder and click <b>Generate All Reports</b> or <b>Generate Selected</b></li>
         </ol>
@@ -578,13 +585,13 @@
           <tr><td><code>patient-donor detail</code></td><td>Patient &amp; donor metadata (HLA typing files)</td></tr>
           <tr><td><code>result data</code></td><td>HLA allele results (HLA typing files)</td></tr>
         </table>
-        <div class="tip">MINISEQ → enable NABL stamp. SURFSEQ → disable NABL stamp.
-          Crossmatch, Luminex and PRA templates use their own sheet layouts — the parser locates the right sheet by its column headers.</div>
+        <div class="tip">MINISEQ -&gt; enable NABL stamp. SURFSEQ -&gt; disable NABL stamp.
+          Crossmatch, Luminex and PRA templates use their own sheet layouts - the parser locates the right sheet by its column headers.</div>
 
         <h3>Report Types</h3>
         <table>
           <tr><th>Template</th><th>How it's created / detected</th><th>Pages</th></tr>
-          <tr><td>With CL <i>(Single HLA)</i></td><td>Bulk: HLA typing file with no donor rows</td><td>1–2</td></tr>
+          <tr><td>With CL <i>(Single HLA)</i></td><td>Bulk: HLA typing file with no donor rows</td><td>1-2</td></tr>
           <tr><td>RPL</td><td>Bulk: Diagnosis = RPL, or wife/husband relationship</td><td>3</td></tr>
           <tr><td>HLA Typing High Resolution <i>(Transplant Donor)</i></td><td>Bulk: donor present, non-RPL</td><td>2+</td></tr>
           <tr><td>HLA Typing (Luminex)</td><td>Bulk: file name contains <code>LUMINEX</code>, or sheet headed <code>SampleName</code></td><td>2+</td></tr>
@@ -592,11 +599,11 @@
           <tr><td>DSA Crossmatch</td><td>Bulk: file name has <code>DSA</code></td><td>2</td></tr>
           <tr><td>Flow Crossmatch</td><td>Bulk: file name has <code>FLOW</code></td><td>2</td></tr>
           <tr><td>PRA Class I / II</td><td>Bulk: file name contains <code>PRA</code>, or Single Entry</td><td>2</td></tr>
-          <tr><td>KIR Genotyping</td><td>Bulk: file name contains <code>KIR</code>, or Single Entry</td><td>1–2</td></tr>
+          <tr><td>KIR Genotyping</td><td>Bulk: file name contains <code>KIR</code>, or Single Entry</td><td>1-2</td></tr>
         </table>
 
         <h3>Single Entry</h3>
-        <p>Choose the <b>Template</b> at the top — the form adapts to the selected report type. For HLA typing,
+        <p>Choose the <b>Template</b> at the top - the form adapts to the selected report type. For HLA typing,
           fill the Patient Information form and enter alleles in the <b>HLA Results</b> section (one row per locus);
           enable Donor Information for transplant or RPL cases.</p>
 
@@ -620,7 +627,12 @@
       const statusEl = document.getElementById('pfStatus');
       const backdrop = document.getElementById('pfModalBackdrop');
       const listEl = document.getElementById('pfModalList');
+      const patientDropEl = document.getElementById('pfPatientDrop');
+      const donorDropEl = document.getElementById('pfDonorDrop');
+      const downloadCsvBtn = document.getElementById('pfDownloadCsvBtn');
       document.getElementById('pfModalCloseBtn').addEventListener('click', () => { backdrop.style.display = 'none'; });
+
+      let draggedPatient = null;
 
       function fillField(key, value) {
         if (value === undefined || value === null || value === '') return;
@@ -641,22 +653,62 @@
         fillField('collection_date', displayDate);
         fillField('receipt_date', displayDate);
         if (typeof scheduleManualPreview === 'function') scheduleManualPreview();
-        backdrop.style.display = 'none';
+        statusEl.textContent = 'Patient details applied.';
+      }
+
+      function applyDonor(p) {
+        if (!manualDonorFields.length) {
+          statusEl.textContent = 'This report type has no Donor section.';
+          return;
+        }
+        const df = manualDonorFields[0];
+        function fillDonorField(key, value) {
+          if (value === undefined || value === null || value === '') return;
+          if (df[key]) df[key].value = value;
+        }
+        fillDonorField('name', p.patient_name);
+        if (p.age != null && p.gender) fillDonorField('gender_age', `${p.gender} / ${p.age}`);
+        fillDonorField('sample_number', p.lab_no);
+        fillDonorField('pin', p.patient_no);
+        const isoDate = (p.sample_receipt_date || '').split(' ')[0];
+        const [y, m, d] = isoDate.split('-');
+        const displayDate = (y && m && d) ? `${d}-${m}-${y}` : '';
+        fillDonorField('collection_date', displayDate);
+        fillDonorField('receipt_date', displayDate);
+        if (typeof scheduleManualPreview === 'function') scheduleManualPreview();
+        statusEl.textContent = 'Donor details applied.';
+      }
+
+      function setupDropTarget(el, onDrop) {
+        el.addEventListener('dragover', e => { e.preventDefault(); el.classList.add('drag-over'); });
+        el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+        el.addEventListener('drop', e => {
+          e.preventDefault();
+          el.classList.remove('drag-over');
+          if (draggedPatient) onDrop(draggedPatient);
+        });
+      }
+      setupDropTarget(patientDropEl, applyPatient);
+      setupDropTarget(donorDropEl, applyDonor);
+
+      async function fetchPatients() {
+        const fromDate = fromEl.value, toDate = toEl.value;
+        if (!fromDate || !toDate) { statusEl.textContent = 'Pick both dates first.'; return null; }
+        const res = await fetch('/access/patients', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from_date: fromDate, to_date: toDate, reporting_type: 'HLA Typing' }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { statusEl.textContent = data.detail || 'Search failed.'; return null; }
+        return data.patients || [];
       }
 
       findBtn.addEventListener('click', async () => {
-        const fromDate = fromEl.value, toDate = toEl.value;
-        if (!fromDate || !toDate) { statusEl.textContent = 'Pick both dates first.'; return; }
         statusEl.textContent = 'Searching...';
         try {
-          const res = await fetch('/access/patients', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ from_date: fromDate, to_date: toDate, reporting_type: 'HLA Typing' }),
-          });
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok) { statusEl.textContent = data.detail || 'Search failed.'; return; }
-          const patients = data.patients || [];
+          const patients = await fetchPatients();
+          if (patients === null) return;
           statusEl.textContent = `${patients.length} found`;
           listEl.innerHTML = '';
           if (!patients.length) {
@@ -665,12 +717,59 @@
             patients.forEach(p => {
               const item = document.createElement('div');
               item.className = 'hla-modal-item';
-              item.textContent = `${p.patient_name} — ${p.gender || ''}/${p.age ?? ''} — ${p.patient_no} — ${(p.sample_receipt_date || '').split(' ')[0]}`;
+              item.textContent = `${p.patient_name} - ${p.gender || ''}/${p.age ?? ''} - ${p.patient_no} - ${(p.sample_receipt_date || '').split(' ')[0]}`;
+              item.draggable = true;
+              item.addEventListener('dragstart', e => {
+                draggedPatient = p;
+                item.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'copy';
+                e.dataTransfer.setData('text/plain', p.patient_no || '');
+              });
+              item.addEventListener('dragend', () => { item.classList.remove('dragging'); draggedPatient = null; });
               item.addEventListener('click', () => applyPatient(p));
               listEl.appendChild(item);
             });
           }
           backdrop.style.display = 'flex';
+        } catch (err) {
+          statusEl.textContent = 'Could not reach the server.';
+        }
+      });
+
+      function csvEscape(value) {
+        const s = String(value ?? '');
+        return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      }
+
+      function patientsToCsv(patients) {
+        const header = ['Patient Name', 'Gender', 'Age', 'Patient No', 'Sample Receipt Date'];
+        const rows = patients.map(p => [
+          p.patient_name || '',
+          p.gender || '',
+          p.age ?? '',
+          p.patient_no || '',
+          (p.sample_receipt_date || '').split(' ')[0],
+        ]);
+        return [header, ...rows].map(r => r.map(csvEscape).join(',')).join('\r\n');
+      }
+
+      downloadCsvBtn.addEventListener('click', async () => {
+        statusEl.textContent = 'Preparing CSV...';
+        try {
+          const patients = await fetchPatients();
+          if (patients === null) return;
+          if (!patients.length) { statusEl.textContent = 'No patients in this date range.'; return; }
+          const csv = '﻿' + patientsToCsv(patients);
+          const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `patients_${fromEl.value}_to_${toEl.value}.csv`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+          statusEl.textContent = `${patients.length} found`;
         } catch (err) {
           statusEl.textContent = 'Could not reach the server.';
         }

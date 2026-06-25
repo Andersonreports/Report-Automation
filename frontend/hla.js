@@ -1885,8 +1885,8 @@ function initBulkTab() {
     e.preventDefault(); zone.classList.remove("dragover");
     if (e.dataTransfer.files.length) {
       const dt = e.dataTransfer;
-      const fileArr = Array.from(dt.files).filter(f => /\.(xlsx?|xls)$/i.test(f.name));
-      if (!fileArr.length) { showToast("Please drop an Excel file (.xlsx / .xls).", "error"); return; }
+      const fileArr = Array.from(dt.files).filter(f => /\.(xlsx?|csv)$/i.test(f.name));
+      if (!fileArr.length) { showToast("Please drop an Excel or CSV file (.xlsx / .xls / .csv).", "error"); return; }
       const dataTransfer = new DataTransfer();
       dataTransfer.items.add(fileArr[0]);
       fi.files = dataTransfer.files;

@@ -544,6 +544,24 @@ def _parse_dtt_val(val: str) -> str:
     return "<10% Dead cells"
 
 
+def _iter_sheet_frames(filepath: str):
+    """Yield header=None DataFrames for each sheet of an Excel file, or the
+    single table of a CSV file (a CSV has no concept of multiple sheets, so
+    the whole file is treated as one "sheet" — this lets the single-sheet
+    formats (CDC/DSA/Flow/PRA/KIR) accept CSV uploads as well as Excel)."""
+    if filepath.lower().endswith(".csv"):
+        try:
+            yield pd.read_csv(filepath, header=None)
+        except Exception:
+            pass
+        return
+    for sh in pd.ExcelFile(filepath).sheet_names:
+        try:
+            yield pd.read_excel(filepath, sheet_name=sh, header=None)
+        except Exception:
+            continue
+
+
 def _read_crossmatch_sheet(filepath: str):
     """Return the demographics DataFrame for a CDC / DSA / Flow crossmatch file.
 
@@ -554,17 +572,13 @@ def _read_crossmatch_sheet(filepath: str):
     is present so callers degrade gracefully instead of raising on a missing
     'Sheet2' worksheet.
     """
-    with pd.ExcelFile(filepath) as xls:
-        sheet_names = list(xls.sheet_names)
-    for sh in sheet_names:
-        try:
-            df = pd.read_excel(filepath, sheet_name=sh, header=None)
-        except Exception:
-            continue
+    for df in _iter_sheet_frames(filepath):
         if not df.empty and _lx_find_header(df, 2, "patient name") is not None:
             return df
-    if "Sheet2" in sheet_names:
-        return pd.read_excel(filepath, sheet_name="Sheet2", header=None)
+    if not filepath.lower().endswith(".csv"):
+        with pd.ExcelFile(filepath) as xls:
+            if "Sheet2" in xls.sheet_names:
+                return pd.read_excel(filepath, sheet_name="Sheet2", header=None)
     return None
 
 
@@ -1033,12 +1047,9 @@ def parse_luminex_excel(filepath: str, nabl: bool = True) -> list:
 
     People are joined to their HLA results by PIN (= SampleName).
     """
-    xl_sheets = pd.ExcelFile(filepath).sheet_names
-
     demo_df    = None
     hla_lookup: dict = {}
-    for sh in xl_sheets:
-        df = pd.read_excel(filepath, sheet_name=sh, header=None)
+    for df in _iter_sheet_frames(filepath):
         if df.empty:
             continue
         if demo_df is None and _lx_find_header(df, 2, "patient name") is not None:
@@ -1179,11 +1190,7 @@ def parse_pra_excel(filepath: str, nabl: bool = True) -> list:
 
     # Locate the sheet + header row holding a "patient" label.
     df = header_row = None
-    for sh in pd.ExcelFile(filepath).sheet_names:
-        try:
-            cand = pd.read_excel(filepath, sheet_name=sh, header=None)
-        except Exception:
-            continue
+    for cand in _iter_sheet_frames(filepath):
         for i, row in cand.iterrows():
             if any(isinstance(v, str) and v.strip().lower().startswith("patient")
                    for v in row):
@@ -1306,11 +1313,7 @@ def parse_kir_excel(filepath: str, nabl: bool = True) -> list:
     """
     # Locate the sheet + header row holding a "patient" label.
     df = header_row = None
-    for sh in pd.ExcelFile(filepath).sheet_names:
-        try:
-            cand = pd.read_excel(filepath, sheet_name=sh, header=None)
-        except Exception:
-            continue
+    for cand in _iter_sheet_frames(filepath):
         for i, row in cand.iterrows():
             if any(isinstance(v, str) and v.strip().lower().startswith("patient")
                    for v in row):
@@ -1408,7 +1411,12 @@ def parse_excel(filepath: str, nabl: bool = True) -> list:
     List of case dicts, each containing patient, donors[], report_type, etc.
     """
     # ── Auto-detect specialised formats ──────────────────────────────────────
-    xl_sheets = pd.ExcelFile(filepath).sheet_names
+    # A CSV has no sheets at all, so it can never carry the main typing
+    # template's 'patient-donor detail' sheet — route it straight into the
+    # single-sheet crossmatch/PRA/KIR formats below (Luminex still needs two
+    # sheets and isn't representable as a single CSV).
+    is_csv = filepath.lower().endswith(".csv")
+    xl_sheets = [] if is_csv else pd.ExcelFile(filepath).sheet_names
     if "patient-donor detail" not in xl_sheets:
         fname_upper = os.path.basename(filepath).upper()
 
