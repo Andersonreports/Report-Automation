@@ -811,6 +811,12 @@
             <!-- Card: Patient Information -->
             <div class="card">
               <h3>Patient Information</h3>
+              <div style="display:flex; align-items:flex-end; gap:10px; flex-wrap:wrap; margin-bottom:14px;">
+                <div class="field" style="margin:0;"><label>From Date</label><input type="date" id="pfFromDate"></div>
+                <div class="field" style="margin:0;"><label>To Date</label><input type="date" id="pfToDate"></div>
+                <button class="btn-browse-folder" id="pfFindBtn" type="button"><i class="fas fa-search"></i> Find Patients</button>
+                <span id="pfStatus" style="font-size:11.5px; color:#888;"></span>
+              </div>
               <div class="form-grid">
                 <div class="field">
                   <label>Patient Name</label>
@@ -944,9 +950,9 @@
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0;">
                 <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/>
               </svg>
-              <span id="excelFileLabel">Click to browse or drag Excel file (.xlsx / .xls)</span>
-              <input type="file" id="excelFile" accept=".xlsx,.xls" style="display:none;"
-                onchange="uploadExcel(); document.getElementById('excelFileLabel').textContent = this.files[0] ? this.files[0].name : 'Click to browse or drag Excel file (.xlsx / .xls)';">
+              <span id="excelFileLabel">Click to browse or drag Excel/CSV file (.xlsx / .xls / .csv)</span>
+              <input type="file" id="excelFile" accept=".xlsx,.xls,.csv" style="display:none;"
+                onchange="uploadExcel(); document.getElementById('excelFileLabel').textContent = this.files[0] ? this.files[0].name : 'Click to browse or drag Excel/CSV file (.xlsx / .xls / .csv)';">
             </label>
             <div class="bulk-top-sep"></div>
             <span class="fr-label" style="white-space:nowrap;">Export Folder:</span>
@@ -1201,6 +1207,17 @@
     </div><!-- /workspace -->
   </div><!-- /main -->
 
+  <!-- Patient Finder Dropdown (anchored under the Find Patients button, not a blocking modal) -->
+  <div id="pfModalOverlay" style="display:none; position:absolute; z-index:5000;">
+    <div class="modal-box" style="width:400px; max-height:380px; overflow-y:auto;">
+      <div class="modal-box-hdr">
+        <h3>Select Patient</h3>
+        <button class="modal-close" onclick="document.getElementById('pfModalOverlay').style.display='none'">&times;</button>
+      </div>
+      <div id="pfModalList" style="display:flex;flex-direction:column;gap:6px;"></div>
+    </div>
+  </div>
+
   <!-- Draft Picker Modal -->
   <div id="draftPickerOverlay" style="display:none;" class="modal-overlay"
     onclick="if(event.target===this)closeDraftPicker()">
@@ -1230,11 +1247,6 @@
             : "");                          // hosted by IT server → relative paths
 
     async function teraSignOut() {
-      const _sb = supabase.createClient(
-        "https://wriaonorqjhmofwrhqlp.supabase.co",
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndyaWFvbm9ycWpobW9md3JocWxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM3NDM4MDAsImV4cCI6MjA4OTMxOTgwMH0.t6sS4orzoQmaVpEo84I0E2Ds3jDjDHNnfE4ZYPaPrfc"
-      );
-      await _sb.auth.signOut();
       localStorage.removeItem('tera_role');
       localStorage.removeItem('tera_user_name');
       window.location.href = '/';
@@ -1301,6 +1313,65 @@
         if (inputs[12]) inputs[12].value = data["Date of Received"] || "";
         if (inputs[13]) inputs[13].value = data["Report Date"] || "";
     }
+
+    // ── Find Patients (date range lookup against IT's patient gateway) ──
+    function _pfApplyPatient(p) {
+        const inputs = document.querySelectorAll("#manual .form-grid input");
+        if (inputs[0]) inputs[0].value = p.patient_name || "";
+        if (inputs[1]) inputs[1].value = p.age || "";
+        if (inputs[2]) inputs[2].value = p.patient_no || "";
+        if (inputs[3]) inputs[3].value = p.lab_no || "";
+        const isoDate = (p.sample_receipt_date || "").split(" ")[0];
+        const [y, m, d] = isoDate.split("-");
+        if (inputs[12] && y && m && d) inputs[12].value = `${d}-${m}-${y}`;
+        showToast("Patient details applied.");
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+        const fromEl = document.getElementById("pfFromDate");
+        const toEl = document.getElementById("pfToDate");
+        const findBtn = document.getElementById("pfFindBtn");
+        const statusEl = document.getElementById("pfStatus");
+        const listEl = document.getElementById("pfModalList");
+        if (!findBtn) return;
+        findBtn.addEventListener("click", async () => {
+            const fromDate = fromEl.value, toDate = toEl.value;
+            if (!fromDate || !toDate) { statusEl.textContent = "Pick both dates first."; return; }
+            statusEl.textContent = "Searching...";
+            try {
+                const res = await fetch(`${API}/access/patients`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ from_date: fromDate, to_date: toDate, reporting_type: "TERA" }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) { statusEl.textContent = data.detail || "Search failed."; return; }
+                const patients = data.patients || [];
+                statusEl.textContent = `${patients.length} found`;
+                listEl.innerHTML = "";
+                if (!patients.length) {
+                    listEl.innerHTML = '<div style="padding:10px; font-size:12px; color:#888;">No patients in this date range.</div>';
+                } else {
+                    patients.forEach(p => {
+                        const btn = document.createElement("button");
+                        btn.textContent = `${p.patient_name} - ${p.gender || ""}/${p.age ?? ""} - ${p.patient_no} - ${(p.sample_receipt_date || "").split(" ")[0]}`;
+                        btn.style.cssText = "text-align:left;padding:9px 12px;border:1.5px solid #ddd;border-radius:7px;background:#f9f9f9;cursor:pointer;font-size:12px;width:100%;transition:0.15s;font-family:'Inter',sans-serif;";
+                        btn.onmouseover = () => btn.style.background = "#e8f0fb";
+                        btn.onmouseout = () => btn.style.background = "#f9f9f9";
+                        btn.onclick = () => _pfApplyPatient(p);
+                        listEl.appendChild(btn);
+                    });
+                }
+                const overlay = document.getElementById("pfModalOverlay");
+                const rect = findBtn.getBoundingClientRect();
+                overlay.style.top = (window.scrollY + rect.bottom + 6) + "px";
+                overlay.style.left = (window.scrollX + rect.left) + "px";
+                overlay.style.display = "block";
+            } catch (err) {
+                statusEl.textContent = "Could not reach the server.";
+            }
+        });
+    });
 
     function clearManualForm() {
         const inputs  = document.querySelectorAll("#manual .form-grid input");

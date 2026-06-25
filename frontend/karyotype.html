@@ -343,6 +343,12 @@
       <div>
         <div class="glass" style="margin-bottom:18px;">
           <h3><i class="fas fa-vial"></i> Patient &amp; Result Data</h3>
+          <div class="rt-row" style="margin-bottom:10px;">
+            <label class="fld"><span>From Date</span><input type="date" id="pfFromDate"></label>
+            <label class="fld"><span>To Date</span><input type="date" id="pfToDate"></label>
+            <button class="btn sm" id="pfFindBtn" type="button"><i class="fas fa-search"></i> Find Patients</button>
+            <span id="pfStatus" style="font-size:11.5px; color:#888; align-self:center;"></span>
+          </div>
           <div class="rt-row">
             <label class="fld"><span>Report Type</span><select id="m_rt"></select></label>
             <button class="btn gold" id="m_apply">Apply Template</button>
@@ -617,6 +623,16 @@
         <button class="modal-close" onclick="closeDraftModal()"><i class="fas fa-times"></i></button>
       </div>
       <div class="modal-body" id="draftModalBody"></div>
+    </div>
+  </div>
+
+  <div id="pfModalOverlay" style="display:none; position:absolute; z-index:2000;">
+    <div class="modal-box" style="max-height:380px;">
+      <div class="modal-head">
+        <h3><i class="fas fa-user-injured"></i> Select Patient</h3>
+        <button class="modal-close" onclick="document.getElementById('pfModalOverlay').style.display='none'"><i class="fas fa-times"></i></button>
+      </div>
+      <div class="modal-body" id="pfModalList"></div>
     </div>
   </div>
 
@@ -992,6 +1008,61 @@
   $("m_logo").addEventListener("change", m_schedule);
   $("m_apply").addEventListener("click", function(){ applyTemplate(m_inputs,$("m_rt").value); m_schedule(); });
   $("m_refresh").addEventListener("click", m_run);
+
+  // ── Find Patients (date range lookup against IT's patient gateway) ──
+  function _pfApplyPatient(p){
+    if(m_inputs.NAME) m_inputs.NAME.value = p.patient_name || "";
+    if(m_inputs.PIN) m_inputs.PIN.value = p.patient_no || "";
+    if(m_inputs.AGE) m_inputs.AGE.value = p.age || "";
+    if(m_inputs["SAMPLE NUMBER"]) m_inputs["SAMPLE NUMBER"].value = p.lab_no || "";
+    var isoDate=(p.sample_receipt_date||"").split(" ")[0];
+    var parts=isoDate.split("-"), y=parts[0], mo=parts[1], d=parts[2];
+    var displayDate=(y&&mo&&d)?(d+"-"+mo+"-"+y):"";
+    if(displayDate){
+      if(m_inputs["SAMPLE COLLECTION DATE"]) m_inputs["SAMPLE COLLECTION DATE"].value = displayDate;
+      if(m_inputs["SAMPLE RECEIPT DATE"]) m_inputs["SAMPLE RECEIPT DATE"].value = displayDate;
+    }
+    m_schedule();
+    $("pfStatus").textContent = "Patient details applied.";
+  }
+
+  $("pfFindBtn").addEventListener("click", function(){
+    var fromDate=$("pfFromDate").value, toDate=$("pfToDate").value;
+    var statusEl=$("pfStatus"), listEl=$("pfModalList");
+    if(!fromDate||!toDate){ statusEl.textContent="Pick both dates first."; return; }
+    statusEl.textContent="Searching...";
+    fetch(apiUrl("/access/patients"), {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({from_date:fromDate, to_date:toDate, reporting_type:"KaryoTyping"})
+    }).then(function(res){
+      return res.json().catch(function(){ return {}; }).then(function(data){ return {ok:res.ok, data:data}; });
+    }).then(function(r){
+      if(!r.ok){ statusEl.textContent = (r.data && r.data.detail) || "Search failed."; return; }
+      var patients = r.data.patients || [];
+      statusEl.textContent = patients.length+" found";
+      listEl.innerHTML = "";
+      if(!patients.length){
+        listEl.innerHTML = '<div class="empty">No patients in this date range.</div>';
+      } else {
+        patients.forEach(function(p){
+          var row=document.createElement("div");
+          row.className="draft-item";
+          row.style.cursor="pointer";
+          var span=document.createElement("span");
+          span.className="draft-name";
+          span.textContent = p.patient_name+" - "+(p.gender||"")+"/"+(p.age!=null?p.age:"")+" - "+p.patient_no+" - "+(p.sample_receipt_date||"").split(" ")[0];
+          row.appendChild(span);
+          row.addEventListener("click", function(){ _pfApplyPatient(p); });
+          listEl.appendChild(row);
+        });
+      }
+      var overlay=$("pfModalOverlay");
+      var rect=$("pfFindBtn").getBoundingClientRect();
+      overlay.style.top=(window.scrollY+rect.bottom+6)+"px";
+      overlay.style.left=(window.scrollX+rect.left)+"px";
+      overlay.style.display="block";
+    }).catch(function(){ statusEl.textContent = "Could not reach the server."; });
+  });
   $("m_addimg").addEventListener("click", function(){ $("m_imgfile").click(); });
   $("m_imgfile").addEventListener("change", function(e){
     var files=e.target.files;
