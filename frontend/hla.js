@@ -2091,6 +2091,19 @@ async function parseBulkExcel() {
   }
 }
 
+let _draggedBulkPatient = null;
+
+function _setupBulkDonorDrop(target, onDrop) {
+  target.classList.add("bulk-drop-target");
+  target.addEventListener("dragover", (e) => { e.preventDefault(); target.classList.add("drag-over"); });
+  target.addEventListener("dragleave", () => target.classList.remove("drag-over"));
+  target.addEventListener("drop", (e) => {
+    e.preventDefault();
+    target.classList.remove("drag-over");
+    if (_draggedBulkPatient) onDrop(_draggedBulkPatient);
+  });
+}
+
 function renderBulkList() {
   updateBulkSelectedCount();
   const listEl = document.getElementById("bulkCaseList");
@@ -2118,12 +2131,23 @@ function renderBulkList() {
     const item = el("div", {
       class: "case-item" + (i === state.bulkCurrentIndex ? " selected" : ""),
       style: `border-left: 3px solid ${color}; background: ${color}14;`,
+      draggable: "true",
       onclick: () => selectBulkCase(i),
     }, [
       chk,
       dot,
       el("span", { class: "ci-name" }, displayName),
     ]);
+    item.addEventListener("dragstart", (e) => {
+      _draggedBulkPatient = (c.patient && { ...c.patient }) || null;
+      item.classList.add("dragging");
+      e.dataTransfer.effectAllowed = "copy";
+      e.dataTransfer.setData("text/plain", patName);
+    });
+    item.addEventListener("dragend", () => {
+      item.classList.remove("dragging");
+      _draggedBulkPatient = null;
+    });
     listEl.appendChild(item);
   });
 }
@@ -2744,6 +2768,14 @@ function renderBulkEditor(i) {
       dHdr.appendChild(rmBtn);
     }
     dCard.appendChild(dHdr);
+    _setupBulkDonorDrop(dCard, (patient) => {
+      d.name = patient.name || d.name;
+      d.gender_age = patient.gender_age || d.gender_age;
+      d.pin = patient.pin || d.pin;
+      d.receipt_date = patient.receipt_date || d.receipt_date;
+      renderBulkEditor(i);
+      scheduleBulkPreview(i);
+    });
     const dgrid = el("div", { class: "field-grid" });
     
     
@@ -2790,7 +2822,24 @@ function renderBulkEditor(i) {
         renderBulkEditor(i);
       }
     }, [el("i", { class: "fas fa-plus" }), " Add Donor"]);
-    editCol.appendChild(el("div", { style: "margin:6px 0;" }, [addDonorBtn]));
+    const addDonorRow = el("div", { style: "margin:6px 0; padding:10px; border:1px dashed var(--panel-border); display:flex; align-items:center; gap:10px;" }, [
+      addDonorBtn,
+      el("span", { style: "font-size:11.5px; color:var(--text-muted);" }, "or drag a patient from the list to add as a donor"),
+    ]);
+    _setupBulkDonorDrop(addDonorRow, (patient) => {
+      c.donors = c.donors || [];
+      c.donors.push(emptyPerson({
+        name: patient.name || "",
+        gender_age: patient.gender_age || "",
+        pin: patient.pin || "NA",
+        receipt_date: patient.receipt_date || "",
+        sample_number: "NA",
+        hla: emptyHla(),
+      }));
+      renderBulkEditor(i);
+      scheduleBulkPreview(i);
+    });
+    editCol.appendChild(addDonorRow);
   }
 
   if (c.report_type === "single_rpl") {

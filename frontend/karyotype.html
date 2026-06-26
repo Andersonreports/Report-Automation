@@ -292,7 +292,7 @@
     .btn .spinner, .btn.primary .spinner, .btn.green .spinner{ border-color:rgba(255,255,255,.45); border-top-color:#fff; }
     @keyframes spin{ to{ transform:rotate(360deg); } }
 </style>
-  <script src="/static/idle-logout.js"></script>
+  <script src="/static/idle-logout.js?v=2"></script>
 </head>
 <body>
   <script>
@@ -347,6 +347,7 @@
             <label class="fld"><span>From Date</span><input type="date" id="pfFromDate"></label>
             <label class="fld"><span>To Date</span><input type="date" id="pfToDate"></label>
             <button class="btn sm" id="pfFindBtn" type="button"><i class="fas fa-search"></i> Find Patients</button>
+            <button class="btn sm" id="pfDownloadCsvBtn" type="button"><i class="fas fa-file-csv"></i> Download CSV</button>
             <span id="pfStatus" style="font-size:11.5px; color:#888; align-self:center;"></span>
           </div>
           <div class="rt-row">
@@ -401,9 +402,9 @@
   
   <section class="panel" id="panel-bulk">
     <div class="bulk-top-bar">
-      <input type="file" id="b_excel" accept=".xls,.xlsx,.xlsm" hidden />
-      <button class="btn primary" id="b_excel_btn"><i class="fas fa-file-excel"></i> Select Input Excel</button>
-      <span class="bulk-path-label" id="b_excel_label">No Excel file selected</span>
+      <input type="file" id="b_excel" accept=".xls,.xlsx,.xlsm,.csv" hidden />
+      <button class="btn primary" id="b_excel_btn"><i class="fas fa-file-excel"></i> Select Input Excel/CSV</button>
+      <span class="bulk-path-label" id="b_excel_label">No Excel/CSV file selected</span>
 
       <input type="file" id="b_images" accept=".jpg,.jpeg,.png" multiple webkitdirectory hidden />
       <button class="btn sm" id="b_images_btn"><i class="fas fa-images"></i> Select Image Folder</button>
@@ -1061,6 +1062,48 @@
       overlay.style.top=(window.scrollY+rect.bottom+6)+"px";
       overlay.style.left=(window.scrollX+rect.left)+"px";
       overlay.style.display="block";
+    }).catch(function(){ statusEl.textContent = "Could not reach the server."; });
+  });
+
+  function csvEscape(value){
+    var s = String(value==null?"":value);
+    return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+  }
+  function patientsToCsv(patients){
+    var header = ["Patient Name","Gender","Age","Patient No","Sample Receipt Date"];
+    var rows = patients.map(function(p){
+      return [
+        p.patient_name||"", p.gender||"", (p.age!=null?p.age:""),
+        p.patient_no||"", (p.sample_receipt_date||"").split(" ")[0],
+      ];
+    });
+    return [header].concat(rows).map(function(r){ return r.map(csvEscape).join(","); }).join("\r\n");
+  }
+  $("pfDownloadCsvBtn").addEventListener("click", function(){
+    var fromDate=$("pfFromDate").value, toDate=$("pfToDate").value;
+    var statusEl=$("pfStatus");
+    if(!fromDate||!toDate){ statusEl.textContent="Pick both dates first."; return; }
+    statusEl.textContent="Preparing CSV...";
+    fetch(apiUrl("/access/patients"), {
+      method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({from_date:fromDate, to_date:toDate, reporting_type:"KaryoTyping"})
+    }).then(function(res){
+      return res.json().catch(function(){ return {}; }).then(function(data){ return {ok:res.ok, data:data}; });
+    }).then(function(r){
+      if(!r.ok){ statusEl.textContent = (r.data && r.data.detail) || "Search failed."; return; }
+      var patients = r.data.patients || [];
+      if(!patients.length){ statusEl.textContent = "No patients in this date range."; return; }
+      var csv = "﻿" + patientsToCsv(patients);
+      var blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = "patients_"+fromDate+"_to_"+toDate+".csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      statusEl.textContent = patients.length+" found";
     }).catch(function(){ statusEl.textContent = "Could not reach the server."; });
   });
   $("m_addimg").addEventListener("click", function(){ $("m_imgfile").click(); });

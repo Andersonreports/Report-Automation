@@ -233,7 +233,7 @@
         const res = await fetch('/access/login', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ mobile_number: mobile, password }),
+          body: JSON.stringify({ mobile: mobile, password }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) {

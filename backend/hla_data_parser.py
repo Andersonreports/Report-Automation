@@ -1139,8 +1139,64 @@ def parse_kir_excel(filepath: str, nabl: bool = True) -> list:
 
 
 
+def _parse_patient_list_csv(filepath: str, nabl: bool = True) -> list:
+    try:
+        df = pd.read_csv(filepath)
+    except Exception:
+        return []
+    df.columns = [_norm_col(c) for c in df.columns]
+    if "patient name" not in df.columns or "patient no" not in df.columns:
+        return []
+
+    cases = []
+    for _, row in df.iterrows():
+        name = _clean_str(row.get("patient name", ""))
+        if not name:
+            continue
+        patient_dict = {
+            "name":            _sentence_case(name),
+            "gender_age":      _build_gender_age(row),
+            "diagnosis":       "",
+            "referred_by":     "",
+            "hospital_clinic": "",
+            "specimen":        "",
+            "relationship":    "",
+            "remarks":         "",
+            "hospital_mr_no":  "",
+            "pin":             _clean_str(row.get("patient no", "")),
+            "sample_number":   "",
+            "collection_date": "",
+            "receipt_date":    _fmt_date(row.get("sample receipt date", "")),
+            "report_date":     "",
+            "match":           "",
+            "hla":                   {locus: [None, None] for locus in ["A", "B", "C", "DRB1", "DQB1", "DPB1"]},
+            "hla_c_type":            "",
+            "_join_key":             "",
+            "_has_insufficient_hla": False,
+        }
+        cases.append({
+            "report_type":     "single_hla",
+            "nabl":            nabl,
+            "with_logo":       True,
+            "signature_stamp": False,
+            "methodology":     "",
+            "imgt_release":    "",
+            "coverage":        "",
+            "typing_status":   "",
+            "reviewer":        "",
+            "patient":         patient_dict,
+            "donors":          [],
+            "rpl_reference":   {},
+        })
+    return cases
+
+
 def parse_excel(filepath: str, nabl: bool = True) -> list:
     is_csv = filepath.lower().endswith(".csv")
+    if is_csv:
+        patient_list_cases = _parse_patient_list_csv(filepath, nabl)
+        if patient_list_cases:
+            return patient_list_cases
     xl_sheets = [] if is_csv else pd.ExcelFile(filepath).sheet_names
     if "patient-donor detail" not in xl_sheets:
         fname_upper = os.path.basename(filepath).upper()

@@ -13,35 +13,19 @@ _NOT_CONFIGURED_MSG = (
     "and MYSQL_DATABASE in the backend .env file, then restart the server."
 )
 
-
 def _require_mysql():
     if not db.mysql_enabled:
         raise HTTPException(503, _NOT_CONFIGURED_MSG)
 
-
-@router.get("/ping-gateway")
-def ping_gateway():
-    import os
-    configured = genetics.is_configured()
-    base_url = os.getenv("GENETICS_API_BASE", "https://integration.andrsn.in")
-    if not configured:
-        return {"ok": False, "base_url": base_url, "error": "GENETICS_API_USERNAME / GENETICS_API_PASSWORD not set in .env"}
-    try:
-        genetics._get_service_token(force_refresh=True)
-        return {"ok": True, "base_url": base_url, "message": "Service token obtained — genetics gateway is reachable and credentials are valid."}
-    except genetics.GeneticsApiError as e:
-        return {"ok": False, "base_url": base_url, "error": str(e)}
-
-
 @router.post("/login")
 async def login(body: dict):
-    mobile_number = (body.get("mobile_number") or "").strip()
+    mobile = (body.get("mobile") or "").strip()
     password = body.get("password") or ""
-    if not mobile_number or not password:
+    if not mobile or not password:
         raise HTTPException(400, "Mobile number and password are required.")
 
     try:
-        result = genetics.genetics_login(mobile_number, password)
+        result = genetics.genetics_login(mobile, password)
         print(result)
     except genetics.GeneticsApiError as e:
         raise HTTPException(401, str(e))
@@ -50,8 +34,7 @@ async def login(body: dict):
     if not otp_hash:
         raise HTTPException(502, "Login succeeded but the auth service returned no OTP hash.")
 
-    return {"otp_required": True, "mobile": mobile_number, "hash": otp_hash}
-
+    return {"otp_required": True, "mobile": mobile, "hash": otp_hash}
 
 @router.post("/verify-otp")
 async def verify_otp(body: dict):
@@ -104,7 +87,7 @@ async def list_users():
 @router.post("/users")
 async def create_user(body: dict):
     _require_mysql()
-    mobile_number = (body.get("mobile_number") or "").strip()
+    mobile_number = (body.get("mobile") or "").strip()
     name = (body.get("name") or "").strip() or None
     role = body.get("role") or "user"
     report = body.get("report") or None
@@ -126,8 +109,8 @@ async def create_user(body: dict):
 async def update_user(user_id: str, body: dict):
     _require_mysql()
     fields = {}
-    if "mobile_number" in body and body["mobile_number"].strip():
-        fields["mobile_number"] = body["mobile_number"].strip()
+    if "mobile" in body and body["mobile"].strip():
+        fields["mobile_number"] = body["mobile"].strip()
     if "name" in body:
         fields["name"] = (body["name"] or "").strip() or None
     if "password" in body and body["password"]:

@@ -752,7 +752,7 @@
     ::-webkit-scrollbar-thumb { background: var(--input-border); border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 </style>
-  <script src="/static/idle-logout.js"></script>
+  <script src="/static/idle-logout.js?v=2"></script>
 </head>
 
 <body>
@@ -815,6 +815,7 @@
                 <div class="field" style="margin:0;"><label>From Date</label><input type="date" id="pfFromDate"></div>
                 <div class="field" style="margin:0;"><label>To Date</label><input type="date" id="pfToDate"></div>
                 <button class="btn-browse-folder" id="pfFindBtn" type="button"><i class="fas fa-search"></i> Find Patients</button>
+                <button class="btn-browse-folder" id="pfDownloadCsvBtn" type="button"><i class="fas fa-file-csv"></i> Download CSV</button>
                 <span id="pfStatus" style="font-size:11.5px; color:#888;"></span>
               </div>
               <div class="form-grid">
@@ -1324,6 +1325,7 @@
         const isoDate = (p.sample_receipt_date || "").split(" ")[0];
         const [y, m, d] = isoDate.split("-");
         if (inputs[12] && y && m && d) inputs[12].value = `${d}-${m}-${y}`;
+        if (typeof triggerPreview === "function") triggerPreview();
         showToast("Patient details applied.");
     }
 
@@ -1367,6 +1369,51 @@
                 overlay.style.top = (window.scrollY + rect.bottom + 6) + "px";
                 overlay.style.left = (window.scrollX + rect.left) + "px";
                 overlay.style.display = "block";
+            } catch (err) {
+                statusEl.textContent = "Could not reach the server.";
+            }
+        });
+
+        function csvEscape(value) {
+            const s = String(value ?? "");
+            return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+        }
+        function patientsToCsv(patients) {
+            const header = ["Patient Name", "Gender", "Age", "Patient No", "Sample Receipt Date"];
+            const rows = patients.map(p => [
+                p.patient_name || "",
+                p.gender || "",
+                p.age ?? "",
+                p.patient_no || "",
+                (p.sample_receipt_date || "").split(" ")[0],
+            ]);
+            return [header, ...rows].map(r => r.map(csvEscape).join(",")).join("\r\n");
+        }
+        document.getElementById("pfDownloadCsvBtn")?.addEventListener("click", async () => {
+            const fromDate = fromEl.value, toDate = toEl.value;
+            if (!fromDate || !toDate) { statusEl.textContent = "Pick both dates first."; return; }
+            statusEl.textContent = "Preparing CSV...";
+            try {
+                const res = await fetch(`${API}/access/patients`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ from_date: fromDate, to_date: toDate, reporting_type: "TERA" }),
+                });
+                const data = await res.json().catch(() => ({}));
+                if (!res.ok) { statusEl.textContent = data.detail || "Search failed."; return; }
+                const patients = data.patients || [];
+                if (!patients.length) { statusEl.textContent = "No patients in this date range."; return; }
+                const csv = "﻿" + patientsToCsv(patients);
+                const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = url;
+                a.download = `patients_${fromDate}_to_${toDate}.csv`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(url);
+                statusEl.textContent = `${patients.length} found`;
             } catch (err) {
                 statusEl.textContent = "Could not reach the server.";
             }
@@ -1852,7 +1899,7 @@
 
         document.getElementById("edit_patient_name").value = p["Patient Name"] || "";
         document.getElementById("edit_age").value = p["Age"] || "";
-        document.getElementById("edit_sample_id").value = p["Sample ID"] || "";
+        document.getElementById("edit_sample_id").value = p["Sample ID"] || p["Patient No"] || "";
         document.getElementById("edit_lab_no").value = p["Lab No."] || "";
         document.getElementById("edit_biopsy_no").value = p["Biopsy No."] || "";
         document.getElementById("edit_doctor_name").value = p["Doctor Name"] || "";
@@ -1864,7 +1911,7 @@
         document.getElementById("edit_phours").value = p["Biopsy time in hrs.1"] || "";
         document.getElementById("edit_result").value = p["TERA result"] || "Receptive";
         document.getElementById("edit_time_report").value = p["Time for report"] || "";
-        document.getElementById("edit_date_received").value = p["Date of Received"] || "";
+        document.getElementById("edit_date_received").value = p["Date of Received"] || p["Sample Receipt Date"] || "";
         document.getElementById("edit_report_date").value = p["Report Date"] || "";
 
         updateBulkPreview(p);

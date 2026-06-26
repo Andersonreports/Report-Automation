@@ -68,6 +68,22 @@
     }
     .admin-btn:hover { background: #E0E7FF; }
     .admin-btn i { font-size: 13px; }
+    .signout-btn {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 9px 16px;
+      border-radius: 9px;
+      background: #F3F4F6;
+      color: #6B7280;
+      font-size: 13px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+    .signout-btn:hover { background: #FEE2E2; color: #DC2626; }
+    .signout-btn i { font-size: 13px; }
 
     
     .page {
@@ -332,7 +348,7 @@
       letter-spacing: 1px;
     }
 </style>
-  <script src="/static/idle-logout.js"></script>
+  <script src="/static/idle-logout.js?v=2"></script>
 </head>
 <body>
 
@@ -349,6 +365,10 @@
         <i class="fas fa-user-shield"></i>
         Admin
       </a>
+      <button class="signout-btn" id="signOutBtn" type="button">
+        <i class="fas fa-sign-out-alt"></i>
+        Sign Out
+      </button>
     </div>
   </header>
 
@@ -467,6 +487,10 @@
     if (_isAdmin) {
       document.getElementById('sidebarAdminBtn').style.display = '';
     }
+
+    document.getElementById('signOutBtn').addEventListener('click', () => {
+      if (typeof window.arcLogout === 'function') window.arcLogout();
+    });
 
     document.querySelectorAll('.module-card[data-report]').forEach(card => {
       const allowed = _isAdmin || card.dataset.report === _report;

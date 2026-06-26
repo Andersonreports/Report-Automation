@@ -244,7 +244,7 @@ COLUMN_ALIASES = {
     "GENDER": {"GENDER", "SEX"},
     "AGE": {"AGE", "DATEOFBIRTHAGE", "DOBAGE"},
     "SPECIMEN": {"SPECIMEN", "SAMPLETYPE", "TYPEOFSAMPLE"},
-    "PIN": {"PIN", "UHID", "UMR", "UMRNO", "MRN", "PATIENTID"},
+    "PIN": {"PIN", "UHID", "UMR", "UMRNO", "MRN", "PATIENTID", "PATIENTNO"},
     "SAMPLE NUMBER": {
         "SAMPLENUMBER", "SAMPLENO", "SAMPLEID", "LABNO", "LABNUMBER",
         "ACCESSIONNO", "ACCESSIONNUMBER", "BARCODE",
@@ -495,23 +495,10 @@ def register_karyotype_routes(app):
                 with open(os.path.join(batch_dir, _safe_component(img.filename)), "wb") as f:
                     shutil.copyfileobj(img.file, f)
 
-            rows = []
-            scanned_sheets = []
-            xls = pd.ExcelFile(_io.BytesIO(contents))
-            for sheet_name in xls.sheet_names:
-                raw = pd.read_excel(xls, sheet_name=sheet_name, header=None, dtype=str, nrows=12)
-                header_row = 0
-                for i, raw_row in raw.iterrows():
-                    vals = [_column_key(v) for v in raw_row.values if str(v).strip()]
-                    if any(v in ALIAS_TO_FIELD or v in ("SNO", "SLNO", "SERIALNO") for v in vals):
-                        header_row = int(i)
-                        break
-
-                df = pd.read_excel(xls, sheet_name=sheet_name, header=header_row, dtype=str)
+            def _rows_from_df(df):
+                out = []
                 df.columns = [str(c).strip().upper() for c in df.columns]
                 df = df.dropna(how="all")
-                scanned_sheets.append(sheet_name)
-
                 for _, ser in df.iterrows():
                     row = _normalize_row({k: v for k, v in ser.items()})
                     if not _clean(row.get("NAME", "")):
@@ -522,7 +509,30 @@ def register_karyotype_routes(app):
                         imgs = [f"{batch_id}/{n}" for n in
                                 _find_images_for_sample(row.get("SAMPLE NUMBER", ""), batch_dir)]
                     row["IMAGES"] = imgs
-                    rows.append(row)
+                    out.append(row)
+                return out
+
+            rows = []
+            scanned_sheets = []
+            is_csv = (file.filename or "").lower().endswith(".csv")
+            if is_csv:
+                df = pd.read_csv(_io.BytesIO(contents), dtype=str)
+                rows.extend(_rows_from_df(df))
+                scanned_sheets.append(file.filename or "csv")
+            else:
+                xls = pd.ExcelFile(_io.BytesIO(contents))
+                for sheet_name in xls.sheet_names:
+                    raw = pd.read_excel(xls, sheet_name=sheet_name, header=None, dtype=str, nrows=12)
+                    header_row = 0
+                    for i, raw_row in raw.iterrows():
+                        vals = [_column_key(v) for v in raw_row.values if str(v).strip()]
+                        if any(v in ALIAS_TO_FIELD or v in ("SNO", "SLNO", "SERIALNO") for v in vals):
+                            header_row = int(i)
+                            break
+
+                    df = pd.read_excel(xls, sheet_name=sheet_name, header=header_row, dtype=str)
+                    rows.extend(_rows_from_df(df))
+                    scanned_sheets.append(sheet_name)
 
             return {"rows": rows, "count": len(rows), "batch_id": batch_id,
                     "sheets": scanned_sheets}

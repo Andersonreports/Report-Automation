@@ -6,17 +6,6 @@
   var ACTIVITY_KEY = 'arc_last_activity';
   var WRITE_THROTTLE_MS = 5 * 1000;
 
-  if (localStorage.getItem('arc_authenticated') !== 'true') return;
-
-  var lastWrite = 0;
-
-  function recordActivity() {
-    var now = Date.now();
-    if (now - lastWrite < WRITE_THROTTLE_MS) return;
-    lastWrite = now;
-    localStorage.setItem(ACTIVITY_KEY, String(now));
-  }
-
   function logout() {
     localStorage.removeItem('arc_authenticated');
     localStorage.removeItem('arc_access_control');
@@ -26,6 +15,18 @@
     localStorage.removeItem('arc_report');
     localStorage.removeItem(ACTIVITY_KEY);
     window.location.replace('/login.html');
+  }
+  window.arcLogout = logout;
+
+  if (localStorage.getItem('arc_authenticated') !== 'true') return;
+
+  var lastWrite = 0;
+
+  function recordActivity() {
+    var now = Date.now();
+    if (now - lastWrite < WRITE_THROTTLE_MS) return;
+    lastWrite = now;
+    localStorage.setItem(ACTIVITY_KEY, String(now));
   }
 
   function checkIdle() {

@@ -1,8 +1,3 @@
-"""
-PGT-A Report Template Engine
-Generates PDF and DOCX reports from patient and embryo data
-"""
-
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.units import inch, mm
 from reportlab.lib import colors
@@ -171,7 +166,6 @@ class PGTAReportTemplate:
             available[fname.lower()] = fname
 
         def _find(candidates):
-            """Return full path for first matching candidate (case-insensitive)."""
             for c in candidates:
                 key = c.lower()
                 if key in available:
@@ -596,7 +590,7 @@ class PGTAReportTemplate:
             interp_text = self._clean(embryo.get('interpretation'), '')
             if not interp_text:
                 interp_text = info["classification"].replace("_", " ").title() if info["is_mosaic"] else "NA"
-            interp = "NA" if interp_text.upper() == "EUPLOID" else interp_text
+            interp = interp_text
 
             res_color = self._get_result_color(raw_result, interp_text)
 

@@ -268,10 +268,15 @@
       padding: 8px 10px; border-bottom: 1px solid #eee; cursor: pointer; font-size: 11.5px; display: flex; align-items: center; gap: 6px;
     }
     .case-item:hover { filter: brightness(0.97); }
-    
+
     .case-item.selected { box-shadow: inset 0 0 0 2px var(--primary); }
+    .case-item[draggable="true"] { cursor: grab; }
+    .case-item.dragging { opacity: 0.4; }
     .case-item .ci-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
     .case-item .ci-name { font-weight: 600; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .bulk-drop-target { transition: 0.15s; border-radius: 8px; }
+    .bulk-drop-target.drag-over { outline: 2px dashed var(--primary); background: rgba(31,73,125,0.06); }
 
     .select-row { display: flex; gap: 6px; margin-bottom: 8px; }
     .select-row .btn-sm { flex: 1; justify-content: center; padding: 5px; font-size: 10.5px; }
@@ -312,7 +317,7 @@
 
     
     .hla-modal-backdrop {
-      position: absolute; top: 100%; left: 0; margin-top: 6px; z-index: 50;
+      position: absolute; z-index: 5000;
     }
     .hla-modal {
       background: #fff; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.25);
@@ -352,7 +357,7 @@
     }
     .photo-upload-box img { width: 100%; height: 100%; object-fit: cover; }
 </style>
-  <script src="/static/idle-logout.js"></script>
+  <script src="/static/idle-logout.js?v=2"></script>
 </head>
 
 <body>
@@ -433,15 +438,6 @@
         <button class="btn-sm btn-outline pf-drop-target" id="pfPatientDrop" type="button" title="Drag a result here to fill the Patient fields"><i class="fas fa-user"></i> Patient</button>
         <button class="btn-sm btn-outline pf-drop-target" id="pfDonorDrop" type="button" title="Drag a result here to fill the Donor fields"><i class="fas fa-user-friends"></i> Donor</button>
         <button class="btn-sm btn-outline" id="pfDownloadCsvBtn" type="button"><i class="fas fa-file-csv"></i> Download CSV</button>
-      </div>
-      <div class="hla-modal-backdrop" id="pfModalBackdrop" style="display:none;">
-        <div class="hla-modal">
-          <h4>Select Patient</h4>
-          <div class="hla-modal-list" id="pfModalList"></div>
-          <div class="hla-modal-actions">
-            <button type="button" id="pfModalCloseBtn" style="border-color:var(--input-border); background:#fff;">Close</button>
-          </div>
-        </div>
       </div>
       <div class="split-layout">
         <div class="form-col" id="manualFormCol">
@@ -614,6 +610,16 @@
 
   <div class="toast" id="toast"></div>
 
+  <div class="hla-modal-backdrop" id="pfModalBackdrop" style="display:none;">
+    <div class="hla-modal">
+      <h4>Select Patient</h4>
+      <div class="hla-modal-list" id="pfModalList"></div>
+      <div class="hla-modal-actions">
+        <button type="button" id="pfModalCloseBtn" style="border-color:var(--input-border); background:#fff;">Close</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/hla.js?v=49"></script>
   <script>
     (function () {
@@ -657,7 +663,13 @@
           statusEl.textContent = 'This report type has no Donor section.';
           return;
         }
-        const df = manualDonorFields[0];
+        let df = manualDonorFields[manualDonorFields.length - 1];
+        const lastIsFilled = df.name && df.name.value && df.name.value.trim() !== '';
+        if (lastIsFilled && typeof MULTI_DONOR_RTYPES !== 'undefined' && MULTI_DONOR_RTYPES.includes(state.rtype)) {
+          const sectionTitle = state.rtype === 'rpl_couple' ? 'Spouse / Donor' : 'Donor';
+          addManualDonorCard(state.rtype, sectionTitle);
+          df = manualDonorFields[manualDonorFields.length - 1];
+        }
         function fillDonorField(key, value) {
           if (value === undefined || value === null || value === '') return;
           if (df[key]) df[key].value = value;
@@ -672,7 +684,7 @@
         fillDonorField('collection_date', displayDate);
         fillDonorField('receipt_date', displayDate);
         if (typeof scheduleManualPreview === 'function') scheduleManualPreview();
-        statusEl.textContent = 'Donor details applied.';
+        statusEl.textContent = `Donor ${manualDonorFields.length} details applied.`;
       }
 
       function setupDropTarget(el, onDrop) {
@@ -726,6 +738,9 @@
               listEl.appendChild(item);
             });
           }
+          const rect = findBtn.getBoundingClientRect();
+          backdrop.style.top = (window.scrollY + rect.bottom + 6) + 'px';
+          backdrop.style.left = (window.scrollX + rect.left) + 'px';
           backdrop.style.display = 'flex';
         } catch (err) {
           statusEl.textContent = 'Could not reach the server.';

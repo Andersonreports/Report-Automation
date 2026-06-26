@@ -2758,7 +2758,7 @@
       }
     }
 </style>
-  <script src="/static/idle-logout.js"></script>
+  <script src="/static/idle-logout.js?v=2"></script>
 </head>
 
 <body>
@@ -2842,6 +2842,7 @@
                 <div class="field" style="margin:0;"><label>From Date</label><input type="date" id="pfFromDate"></div>
                 <div class="field" style="margin:0;"><label>To Date</label><input type="date" id="pfToDate"></div>
                 <button class="btn-sm btn-outline" id="pfFindBtn" type="button"><i class="fas fa-search"></i> Find Patients</button>
+                <button class="btn-sm btn-outline" id="pfDownloadCsvBtn" type="button"><i class="fas fa-file-csv"></i> Download CSV</button>
                 <span id="pfStatus" style="font-size:11.5px; color:var(--text-muted);"></span>
               </div>
               <div class="field-grid">
@@ -4546,6 +4547,53 @@
       }
     });
 
+    function _csvEscape(value) {
+      const s = String(value ?? "");
+      return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+    }
+    function _patientsToCsv(patients) {
+      const header = ["Patient Name", "Gender", "Age", "Patient No", "Sample Receipt Date"];
+      const rows = patients.map(p => [
+        p.patient_name || "",
+        p.gender || "",
+        p.age ?? "",
+        p.patient_no || "",
+        (p.sample_receipt_date || "").split(" ")[0],
+      ]);
+      return [header, ...rows].map(r => r.map(_csvEscape).join(",")).join("\r\n");
+    }
+    document.getElementById("pfDownloadCsvBtn")?.addEventListener("click", async () => {
+      const fromEl = document.getElementById("pfFromDate");
+      const toEl = document.getElementById("pfToDate");
+      const statusEl = document.getElementById("pfStatus");
+      const fromDate = fromEl.value, toDate = toEl.value;
+      if (!fromDate || !toDate) { statusEl.textContent = "Pick both dates first."; return; }
+      statusEl.textContent = "Preparing CSV...";
+      try {
+        const res = await fetch(`${BASE}/access/patients`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ from_date: fromDate, to_date: toDate, reporting_type: "PGTA" }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { statusEl.textContent = data.detail || "Search failed."; return; }
+        const patients = data.patients || [];
+        if (!patients.length) { statusEl.textContent = "No patients in this date range."; return; }
+        const csv = "﻿" + _patientsToCsv(patients);
+        const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `patients_${fromDate}_to_${toDate}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        statusEl.textContent = `${patients.length} found`;
+      } catch (err) {
+        statusEl.textContent = "Could not reach the server.";
+      }
+    });
+
     
     
     
@@ -4793,13 +4841,13 @@
       const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
       const patientMap = new Map();
       for (const row of rows) {
-        const name = _cleanV(row["Patient_Name"] || row["patient_name"] || row["PATIENT_NAME"] || "");
+        const name = _cleanV(row["Patient_Name"] || row["patient_name"] || row["PATIENT_NAME"] || row["Patient Name"] || "");
         if (!name) continue;
         if (!patientMap.has(name)) {
           patientMap.set(name, {
             patient_name: name,
             spouse_name: _cleanV(row["Spouse_Name"] || row["spouse_name"] || "w/o"),
-            pin: _cleanV(row["PIN"] || row["pin"] || ""),
+            pin: _cleanV(row["PIN"] || row["pin"] || row["Patient No"] || row["Patient_No"] || ""),
             age: _cleanV(row["Age"] || row["age"] || ""),
             sample_number: _cleanV(row["Sample_Number"] || row["sample_number"] || ""),
             referring_clinician: "",
@@ -4807,7 +4855,7 @@
             hospital_clinic: _cleanV(row["Hospital_Clinic"] || row["hospital_clinic"] || ""),
             sample_collection_date: _cleanV(row["Sample_Collection_Date"] || row["sample_collection_date"] || ""),
             specimen: _cleanV(row["Specimen"] || row["specimen"] || "DAY 5 TROPHECTODERM BIOPSY"),
-            sample_receipt_date: _cleanV(row["Sample_Receipt_Date"] || row["sample_receipt_date"] || ""),
+            sample_receipt_date: _cleanV(row["Sample_Receipt_Date"] || row["sample_receipt_date"] || row["Sample Receipt Date"] || ""),
             biopsy_performed_by: _cleanV(row["Biopsy_Performed_By"] || row["biopsy_performed_by"] || ""),
             report_date: _cleanV(row["Report_Date"] || row["report_date"] || ""),
             indication: _cleanV(row["Indication"] || row["indication"] || ""),

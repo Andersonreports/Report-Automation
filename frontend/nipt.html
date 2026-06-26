@@ -660,7 +660,11 @@
     .export-bar .drop-zone-compact {
       flex: 0 1 320px;
       min-width: 200px;
-      white-space: nowrap;
+    }
+
+    .drop-zone-compact span {
+      min-width: 0;
+      overflow-wrap: anywhere;
     }
 
     .drop-zone-compact:hover,
@@ -1387,7 +1391,7 @@
       background: #94a3b8;
     }
 </style>
-  <script src="/static/idle-logout.js"></script>
+  <script src="/static/idle-logout.js?v=2"></script>
 </head>
 
 <body>
@@ -1485,6 +1489,7 @@
               <div class="field" style="margin:0;"><label>From Date</label><input type="date" id="pfFromDate"></div>
               <div class="field" style="margin:0;"><label>To Date</label><input type="date" id="pfToDate"></div>
               <button class="btn-outline" id="pfFindBtn" type="button"><i class="fas fa-search"></i> Find Patients</button>
+              <button class="btn-outline" id="pfDownloadCsvBtn" type="button"><i class="fas fa-file-csv"></i> Download CSV</button>
               <span id="pfStatus" style="font-size:11.5px; color:#64748b;"></span>
             </div>
             <div class="field-grid">
@@ -2001,6 +2006,53 @@
           overlay.style.top = (window.scrollY + rect.bottom + 6) + "px";
           overlay.style.left = (window.scrollX + rect.left) + "px";
           overlay.style.display = "block";
+        } catch (err) {
+          statusEl.textContent = "Could not reach the server.";
+        }
+      });
+
+      function csvEscape(value) {
+        const s = String(value ?? "");
+        return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+      }
+      function patientsToCsv(patients) {
+        const header = ["Patient Name", "Gender", "Age", "Patient No", "Sample Receipt Date"];
+        const rows = patients.map(p => [
+          p.patient_name || "",
+          p.gender || "",
+          p.age ?? "",
+          p.patient_no || "",
+          (p.sample_receipt_date || "").split(" ")[0],
+        ]);
+        return [header, ...rows].map(r => r.map(csvEscape).join(",")).join("\r\n");
+      }
+      document.getElementById("pfDownloadCsvBtn")?.addEventListener("click", async () => {
+        const fromEl = document.getElementById("pfFromDate");
+        const toEl = document.getElementById("pfToDate");
+        const statusEl = document.getElementById("pfStatus");
+        const fromDate = fromEl.value, toDate = toEl.value;
+        if (!fromDate || !toDate) { statusEl.textContent = "Pick both dates first."; return; }
+        statusEl.textContent = "Preparing CSV...";
+        try {
+          const res = await _apiFetch("/access/patients", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ from_date: fromDate, to_date: toDate, reporting_type: "NIPS" }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) { statusEl.textContent = data.detail || "Search failed."; return; }
+          const patients = data.patients || [];
+          if (!patients.length) { statusEl.textContent = "No patients in this date range."; return; }
+          const csv = "﻿" + patientsToCsv(patients);
+          const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `patients_${fromDate}_to_${toDate}.csv`;
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+          statusEl.textContent = `${patients.length} found`;
         } catch (err) {
           statusEl.textContent = "Could not reach the server.";
         }
@@ -2560,13 +2612,13 @@
 
               const p = {
                 name: _titleCaseWords(_cleanStr(row['Patient Name'] ?? row['Sample Name'] ?? '')),
-                pin: _cleanStr(row['PIN'] ?? row['Sample Name'] ?? ''),
+                pin: _cleanStr(row['PIN'] ?? row['Patient No'] ?? row['Sample Name'] ?? ''),
                 dob: _cleanStr(row['Date of Birth'] ?? row['DOB'] ?? row['Date of birth/Age'] ?? ''),
                 age: _cleanStr(row['Age'] ?? ''),
                 ga: _cleanStr(row['Gestational Age'] ?? row['GA'] ?? ''),
                 sample_id: _normId(_cleanStr(row['Sample ID'] ?? row['Sample Name'] ?? '')),
                 collection_date: _cleanStr(row['Collection date'] ?? row['Collection Date'] ?? row['Col Date'] ?? ''),
-                received_date: _cleanStr(row['Received date'] ?? row['Receipt Date'] ?? row['Rec Date'] ?? ''),
+                received_date: _cleanStr(row['Received date'] ?? row['Receipt Date'] ?? row['Sample Receipt Date'] ?? row['Rec Date'] ?? ''),
                 preg_status: _cleanStr(row['Pregnancy status'] ?? row['Status'] ?? ''),
                 preg_type: _cleanStr(row['Pregnancy type'] ?? ''),
                 clinician: _titleCaseWords(_cleanStr(row['Referring Clinician'] ?? row['Ref Doctor'] ?? '')),

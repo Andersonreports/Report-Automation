@@ -125,7 +125,7 @@
     .toast-item.error { background: #DC2626; }
     @keyframes toastIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 </style>
-  <script src="/static/idle-logout.js"></script>
+  <script src="/static/idle-logout.js?v=2"></script>
 </head>
 <body>
 
@@ -360,7 +360,7 @@
     }
 
     function openEditModal(id) {
-      const u = _allUsers.find(x => x.id === id);
+      const u = _allUsers.find(x => String(x.id) === String(id));
       if (!u) return;
       editingUserId = id;
       document.getElementById('userModalTitle').textContent = 'Edit User';
@@ -386,7 +386,7 @@
       const report = document.getElementById('f_report').value;
       if (!/^[0-9]{10}$/.test(mobileNumber)) { toast('Enter a valid 10-digit mobile number.', 'error'); return; }
 
-      const payload = { name: name || null, mobile_number: mobileNumber, role, report: role === 'admin' ? null : report };
+      const payload = { name: name || null, mobile: mobileNumber, role, report: role === 'admin' ? null : report };
 
       try {
         if (editingUserId) {

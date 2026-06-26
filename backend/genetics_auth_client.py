@@ -104,8 +104,8 @@ def _post(path: str, body: dict) -> dict:
     return data
 
 
-def genetics_login(mobile_number: str, password: str) -> dict:
-    data = _post("/genetics/login", {"mobile_number": mobile_number, "password": password})
+def genetics_login(mobile: str, password: str) -> dict:
+    data = _post("/genetics/login", {"mobile_number": mobile, "password": password})
     otp_hash = data.get("hash")
     if not otp_hash:
         nested = data.get("data")
@@ -115,9 +115,8 @@ def genetics_login(mobile_number: str, password: str) -> dict:
             otp_hash = nested.get("hash")
     return {"hash": otp_hash}
 
-
 def verify_otp(otp: str, otp_hash: str, mobile: str) -> dict:
-    return _post("/genetics/verify_otp", {"otp": otp, "hash": otp_hash, "mobile_number": mobile})
+    return _post("/genetics/verify_otp", {"otp": otp, "hash": otp_hash, "mobile": mobile})
 
 
 def get_patient_details(from_date: str, to_date: str, reporting_type: str) -> list:
