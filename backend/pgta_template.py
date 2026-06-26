@@ -763,11 +763,12 @@ class PGTAReportTemplate:
         elif 'CNV STATUS' in auto_upper:
             auto_color = colors.red
         
+        sex_up = sex_text.upper().strip()
         sex_color = colors.black
-        if "ABNORMAL" in sex_text.upper():
-            sex_color = colors.red
-        elif "MOSAIC" in sex_text.upper():
+        if "MOSAIC" in sex_up:
             sex_color = colors.blue
+        elif sex_up and sex_up not in ("NORMAL", "NO RESULT"):
+            sex_color = colors.red
 
         raw_mt = self._clean(embryo_data.get('mtcopy', ''), 'NA')
         mtcopy = raw_mt if interp_text.upper() == "EUPLOID" else "NA"
@@ -1012,24 +1013,32 @@ class PGTAReportTemplate:
         ] + self._get_grid_style()))
         return KeepTogether(header_table)
 
+    def _classify_color(self, result_text):
+        """Red for Aneuploid/Segmental, Blue for Mosaic, Black for Euploid/Inconclusive"""
+        cls = clf.classify_embryo(result_text)["classification"]
+        if cls in (clf.ANEUPLOID, clf.SEGMENTAL):
+            return colors.red
+        if cls in (clf.LOW_MOSAIC, clf.HIGH_MOSAIC, clf.COMPLEX_MOSAIC):
+            return colors.blue
+        return colors.black
+
     def _get_result_color(self, result_text, interpretation_text):
         """Determine if text should be Red (Aneuploid), Blue (Mosaic) or Black (Euploid)"""
-        res_up = result_text.upper() if result_text else ""
         int_up = interpretation_text.upper() if interpretation_text else ""
-        
+
+        red_keywords = ["MONOSOMY", "TRISOMY", "SEGMENTAL GAIN", "SEGMENTAL LOSS",
+                        "MULTIPLE CHROMOSOMAL ABNORMALITIES", "ANEUPLOID", "CHAOTIC", "MCA"]
+        if any(kw in int_up for kw in red_keywords):
+            return colors.red
+
+        blue_keywords = ["MOSAIC", "LOW LEVEL", "HIGH LEVEL", "COMPLEX", "MG-", "ML-", "SML", "SMG"]
+        if any(kw in int_up for kw in blue_keywords):
+            return colors.blue
+
         if "EUPLOID" in int_up and "ANEUPLOID" not in int_up:
             return colors.black
-        
-        red_keywords = ["MONOSOMY", "TRISOMY", "SEGMENTAL GAIN", "SEGMENTAL LOSS", 
-                        "MULTIPLE CHROMOSOMAL ABNORMALITIES", "ANEUPLOID", "CHAOTIC", "MCA"]
-        if any(kw in res_up for kw in red_keywords) or any(kw in int_up for kw in red_keywords):
-            return colors.red
-            
-        blue_keywords = ["MOSAIC", "LOW LEVEL", "HIGH LEVEL", "COMPLEX", "MG-", "ML-", "SML", "SMG"]
-        if any(kw in res_up for kw in blue_keywords) or any(kw in int_up for kw in blue_keywords):
-            return colors.blue
-            
-        return colors.black
+
+        return self._classify_color(result_text)
 
     def _get_autosome_color(self, autosome_text):
         """Special color logic for autosomes field"""

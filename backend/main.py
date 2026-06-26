@@ -44,29 +44,36 @@ TEMP_CLEANUP_INTERVAL_SECONDS = 24 * 60 * 60
 TEMP_MAX_AGE_SECONDS = 24 * 60 * 60
 
 
-def _cleanup_temp_dir():
+def _cleanup_old_files():
     now = time.time()
-    for dirpath, dirnames, filenames in os.walk(TEMP_DIR, topdown=False):
-        for name in filenames:
-            fp = os.path.join(dirpath, name)
-            try:
-                if now - os.path.getmtime(fp) >= TEMP_MAX_AGE_SECONDS:
-                    os.remove(fp)
-            except OSError:
-                pass
-        if dirpath != TEMP_DIR:
-            try:
-                os.rmdir(dirpath)
-            except OSError:
-                pass
+    cleanup_dirs = [TEMP_DIR, REPORT_DIR, PGTA_REPORT_DIR] + [
+        os.path.join(BASE_DIR, name)
+        for name in ("reports-nipt", "reports-hla", "reports-karyotype")
+    ]
+    for base in cleanup_dirs:
+        if not os.path.isdir(base):
+            continue
+        for dirpath, dirnames, filenames in os.walk(base, topdown=False):
+            for name in filenames:
+                fp = os.path.join(dirpath, name)
+                try:
+                    if now - os.path.getmtime(fp) >= TEMP_MAX_AGE_SECONDS:
+                        os.remove(fp)
+                except OSError:
+                    pass
+            if dirpath != base:
+                try:
+                    os.rmdir(dirpath)
+                except OSError:
+                    pass
 
 
-async def _temp_cleanup_loop():
+async def _cleanup_loop():
     while True:
         try:
-            await asyncio.to_thread(_cleanup_temp_dir)
+            await asyncio.to_thread(_cleanup_old_files)
         except Exception as e:
-            print(f"[TempCleanup] failed: {e}")
+            print(f"[Cleanup] failed: {e}")
         await asyncio.sleep(TEMP_CLEANUP_INTERVAL_SECONDS)
 
 
@@ -124,8 +131,8 @@ app.add_middleware(
 
 
 @app.on_event("startup")
-async def _start_temp_cleanup():
-    asyncio.create_task(_temp_cleanup_loop())
+async def _start_cleanup_loop():
+    asyncio.create_task(_cleanup_loop())
 
 app.mount("/reports",      StaticFiles(directory=REPORT_DIR),      name="reports")
 app.mount("/reports-pgta", StaticFiles(directory=PGTA_REPORT_DIR),

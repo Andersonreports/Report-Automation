@@ -569,17 +569,17 @@
       margin-bottom: 10px;
     }
 
-    #resultsSummaryTable {
+    .results-summary-table {
       width: 100%;
       border-collapse: collapse;
       font-size: 11px;
     }
 
-    #resultsSummaryTable thead tr {
+    .results-summary-table thead tr {
       background: var(--summary-header);
     }
 
-    #resultsSummaryTable th {
+    .results-summary-table th {
       padding: 8px 10px;
       text-align: center;
       font-weight: 700;
@@ -587,19 +587,19 @@
       border-bottom: 2px solid #d4a070;
     }
 
-    #resultsSummaryTable td {
+    .results-summary-table td {
       padding: 6px 8px;
       text-align: center;
       border-bottom: 1px solid #e5e7eb;
       background: var(--patient-bg);
     }
 
-    #resultsSummaryTable tr:hover td {
+    .results-summary-table tr:hover td {
       background: #e8e8f0;
     }
 
-    #resultsSummaryTable input[type=text],
-    #resultsSummaryTable select {
+    .results-summary-table input[type=text],
+    .results-summary-table select {
       border: 1px solid var(--input-border);
       border-radius: 4px;
       padding: 4px 6px;
@@ -2903,7 +2903,7 @@
                 <span class="info-text" style="margin-left:8px;" id="embryoCountHint">1 embryo</span>
               </div>
               <div class="summary-table-wrap">
-                <table id="resultsSummaryTable">
+                <table id="resultsSummaryTable" class="results-summary-table">
                   <thead>
                     <tr>
                       <th style="width:40px;">S.No</th>
@@ -3533,19 +3533,22 @@
     function getPrettySummary(val) {
       if (!val) return "";
       const v = val.trim().toUpperCase();
-      if (v === "MCA") return "Multiple chromosomal abnormalities";
-      if (v === "EUPLOID" || v === "NORMAL") return "Normal chromosome complement";
-      if (v.includes("MG-") || v.includes("ML-") || v.includes("SML") || v.includes("SMG") || v.includes("MOSAIC")) return "Mosaic chromosome complement";
-      if (v === "INCONCLUSIVE") return "Inconclusive";
-      if (v.includes("LOSS") || v.includes("GAIN") || v.includes("-") || v.includes("+")) return "Abnormal chromosome complement";
+      const isSegmental = /\b(DEL|DUP)\s*\(/.test(v);
+      const isMosaic = /%/.test(v) || v.includes("MOSAIC") || v.includes("MG-") || v.includes("ML-") || v.includes("SML") || v.includes("SMG");
+      if (v === "INCONCLUSIVE" || v.includes("NO RESULT") || v.includes("FAILED")) return "Inconclusive";
+      if (v === "EUPLOID" || v === "NORMAL" || v === "NORMAL CHROMOSOME COMPLEMENT") return "Normal chromosome complement";
+      if (isMosaic) return "Mosaic chromosome complement";
+      if (v === "MCA" || isSegmental) return "Multiple chromosomal abnormalities";
+      if (v.includes("LOSS") || v.includes("GAIN") || v.includes("MONOSOMY") || v.includes("TRISOMY") || v.includes("ANEUPLOID") || v.includes("ABNORMAL") || /[+-]\s*\d/.test(v)) return "Abnormal chromosome complement";
       return val;
     }
 
     function getResultColor(result) {
       if (!result) return "#000";
       const r = result.toUpperCase();
+      if (r.includes("INCONCLUSIVE") || r.includes("NO RESULT") || r.includes("FAILED")) return "#000";
       if (r.includes("NORMAL") || r.includes("EUPLOID")) return "#000";
-      if (r.includes("MOSAIC") || r.includes("MG-") || r.includes("ML-") || r.includes("SML") || r.includes("SMG")) return "#2563eb";
+      if (/%/.test(r) || r.includes("MOSAIC") || r.includes("MG-") || r.includes("ML-") || r.includes("SML") || r.includes("SMG")) return "#2563eb";
       return "#dc2626";
     }
 
@@ -5147,7 +5150,39 @@
     <div class="bulk-editor-field"><label>Indication:</label><textarea rows="3" oninput="state.bulkPatients[${i}].indication=this.value;scheduleBulkPreview()">${esc(p.indication || "")}</textarea></div>
   </div>`;
 
-      
+
+      const summaryRowsHtml = embryos.map((emb, ei) => {
+        const prettyResult = getPrettySummary(emb.result_summary);
+        const resultColor = getResultColor(emb.result_summary);
+        const prettyInterp = getPrettyInterpretation(emb);
+        return `<tr>
+      <td>${ei + 1}</td>
+      <td><input type="text" value="${esc(emb.embryo_id || "")}" oninput="state.bulkPatients[${i}].embryos[${ei}].embryo_id=this.value;scheduleBulkPreview()" style="width:80px;"></td>
+      <td><span style="color:${resultColor};font-weight:600;">${esc(prettyResult)}</span></td>
+      <td><input type="text" value="${esc(emb.mtcopy || 'NA')}" oninput="state.bulkPatients[${i}].embryos[${ei}].mtcopy=this.value;scheduleBulkPreview()" style="width:70px;" placeholder="NA"></td>
+      <td><span style="color:${getInterpColor(prettyInterp)};font-weight:600;">${esc(prettyInterp)}</span></td>
+    </tr>`;
+      }).join("");
+
+      html += `<div class="bulk-editor-section">
+    <h4> Page 1: Results Summary</h4>
+    <div class="summary-table-wrap">
+      <table id="bulkResultsSummaryTable" class="results-summary-table">
+        <thead>
+          <tr>
+            <th style="width:40px;">S.No</th>
+            <th style="width:95px;">Sample</th>
+            <th>Result</th>
+            <th style="width:80px;">MTcopy</th>
+            <th style="width:80px;">Interpretation</th>
+          </tr>
+        </thead>
+        <tbody>${summaryRowsHtml || '<tr><td colspan="5" style="text-align:center;color:#94a3b8;">No embryo data</td></tr>'}</tbody>
+      </table>
+    </div>
+  </div>`;
+
+
       if (embryos.length === 0) {
         html += `<p class="info-text" style="padding:20px;text-align:center;">No embryo data for this patient.</p>`;
       }

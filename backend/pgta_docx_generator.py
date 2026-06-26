@@ -448,8 +448,14 @@ class PGTADocxGenerator:
         raw_mt = self._clean(embryo_data.get('mtcopy', ''))
         mt = raw_mt if interp_text.upper() == "EUPLOID" and raw_mt and raw_mt.upper() not in ('NA', 'N/A', '') else "NA"
 
-        cell_color   = "#FF0000" if info["is_abnormal"] else "#000000"
-        sex_color    = cell_color if sex.upper() not in ('NORMAL', '') else "#000000"
+        cell_color   = self._classify_color_hex(raw_result)
+        sex_up = sex.upper().strip()
+        if "MOSAIC" in sex_up:
+            sex_color = "#0000FF"
+        elif sex_up and sex_up not in ("NORMAL", "NO RESULT"):
+            sex_color = "#FF0000"
+        else:
+            sex_color = "#000000"
         interp_color = self._get_result_color_hex(raw_result, interp_text)
         details = [
             ("Result:", res, "#000000"),
@@ -580,9 +586,31 @@ class PGTADocxGenerator:
             p2 = cell.add_paragraph(title); p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
             self._set_paragraph_font(p2, font_size=11)
 
+    def _classify_color_hex(self, text):
+        """Red for Aneuploid/Segmental, Blue for Mosaic, Black for Euploid/Inconclusive"""
+        cls = clf.classify_embryo(text)["classification"]
+        if cls in (clf.ANEUPLOID, clf.SEGMENTAL):
+            return "#FF0000"
+        if cls in (clf.LOW_MOSAIC, clf.HIGH_MOSAIC, clf.COMPLEX_MOSAIC):
+            return "#0000FF"
+        return "#000000"
+
     def _get_result_color_hex(self, res, interp=None):
-        combined = " ".join(filter(None, [str(res or ""), str(interp or "")]))
-        return "#FF0000" if clf.classify_embryo(combined)["is_abnormal"] else "#000000"
+        int_up = (interp or "").upper()
+
+        red_keywords = ["MONOSOMY", "TRISOMY", "SEGMENTAL GAIN", "SEGMENTAL LOSS",
+                        "MULTIPLE CHROMOSOMAL ABNORMALITIES", "ANEUPLOID", "CHAOTIC", "MCA"]
+        if any(kw in int_up for kw in red_keywords):
+            return "#FF0000"
+
+        blue_keywords = ["MOSAIC", "LOW LEVEL", "HIGH LEVEL", "COMPLEX", "MG-", "ML-", "SML", "SMG"]
+        if any(kw in int_up for kw in blue_keywords):
+            return "#0000FF"
+
+        if "EUPLOID" in int_up and "ANEUPLOID" not in int_up:
+            return "#000000"
+
+        return self._classify_color_hex(res)
 
     def _get_status_color_docx(self, status):
         s = str(status).upper().strip()
@@ -591,12 +619,12 @@ class PGTADocxGenerator:
         if s in ('NR', 'FAILED', 'NO RESULT'):
             return "#808080"
         if s in ('ML', 'MG', 'SML', 'SMG', 'M', 'SML/SMG', 'SMG/SML'):
-            return "#FF8C00"
+            return "#0000FF"
         if s in ('L', 'G', 'SL', 'SG', 'SL/SG', 'SG/SL'):
             return "#FF0000"
         try:
             if float(s.replace('%', '')) > 0:
-                return "#FF8C00"
+                return "#0000FF"
         except Exception:
             pass
         return "#000000"
