@@ -136,7 +136,7 @@ mysql_enabled = _is_configured()
 
 
 def _row_to_user(row: dict) -> dict:
-    return dict(row)
+    return {k.lower(): v for k, v in row.items()}
 
 
 def list_users():
