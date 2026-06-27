@@ -1906,6 +1906,15 @@ function toggleBulkGenBar() {
 function initBulkTab() {
   const fi = document.getElementById("bulkFileInput");
   const zone = document.getElementById("bulkExcelZone");
+  const ri = document.getElementById("bulkResultFileInput");
+  const rzone = document.getElementById("bulkResultZone");
+
+  function updateExcelLabel(name) {
+    document.getElementById("bulkDropzoneLabel").textContent = name;
+  }
+  function updateResultLabel(name) {
+    document.getElementById("bulkResultDropzoneLabel").textContent = name;
+  }
 
   zone.addEventListener("dragover", e => { e.preventDefault(); zone.classList.add("dragover"); });
   zone.addEventListener("dragleave", () => zone.classList.remove("dragover"));
@@ -1930,9 +1939,28 @@ function initBulkTab() {
     }
   });
 
-  function updateExcelLabel(name) {
-    document.getElementById("bulkDropzoneLabel").textContent = name;
-  }
+  rzone.addEventListener("dragover", e => { e.preventDefault(); rzone.classList.add("dragover"); });
+  rzone.addEventListener("dragleave", () => rzone.classList.remove("dragover"));
+  rzone.addEventListener("drop", e => {
+    e.preventDefault(); rzone.classList.remove("dragover");
+    if (e.dataTransfer.files.length) {
+      const dt = e.dataTransfer;
+      const fileArr = Array.from(dt.files).filter(f => /\.csv$/i.test(f.name));
+      if (!fileArr.length) { showToast("Please drop a Result CSV file (.csv).", "error"); return; }
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(fileArr[0]);
+      ri.files = dataTransfer.files;
+      updateResultLabel(ri.files[0].name);
+      if (fi.files.length) parseBulkExcel();
+    }
+  });
+
+  ri.addEventListener("change", () => {
+    if (ri.files.length) {
+      updateResultLabel(ri.files[0].name);
+      if (fi.files.length) parseBulkExcel();
+    }
+  });
 
   const bulkOutputBtn = document.getElementById("bulkOutputBrowseBtn");
   bulkOutputBtn.addEventListener("click", () => browseOutputFolder(document.getElementById("bulkOutputInput"), bulkOutputBtn));
@@ -2061,14 +2089,23 @@ async function importBulkSabExcel(sabFileInput, sabKitSelect) {
 
 async function parseBulkExcel() {
   const fi = document.getElementById("bulkFileInput");
-  if (!fi.files.length) { showToast("Please select an Excel file first.", "error"); return; }
+  const ri = document.getElementById("bulkResultFileInput");
+  if (!fi.files.length) { showToast("Please select an Excel/CSV file first.", "error"); return; }
   const nabl = checked(document.getElementById("globalNablChk"));
   const fd = new FormData();
-  fd.append("file", fi.files[0]);
   fd.append("nabl", nabl);
+  let url;
+  if (ri.files.length) {
+    fd.append("patient_file", fi.files[0]);
+    fd.append("result_file", ri.files[0]);
+    url = "/hla/parse-patient-result-csv";
+  } else {
+    fd.append("file", fi.files[0]);
+    url = "/hla/parse-excel";
+  }
   try {
-    showToast("Parsing Excel file…");
-    const r = await fetch("/hla/parse-excel", { method: "POST", body: fd });
+    showToast(ri.files.length ? "Cross-matching Patient List with Result CSV…" : "Parsing Excel file…");
+    const r = await fetch(url, { method: "POST", body: fd });
     if (!r.ok) {
       let msg = await r.text();
       try { msg = JSON.parse(msg).detail || msg; } catch (_) {  }

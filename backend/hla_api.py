@@ -18,6 +18,7 @@ from hla_template import generate_pdf, make_filename, unique_output_path
 from hla_data_parser import (
     parse_excel, get_case_summary,
     c_supertype, compute_rpl_reference,
+    parse_patient_and_result_csv,
 )
 from hla_sab_parser import parse_sab_excel, parse_sab_allele_text, sab_pra_sentence
 import hla_assets
@@ -473,6 +474,25 @@ async def pdf_to_draft(file: UploadFile = File(...)):
     return {"ok": True, "draft_name": draft_name, "case": case}
 
 
+def _serialize_cases(cases: list) -> list:
+    serialized = []
+    for case in cases:
+        c = copy.deepcopy(case)
+        pat = c.get("patient") or {}
+        if isinstance(pat.get("photo_bytes"), (bytes, bytearray)):
+            pat["photo_bytes"] = base64.b64encode(pat["photo_bytes"]).decode()
+        for d in c.get("donors", []):
+            if isinstance(d.get("photo_bytes"), (bytes, bytearray)):
+                d["photo_bytes"] = base64.b64encode(d["photo_bytes"]).decode()
+        for lx_key in ("luminex_pat_photo", "luminex_don_photo"):
+            if isinstance(c.get(lx_key), (bytes, bytearray)):
+                c[lx_key] = base64.b64encode(c[lx_key]).decode()
+        if isinstance(c.get("sab_chart_bytes"), (bytes, bytearray)):
+            c["sab_chart_bytes"] = base64.b64encode(c["sab_chart_bytes"]).decode()
+        serialized.append(c)
+    return serialized
+
+
 @router.post("/parse-excel")
 async def parse_excel_file(
     file: UploadFile = File(...),
@@ -497,23 +517,7 @@ async def parse_excel_file(
                 "or a CDC/DSA/Flow/Luminex/PRA/KIR crossmatch workbook — check the "
                 "filename/sheet layout matches one of the supported formats (see User Guide).",
             )
-        summary = get_case_summary(cases)
-        serialized = []
-        for case in cases:
-            c = copy.deepcopy(case)
-            pat = c.get("patient") or {}
-            if isinstance(pat.get("photo_bytes"), (bytes, bytearray)):
-                pat["photo_bytes"] = base64.b64encode(pat["photo_bytes"]).decode()
-            for d in c.get("donors", []):
-                if isinstance(d.get("photo_bytes"), (bytes, bytearray)):
-                    d["photo_bytes"] = base64.b64encode(d["photo_bytes"]).decode()
-            for lx_key in ("luminex_pat_photo", "luminex_don_photo"):
-                if isinstance(c.get(lx_key), (bytes, bytearray)):
-                    c[lx_key] = base64.b64encode(c[lx_key]).decode()
-            if isinstance(c.get("sab_chart_bytes"), (bytes, bytearray)):
-                c["sab_chart_bytes"] = base64.b64encode(c["sab_chart_bytes"]).decode()
-            serialized.append(c)
-        return {"cases": serialized, "summary": summary}
+        return {"cases": _serialize_cases(cases), "summary": get_case_summary(cases)}
     except HTTPException:
         raise
     except Exception as e:
@@ -525,6 +529,43 @@ async def parse_excel_file(
                 os.remove(tmp_path)
             except Exception:
                 pass
+
+
+@router.post("/parse-patient-result-csv")
+async def parse_patient_result_csv(
+    patient_file: UploadFile = File(...),
+    result_file: UploadFile = File(...),
+    nabl: bool = Form(True),
+):
+    patient_path = os.path.join(HLA_UPLOAD_DIR, patient_file.filename or "patients.csv")
+    result_path = os.path.join(HLA_UPLOAD_DIR, result_file.filename or "results.csv")
+    try:
+        with open(patient_path, "wb") as f:
+            f.write(await patient_file.read())
+        with open(result_path, "wb") as f:
+            f.write(await result_file.read())
+
+        cases = parse_patient_and_result_csv(patient_path, result_path, nabl=nabl)
+        if not cases:
+            raise HTTPException(
+                400,
+                "No patients from the Patient CSV could be matched against the Result CSV. "
+                "Check that the Patient No column in the Patient CSV matches a sample/barcode "
+                "in the Result CSV.",
+            )
+        return {"cases": _serialize_cases(cases), "summary": get_case_summary(cases)}
+    except HTTPException:
+        raise
+    except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(500, str(e))
+    finally:
+        for p in (patient_path, result_path):
+            if os.path.exists(p):
+                try:
+                    os.remove(p)
+                except Exception:
+                    pass
 
 
 @router.post("/compute-rpl-reference")

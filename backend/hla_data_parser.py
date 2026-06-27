@@ -1,6 +1,7 @@
 
 import os
 import re
+import csv
 import pandas as pd
 from datetime import datetime
 from typing import Optional
@@ -231,6 +232,154 @@ def _parse_surfseq_results(df_csv: pd.DataFrame) -> dict:
 
     return results
 
+
+def _extract_sample_id(sample_name: str) -> Optional[str]:
+    """
+    Pull the lab sample identifier out of a result-file sample name, e.g.
+        "202606..._HLA-260667052_L00_R1"        -> "260667052"
+        "202606..._HLA-260739312-RPT_L00_R1"    -> "260739312-RPT"
+        "202606..._HLA-MrANKIT-PB_L00_R1"        -> "MrANKIT-PB"
+    Falls back to the full string if the "HLA-...-_L<n>_R<n>" shape isn't present.
+    """
+    s = str(sample_name or "").strip()
+    if not s:
+        return None
+    m = re.search(r"HLA-(.+?)(?:_L\d+_R\d+)?$", s, re.IGNORECASE)
+    return m.group(1) if m else s
+
+
+def _norm_sample_id(s) -> str:
+    return str(s or "").strip().upper()
+
+
+def _parse_long_format_result_csv(filepath: str) -> dict:
+    """
+    Parse the semicolon-quoted long-format HLA result CSV exported with one row per
+    locus per sample, e.g. a row like: Sample name;Locus;Typing Result, with values
+    such as 202606..._HLA-260667052_L00_R1;HLA_A;A*02:01:01:01, A*24:02:01:02.
+    Returns: { sample_name: {"hla": {locus: [a1, a2]}, "remarks": "", "sample_ids": [...]} }
+    """
+    LOCUS_MAP = {
+        "HLA_A": "A", "HLA_B": "B", "HLA_C": "C",
+        "DRB1": "DRB1", "DRB3": "DRB3", "DRB4": "DRB3", "DRB5": "DRB3",
+        "DQB1": "DQB1", "DPB1": "DPB1",
+    }
+
+    with open(filepath, "r", encoding="utf-8-sig", errors="replace", newline="") as f:
+        rows = list(csv.reader(f))
+
+    results = {}
+    for fields in rows:
+        if not fields or not fields[0].strip():
+            continue
+        combined = fields[0] + ("," + fields[1] if len(fields) > 1 and fields[1].strip() else "")
+        combined = combined.replace('"', "")
+        parts = combined.split(";")
+        if len(parts) < 3:
+            continue
+        sample_name = parts[0].strip()
+        if sample_name.lower() == "sample name":
+            continue
+        locus = LOCUS_MAP.get(parts[1].strip())
+        if not locus:
+            continue
+        a1, a2 = _split_alleles(";".join(parts[2:]))
+        if not a2:
+            a2 = a1
+        results.setdefault(sample_name, {"hla": {}, "remarks": ""})
+        results[sample_name]["hla"][locus] = [a1, a2]
+
+    for sample_name, entry in results.items():
+        entry["sample_ids"] = list({sample_name, _extract_sample_id(sample_name)} - {None, ""})
+
+    return results
+
+
+def _parse_wide_format_result_csv(filepath: str) -> dict:
+    """
+    Parse the wide-format HLA result CSV with one row per sample, e.g.:
+        BarcodeId,SampleName,Approve,Confirm,A/1,A/2,B/1,B/2,C/1,C/2,DPB1/1,DPB1/2,DQB1/1,DQB1/2,DRB1/1,DRB1/2,Comments
+    Returns: { sample_name: {"hla": {locus: [a1, a2]}, "remarks": "", "sample_ids": [...]} }
+    """
+    df = pd.read_csv(filepath)
+    df.columns = [str(c).strip() for c in df.columns]
+
+    locus_cols = {
+        "A":    ("A/1",    "A/2"),
+        "B":    ("B/1",    "B/2"),
+        "C":    ("C/1",    "C/2"),
+        "DPB1": ("DPB1/1", "DPB1/2"),
+        "DQB1": ("DQB1/1", "DQB1/2"),
+        "DRB1": ("DRB1/1", "DRB1/2"),
+    }
+
+    results = {}
+    for _, row in df.iterrows():
+        sample = _clean_str(row.get("SampleName", ""))
+        if not sample:
+            continue
+        barcode = _clean_str(row.get("BarcodeId", ""))
+        hla = {}
+        for locus, (c1, c2) in locus_cols.items():
+            a1 = _clean_allele(str(row.get(c1, "-")))
+            a2 = _clean_allele(str(row.get(c2, "-")))
+            if a1 and not a2:
+                a2 = a1
+            hla[locus] = [a1, a2]
+        results[sample] = {
+            "hla": hla,
+            "remarks": _clean_str(row.get("Comments", "")),
+            "sample_ids": [s for s in (sample, barcode) if s],
+        }
+    return results
+
+
+def parse_result_csv(filepath: str) -> dict:
+    """Auto-detect and parse a standalone HLA Result CSV file (long-format or wide-format)."""
+    with open(filepath, "r", encoding="utf-8-sig", errors="replace") as f:
+        first_line = f.readline()
+    if re.search(r"\bBarcodeId\b", first_line, re.IGNORECASE) and re.search(r"\bSampleName\b", first_line, re.IGNORECASE):
+        return _parse_wide_format_result_csv(filepath)
+    return _parse_long_format_result_csv(filepath)
+
+
+def parse_patient_and_result_csv(patient_filepath: str, result_filepath: str, nabl: bool = True) -> list:
+    """
+    Parse a Patient CSV and a separate Result CSV, cross-match them by Sample Number
+    (the Patient CSV's "Sample Number" column against the Result CSV's sample name /
+    barcode), and return only the patient cases that have a matched result, with HLA
+    data merged in.
+    """
+    patient_cases = _parse_patient_list_csv(patient_filepath, nabl)
+    if not patient_cases:
+        return []
+
+    result_lookup = parse_result_csv(result_filepath)
+
+    id_to_result = {}
+    for entry in result_lookup.values():
+        for sid in entry.get("sample_ids", []):
+            norm_sid = _norm_sample_id(sid)
+            if norm_sid:
+                id_to_result[norm_sid] = entry
+
+    matched_cases = []
+    for case in patient_cases:
+        norm_sample = _norm_sample_id(case["patient"].get("sample_number", ""))
+        if not norm_sample:
+            continue
+        entry = id_to_result.get(norm_sample)
+        if not entry:
+            continue
+        hla = entry.get("hla") or {}
+        for locus in case["patient"]["hla"].keys():
+            if locus in hla:
+                case["patient"]["hla"][locus] = hla[locus]
+        if entry.get("remarks"):
+            case["patient"]["remarks"] = entry["remarks"]
+        matched_cases.append(case)
+
+    return matched_cases
 
 
 def _detect_report_type(patient_row: pd.Series, donor_rows: list) -> str:
@@ -1164,7 +1313,9 @@ def _parse_patient_list_csv(filepath: str, nabl: bool = True) -> list:
             "remarks":         "",
             "hospital_mr_no":  "",
             "pin":             _clean_str(row.get("patient no", "")),
-            "sample_number":   "",
+            "sample_number":   _clean_str(
+                row.get("sample number", row.get("sample no", row.get("barcode", "")))
+            ),
             "collection_date": "",
             "receipt_date":    _fmt_date(row.get("sample receipt date", "")),
             "report_date":     "",
