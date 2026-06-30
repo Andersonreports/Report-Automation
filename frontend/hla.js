@@ -2810,6 +2810,7 @@ function renderBulkEditor(i) {
       d.gender_age = patient.gender_age || d.gender_age;
       d.pin = patient.pin || d.pin;
       d.receipt_date = patient.receipt_date || d.receipt_date;
+      if (patient.hla) d.hla = { ...patient.hla };
       renderBulkEditor(i);
       scheduleBulkPreview(i);
     });
@@ -2871,7 +2872,7 @@ function renderBulkEditor(i) {
         pin: patient.pin || "NA",
         receipt_date: patient.receipt_date || "",
         sample_number: "NA",
-        hla: emptyHla(),
+        hla: patient.hla ? { ...patient.hla } : emptyHla(),
       }));
       renderBulkEditor(i);
       scheduleBulkPreview(i);

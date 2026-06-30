@@ -328,7 +328,11 @@ def _parse_wide_format_result_csv(filepath: str) -> dict:
             hla[locus] = [a1, a2]
         results[sample] = {
             "hla": hla,
-            "remarks": _clean_str(row.get("Comments", "")),
+            # NOTE: the "Comments" column here is the genotyping software's raw
+            # allele-ambiguity dump (thousands of characters), not a clinical
+            # remark — never surface it as report "remarks" (it overflows the
+            # PDF page and crashes layout).
+            "remarks": "",
             "sample_ids": [s for s in (sample, barcode) if s],
         }
     return results
@@ -345,8 +349,8 @@ def parse_result_csv(filepath: str) -> dict:
 
 def parse_patient_and_result_csv(patient_filepath: str, result_filepath: str, nabl: bool = True) -> list:
     """
-    Parse a Patient CSV and a separate Result CSV, cross-match them by Sample Number
-    (the Patient CSV's "Sample Number" column against the Result CSV's sample name /
+    Parse a Patient CSV and a separate Result CSV, cross-match them by Patient No
+    (the Patient CSV's "Patient No" column against the Result CSV's sample name /
     barcode), and return only the patient cases that have a matched result, with HLA
     data merged in.
     """
@@ -365,10 +369,17 @@ def parse_patient_and_result_csv(patient_filepath: str, result_filepath: str, na
 
     matched_cases = []
     for case in patient_cases:
-        norm_sample = _norm_sample_id(case["patient"].get("sample_number", ""))
-        if not norm_sample:
+        norm_pin = _norm_sample_id(case["patient"].get("pin", ""))
+        if not norm_pin:
             continue
-        entry = id_to_result.get(norm_sample)
+        entry = id_to_result.get(norm_pin)
+        if not entry:
+            # fall back to substring match in case Patient No is embedded
+            # within a longer composite sample identifier
+            entry = next(
+                (e for sid, e in id_to_result.items() if norm_pin in sid),
+                None,
+            )
         if not entry:
             continue
         hla = entry.get("hla") or {}
