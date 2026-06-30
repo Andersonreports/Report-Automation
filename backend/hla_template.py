@@ -573,7 +573,7 @@ def _fit_one_line(text: str, avail_pts: float, base_style: ParagraphStyle,
     return Paragraph(text or "", base_style)
 
 
-def _demography_col_widths(patient: dict, donor: dict) -> list:
+def _demography_col_widths(patient: dict, donor: dict, nabl: bool = False) -> list:
     """Compute the 7 column widths for the patient/donor demography table.
 
     Layout: [lbl_L, colon_L, val_L, GAP, lbl_R, colon_R, val_R].  The patient
@@ -590,7 +590,8 @@ def _demography_col_widths(patient: dict, donor: dict) -> list:
     # Label / colon / gap columns stay fixed (sized for their longest labels:
     # "Sample Number" left, "Sample receipt date" right).
     f0, f1, f3, f4, f5 = 0.176, 0.016, 0.012, 0.196, 0.016
-    fixed = (f0 + f1 + f3 + f4 + f5) * cw
+    gap_w = _NABL_GAP_LOGO_W if nabl else (f3 * cw)
+    fixed = (f0 + f1 + f4 + f5) * cw + gap_w
     pool = cw - fixed                      # shared by val_L (col2) + val_R (col6)
 
     def _w(s):
@@ -615,7 +616,7 @@ def _demography_col_widths(patient: dict, donor: dict) -> list:
     MIN2 = 120.0                            # never starve the patient value column
     if col2 < MIN2:
         col2, col6 = MIN2, pool - MIN2
-    return [f0 * cw, f1 * cw, col2, f3 * cw, f4 * cw, f5 * cw, col6]
+    return [f0 * cw, f1 * cw, col2, gap_w, f4 * cw, f5 * cw, col6]
 
 
 def _append_match_pct(match_str: str) -> str:
@@ -822,6 +823,12 @@ def _get_nabl_seal_bytes() -> bytes:
     PILImage.fromarray(data, "RGB").save(buf, format="JPEG", quality=95)
     _nabl_seal_bytes_cache = buf.getvalue()
     return _nabl_seal_bytes_cache
+
+
+# Width reserved for the NABL seal when it sits in a demography-table gap column
+# (logo width + a small natural gap either side) â shared by _ngs_info_table and
+# the ngs_photo combined patient|donor table.
+_NABL_GAP_LOGO_W = 21 * mm + 3 * mm
 
 
 def _qr_reserve(report_type: str) -> float:
@@ -1793,8 +1800,9 @@ def _build_ngs_photo(case: dict, S: dict) -> list:
     patient     = case.get("patient", {})
     donors      = case.get("donors", [])
     donor       = donors[0] if donors else {}
+    nabl        = case.get("nabl", True)
     signatories = case.get("signatories") or hla_assets.get_default_signatories(
-        "transplant_donor", case.get("nabl", True))
+        "transplant_donor", nabl)
 
     F_BOLD = _f("SegoeUI-Bold", "Helvetica-Bold")
     F_REG  = _f("SegoeUI",      "Helvetica")
@@ -1832,13 +1840,20 @@ def _build_ngs_photo(case: dict, S: dict) -> list:
     def IC():  return Paragraph("<b>:</b>", info_lbl_style)
     def E():   return Paragraph("", info_lbl_style)
 
-    info_col_w = _demography_col_widths(patient, donor)
+    info_col_w = _demography_col_widths(patient, donor, nabl=nabl)
 
     def IV_name(text, col_w_pts):
         return Paragraph(_norm_name(text), info_val_style)
 
+    if nabl:
+        _logo_w = 21 * mm
+        _logo_h = _logo_w * (1265 / 1080)
+        gap_cell = Image(io.BytesIO(_get_nabl_seal_bytes()), width=_logo_w, height=_logo_h)
+    else:
+        gap_cell = E()
+
     info_rows = [
-        [IL("Patient name"),    IC(), IV_name(patient.get("name", ""), info_col_w[2]), E(), IL("Donor name"),           IC(), IV_name(donor.get("name", ""), info_col_w[6])],
+        [IL("Patient name"),    IC(), IV_name(patient.get("name", ""), info_col_w[2]), gap_cell, IL("Donor name"),           IC(), IV_name(donor.get("name", ""), info_col_w[6])],
         [IL("Gender / Age"),    IC(), IR(_normalize_age(patient.get("gender_age", ""))), E(), IL("Gender / Age"),       IC(), IR(_normalize_age(donor.get("gender_age", "")))],
         [IL("PIN"),             IC(), IR(patient.get("pin", "")),            E(), IL("PIN"),                 IC(), IR(donor.get("pin", "NA"))],
         [IL("Sample Number"),   IC(), IR(patient.get("sample_number", "")),  E(), IL("Sample Number"),       IC(), IR(donor.get("sample_number", "NA"))],
@@ -1846,6 +1861,11 @@ def _build_ngs_photo(case: dict, S: dict) -> list:
         [IL("Hospital/Clinic"), IC(), _fit_one_line(_norm_name(patient.get("hospital_clinic", "")), info_col_w[2], info_val_style), E(), IL("Report date"), IC(), IR(donor.get("report_date", ""))],
     ]
     info_t = Table(info_rows, colWidths=info_col_w)
+    _gap_span_style = [
+        ("SPAN",   (3, 0), (3, len(info_rows) - 1)),
+        ("ALIGN",  (3, 0), (3, 0), "CENTER"),
+        ("VALIGN", (3, 0), (3, 0), "MIDDLE"),
+    ] if nabl else []
     info_t.setStyle(TableStyle([
         ("BACKGROUND",    (0, 0), (-1, -1), C_INFO_BG),
         ("VALIGN",        (0, 0), (-1, -1), "TOP"),
@@ -1859,7 +1879,7 @@ def _build_ngs_photo(case: dict, S: dict) -> list:
         ("RIGHTPADDING",  (3, 0), (3, -1), 0),
         ("LEFTPADDING",   (5, 0), (5, -1), 0),
         ("RIGHTPADDING",  (5, 0), (5, -1), 2),
-    ]))
+    ] + _gap_span_style))
     elems.append(info_t)
     elems.append(Spacer(1, 1 * mm))
 

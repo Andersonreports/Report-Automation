@@ -608,13 +608,7 @@ class PGTAReportTemplate:
             raw_mt = self._clean(embryo.get('mtcopy'), 'NA')
             mtcopy = raw_mt if interp_text.upper() == "EUPLOID" else "NA"
 
-            full_id = self._clean(embryo.get('embryo_id'))
-            short_id = full_id
-            if '-' in full_id:
-                parts = full_id.split('-')
-                if len(parts) >= 2:
-                    id_part = parts[1]
-                    short_id = id_part.split('_')[0] if '_' in id_part else id_part
+            short_id = self._clean(embryo.get('embryo_id'))
 
             data.append([
                 self._wrap_text(str(idx), align='CENTER'),
@@ -799,11 +793,6 @@ class PGTAReportTemplate:
         mtcopy = raw_mt if interp_text.upper() == "EUPLOID" else "NA"
 
         detail_embryo_id = self._clean(embryo_data.get('embryo_id_detail')) or self._clean(embryo_data.get('embryo_id'))
-        if '-' in detail_embryo_id:
-            parts = detail_embryo_id.split('-')
-            if len(parts) >= 2:
-                id_part = parts[1]
-                detail_embryo_id = id_part.split('_')[0] if '_' in id_part else id_part
 
         embryo_id_style = ParagraphStyle(
             name='EmbryoIDStyle',

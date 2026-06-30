@@ -669,6 +669,20 @@ async def _parse_pgta_excel_core(contents: bytes):
         tok = s.split()[0] if s.split() else s
         return re.sub(r'[^A-Z0-9]', '', tok)
 
+    def short_embryo_id(sname):
+        # "PATIENT-V1_extra" -> "V1": strip the patient-name prefix and any
+        # trailing "_..." suffix from a composite bulk-import sample name.
+        # Done once here (parse time) so the editable Embryo ID field starts
+        # clean; the renderer then shows it verbatim, with no further
+        # reinterpretation of dashes the user later types.
+        short_id = sname
+        if '-' in sname:
+            parts = sname.split('-')
+            if len(parts) >= 2:
+                id_part = parts[1]
+                short_id = id_part.split('_')[0] if '_' in id_part else id_part
+        return short_id
+
     det_i = next((i for i, s in enumerate(
         sheets_lower) if 'detail' in s), None)
     sum_i = next((i for i, s in enumerate(
@@ -735,7 +749,7 @@ async def _parse_pgta_excel_core(contents: bytes):
             if not sname or sname in matched_samples:
                 continue
             emb = {
-                "embryo_id":           sname,
+                "embryo_id":           short_embryo_id(sname),
                 "result_summary":      clean_val(row, ['Result', 'result', 'Summary']),
                 "interpretation":      clean_val(row, ['Conclusion', 'Interpretation', 'interpretation']),
                 "mtcopy":              clean_val(row, ['MTcopy', 'MT Copy', 'mtcopy', 'MT']),
