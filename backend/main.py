@@ -659,6 +659,16 @@ async def _parse_pgta_excel_core(contents: bytes):
         s = re.sub(r'\([^)]*\)', '', s)
         return re.sub(r'[^A-Z0-9]', '', s)
 
+    def first_name_token(full_name):
+        s = str(full_name or '').upper().strip()
+        for pfx in ('MRS.', 'MR.', 'SMT.', 'DR.', 'MS.', 'MISS.', 'PROF.'):
+            if s.startswith(pfx):
+                s = s[len(pfx):].strip()
+                break
+        s = re.sub(r'\([^)]*\)', '', s)
+        tok = s.split()[0] if s.split() else s
+        return re.sub(r'[^A-Z0-9]', '', tok)
+
     det_i = next((i for i, s in enumerate(
         sheets_lower) if 'detail' in s), None)
     sum_i = next((i for i, s in enumerate(
@@ -683,7 +693,7 @@ async def _parse_pgta_excel_core(contents: bytes):
             sum_df = xl.parse(sheets[sum_i])
             sum_df.columns = [str(c).strip() for c in sum_df.columns]
 
-    patient_map, patients = {}, []
+    patients = []
 
     if det_df is not None:
         for _, row in det_df.iterrows():
@@ -712,15 +722,17 @@ async def _parse_pgta_excel_core(contents: bytes):
                 "indication":          clean_val(row, ['Indication', 'indication', 'Clinical Indication']),
                 "embryos":             []
             }
-            patient_map[norm(pid)] = p
-            patient_map[norm(name)] = p
+            p["_pid_n"] = norm(pid)
+            p["_name_n"] = norm(name)
+            p["_first_tok"] = first_name_token(name)
             patients.append(p)
 
     if sum_df is not None:
+        matched_samples = set()
         for _, row in sum_df.iterrows():
             sname = clean_val(
                 row, ['Sample name', 'Sample Name', 'sample_name', 'Sample ID'])
-            if not sname:
+            if not sname or sname in matched_samples:
                 continue
             emb = {
                 "embryo_id":           sname,
@@ -735,12 +747,32 @@ async def _parse_pgta_excel_core(contents: bytes):
                 "inconclusive_comment": ""
             }
             ns = norm(sname)
+            sample_base = sname.split('_')[0]
+            sample_first_tok = re.sub(
+                r'[^A-Z0-9]', '', sample_base.split('-')[0].upper().strip())
+
+            # Tier 1: Sample ID/PIN is a substring of the normalized sample name (most reliable)
             matched = next(
-                (p for k, p in patient_map.items() if k and k in ns), None)
+                (p for p in patients if p["_pid_n"] and p["_pid_n"] in ns), None)
+            # Tier 2: normalized sample name starts with the normalized patient name
+            if matched is None:
+                matched = next(
+                    (p for p in patients if p["_name_n"] and ns.startswith(p["_name_n"])), None)
+            # Tier 3: first-name-token exact match (guarded by min length to avoid false positives)
+            if matched is None:
+                matched = next(
+                    (p for p in patients if len(p["_first_tok"]) >= 4 and p["_first_tok"] == sample_first_tok), None)
+
             if matched:
+                matched_samples.add(sname)
                 matched["embryos"].append(emb)
-            elif patients:
-                patients[-1]["embryos"].append(emb)
+            elif len(patients) == 1:
+                patients[0]["embryos"].append(emb)
+
+    for p in patients:
+        p.pop("_pid_n", None)
+        p.pop("_name_n", None)
+        p.pop("_first_tok", None)
 
     return {"patients": patients, "sheet_names": sheets}
 

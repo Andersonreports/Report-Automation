@@ -38,7 +38,7 @@ def set_cell_border(cell, **kwargs):
 
 class PGTADocxGenerator:
     
-    METHODOLOGY_TEXT = """Chromosomal aneuploidy analysis was performed using ChromInst® PGT-A kit from Yikon Genomics (Suzhou) Co., Ltd - China. The Yikon - ChromInst® PGT-A kit with the Genemind - SURFSeq 5000* High-throughput Sequencing Platform allows detection of aneuploidies in all 23 sets of Chromosomes. Probes are not covering the p arm of acrocentric chromosomes as they are rich in repeat regions and RNA markers and devoid of genes. Changes in this region will not be detected. However, these regions have less clinical significance due to the absence of genes. Chromosomal aneuploidy can be detected by copy number variations (CNVs), which represent a class of variation in which segments of the genome have been duplicated (gains) or deleted (losses). Large, genomic copy number imbalances can range from sub-chromosomal regions to entire chromosomes. Inherited and de-novo CNVs (up to 10 Mb) have been associated with many disease conditions. This assay was performed on DNA extracted from embryo biopsy samples."""
+    METHODOLOGY_TEXT = """Chromosomal aneuploidy analysis was performed using ChromInst® PGT-A kit from Yikon Genomics (Suzhou) Co., Ltd - China. The Yikon - ChromInst® PGT-A kit with the Genemind - SURFSeq 5000* High-throughput Sequencing Platform allows detection of aneuploidies in all 23 sets of Chromosomes. Probes are not covering the p arm of acrocentric chromosomes as they are rich in repeat regions and RNA markers and devoid of genes. Changes in this region will not be detected. However, these regions have less clinical significance due to the absence of genes. Chromosomal aneuploidy can be detected by copy number variations (CNVs), which represent a class of variation in which segments of the genome have been duplicated (gains) or deleted (losses). Large, genomic copy number imbalances can range from sub-chromosomal regions to entire chromosomes. Inherited and de-novo CNVs (up to 10 Mb) have been associated with many disease conditions. This assay was performed on DNA extracted from embryo biopsy samples."""
     
     MOSAICISM_TEXT = """Mosaicism arises in the embryo due to mitotic errors which lead to the production of karyotypically distinct cell lineages within a single embryo [1]. NGS has the sensitivity to detect mosaicism when 30% or the above cells are abnormal [2]. Mosaicism is reported in our laboratory as follows [3]."""
     
@@ -274,11 +274,22 @@ class PGTADocxGenerator:
 
             res_display = info["summary_text"]
 
-            interp_text = self._clean(emb.get('interpretation'), '')
-            if not interp_text:
-                interp_text = info["classification"].replace("_", " ").title() if info["is_mosaic"] else "NA"
-            interp_display = "NA" if interp_text.upper() == "EUPLOID" else interp_text
-            cell_color = self._get_result_color_hex(raw, interp_text)
+            if info["classification"] == clf.LOW_DNA:
+                interp_text = "NA"
+            else:
+                interp_text = self._clean(emb.get('interpretation'), '')
+                if not interp_text:
+                    interp_text = info["classification"].replace("_", " ").title() if info["is_mosaic"] else "NA"
+
+            auto_val = self._clean(emb.get('autosomes')).upper()
+            sex_val = self._clean(emb.get('sex_chromosomes', 'Normal')).upper()
+            is_auto_norm = not auto_val.strip() or "NORMAL" in auto_val or "EUPLOID" in auto_val
+            is_sex_norm = "NORMAL" in sex_val
+            if is_auto_norm and is_sex_norm and clf.is_ambiguous_or_normal_interp(interp_text):
+                interp_text = "Euploid"
+            interp_display = interp_text
+            result_color = self._classify_color_hex(raw)
+            interp_color = self._get_interp_only_color_hex(interp_text)
 
             raw_mt = self._clean(emb.get('mtcopy', ''))
             mt = raw_mt if interp_text.upper() == "EUPLOID" and raw_mt and raw_mt.upper() not in ('NA', 'N/A', '') else "NA"
@@ -287,13 +298,13 @@ class PGTADocxGenerator:
             row.cells[3].text = mt
             row.cells[4].text = interp_display
 
+            col_colors = {2: result_color, 4: interp_color}
             for c_idx, cell in enumerate(row.cells):
                 self._set_cell_background(cell, "F1F1F7")
                 cell.vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
                 p = cell.paragraphs[0]
                 p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-                color = cell_color if c_idx in (2, 4) else None
-                self._set_paragraph_font(p, font_size=9, color=color)
+                self._set_paragraph_font(p, font_size=9, color=col_colors.get(c_idx))
         
         results_summary_comment = self._clean(patient_data.get('results_summary_comment', ''))
         if results_summary_comment:
@@ -443,12 +454,25 @@ class PGTADocxGenerator:
         sex = clf.sanitize_sex_chromosomes(existing_sex, raw_result, info["classification"])
 
         interp_text = self._clean(embryo_data.get('interpretation'), '')
-        interp = "NA" if (not interp_text or interp_text.upper() == "EUPLOID") else interp_text
+        is_auto_norm = not auto.strip() or "NORMAL" in auto.upper() or "EUPLOID" in auto.upper()
+        is_sex_norm = "NORMAL" in sex.upper()
+        if is_auto_norm and is_sex_norm and clf.is_ambiguous_or_normal_interp(interp_text):
+            interp_text = "Euploid"
+        elif not interp_text:
+            interp_text = "NA"
+        interp = interp_text
 
         raw_mt = self._clean(embryo_data.get('mtcopy', ''))
         mt = raw_mt if interp_text.upper() == "EUPLOID" and raw_mt and raw_mt.upper() not in ('NA', 'N/A', '') else "NA"
 
         cell_color   = self._classify_color_hex(raw_result)
+        interp_upper_for_auto = interp_text.upper()
+        if 'ANEUPLOID' in interp_upper_for_auto or 'CHAOTIC' in interp_upper_for_auto:
+            cell_color = "#FF0000"
+        elif 'MOSAIC' in interp_upper_for_auto:
+            cell_color = "#0000FF"
+        elif 'INCONCLUSIVE' in interp_upper_for_auto:
+            cell_color = "#000000"
         sex_up = sex.upper().strip()
         if "MOSAIC" in sex_up:
             sex_color = "#0000FF"
@@ -456,7 +480,7 @@ class PGTADocxGenerator:
             sex_color = "#FF0000"
         else:
             sex_color = "#000000"
-        interp_color = self._get_result_color_hex(raw_result, interp_text)
+        interp_color = self._get_interp_only_color_hex(interp_text)
         details = [
             ("Result:", res, "#000000"),
             ("Autosomes:", auto, cell_color),
@@ -595,22 +619,14 @@ class PGTADocxGenerator:
             return "#0000FF"
         return "#000000"
 
-    def _get_result_color_hex(self, res, interp=None):
-        int_up = (interp or "").upper()
-
-        red_keywords = ["MONOSOMY", "TRISOMY", "SEGMENTAL GAIN", "SEGMENTAL LOSS",
-                        "MULTIPLE CHROMOSOMAL ABNORMALITIES", "ANEUPLOID", "CHAOTIC", "MCA"]
-        if any(kw in int_up for kw in red_keywords):
+    def _get_interp_only_color_hex(self, interp_text):
+        """Color driven strictly by the Interpretation text itself (NA/Inconclusive always black)"""
+        i = (interp_text or "").upper()
+        if any(kw in i for kw in ("ANEUPLOID", "CHAOTIC", "(-)")):
             return "#FF0000"
-
-        blue_keywords = ["MOSAIC", "LOW LEVEL", "HIGH LEVEL", "COMPLEX", "MG-", "ML-", "SML", "SMG"]
-        if any(kw in int_up for kw in blue_keywords):
+        if "MOSAIC" in i:
             return "#0000FF"
-
-        if "EUPLOID" in int_up and "ANEUPLOID" not in int_up:
-            return "#000000"
-
-        return self._classify_color_hex(res)
+        return "#000000"
 
     def _get_status_color_docx(self, status):
         s = str(status).upper().strip()
@@ -632,7 +648,7 @@ class PGTADocxGenerator:
     def _apply_grid_to_table(self, table):
         if not hasattr(self, 'show_grid') or not self.show_grid:
             return
-            
+
         grid_color = "E0E0E0"
         for row in table.rows:
             for cell in row.cells:

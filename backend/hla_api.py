@@ -19,6 +19,7 @@ from hla_data_parser import (
     parse_excel, get_case_summary,
     c_supertype, compute_rpl_reference,
     parse_patient_and_result_csv,
+    parse_result_csv, _parse_patient_list_csv,
 )
 from hla_sab_parser import parse_sab_excel, parse_sab_allele_text, sab_pra_sentence
 import hla_assets
@@ -547,11 +548,16 @@ async def parse_patient_result_csv(
 
         cases = parse_patient_and_result_csv(patient_path, result_path, nabl=nabl)
         if not cases:
+            result_lookup = parse_result_csv(result_path)
+            n_results = len(result_lookup)
+            n_with_id = sum(1 for e in result_lookup.values() if e.get("patient_id_candidates"))
+            n_patients = len(_parse_patient_list_csv(patient_path, nabl=nabl))
             raise HTTPException(
                 400,
-                "No patients from the Patient CSV could be matched against the Result CSV. "
-                "Check that the Patient No column in the Patient CSV matches a sample/barcode "
-                "in the Result CSV.",
+                f"No patients could be matched. Patient CSV: {n_patients} patient(s) parsed. "
+                f"Result CSV: {n_results} sample(s) parsed, of which {n_with_id} contain a "
+                "recognizable Patient No. If that count is 0, this Result CSV doesn't embed "
+                "the Patient No yet — matching will work automatically once it does.",
             )
         return {"cases": _serialize_cases(cases), "summary": get_case_summary(cases)}
     except HTTPException:

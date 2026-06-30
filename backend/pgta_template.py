@@ -78,7 +78,7 @@ class PGTAReportTemplate:
     FOOTER_BANNER = os.path.join(ASSETS_DIR, "image_page1_1.png")
     FOOTER_LOGO = os.path.join(ASSETS_DIR, "image_page1_2.png")
     
-    METHODOLOGY_TEXT = """Chromosomal aneuploidy analysis was performed using ChromInst® PGT-A kit from Yikon Genomics (Suzhou) Co., Ltd - China. The Yikon - ChromInst® PGT-A kit with the Genemind - SURFSeq 5000* High-throughput Sequencing Platform allows detection of aneuploidies in all 23 sets of Chromosomes. Probes are not covering the p arm of acrocentric chromosomes as they are rich in repeat regions and RNA markers and devoid of genes. Changes in this region will not be detected. However, these regions have less clinical significance due to the absence of genes. Chromosomal aneuploidy can be detected by copy number variations (CNVs), which represent a class of variation in which segments of the genome have been duplicated (gains) or deleted (losses). Large, genomic copy number imbalances can range from sub-chromosomal regions to entire chromosomes. Inherited and de-novo CNVs (up to 10 Mb) have been associated with many disease conditions. This assay was performed on DNA extracted from embryo biopsy samples."""
+    METHODOLOGY_TEXT = """Chromosomal aneuploidy analysis was performed using ChromInst® PGT-A kit from Yikon Genomics (Suzhou) Co., Ltd - China. The Yikon - ChromInst® PGT-A kit with the Genemind - SURFSeq 5000* High-throughput Sequencing Platform allows detection of aneuploidies in all 23 sets of Chromosomes. Probes are not covering the p arm of acrocentric chromosomes as they are rich in repeat regions and RNA markers and devoid of genes. Changes in this region will not be detected. However, these regions have less clinical significance due to the absence of genes. Chromosomal aneuploidy can be detected by copy number variations (CNVs), which represent a class of variation in which segments of the genome have been duplicated (gains) or deleted (losses). Large, genomic copy number imbalances can range from sub-chromosomal regions to entire chromosomes. Inherited and de-novo CNVs (up to 10 Mb) have been associated with many disease conditions. This assay was performed on DNA extracted from embryo biopsy&nbsp;samples."""
     
     MOSAICISM_TEXT = """Mosaicism arises in the embryo due to mitotic errors which lead to the production of karyotypically distinct cell lineages within a single embryo [1]. NGS has the sensitivity to detect mosaicism when 30% or the above cells are abnormal [2]. Mosaicism is reported in our laboratory as follows [3]."""
     
@@ -573,9 +573,9 @@ class PGTAReportTemplate:
             ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
             ('TOPPADDING', (0, 0), (-1, -1), 4),
         ] + self._get_grid_style()))
-        
+
         return table
-    
+
     def _create_results_summary_table(self, embryos_data):
         """Create results summary table"""
         header_labels = ['S. No.', 'Sample', 'Result', 'MTcopy', 'Interpretation']
@@ -587,12 +587,23 @@ class PGTAReportTemplate:
             info = clf.classify_embryo(raw_result)
             res_sum = info["summary_text"]
 
-            interp_text = self._clean(embryo.get('interpretation'), '')
-            if not interp_text:
-                interp_text = info["classification"].replace("_", " ").title() if info["is_mosaic"] else "NA"
+            if info["classification"] == clf.LOW_DNA:
+                interp_text = "NA"
+            else:
+                interp_text = self._clean(embryo.get('interpretation'), '')
+                if not interp_text:
+                    interp_text = info["classification"].replace("_", " ").title() if info["is_mosaic"] else "NA"
+
+            auto_val = self._clean(embryo.get('autosomes')).upper()
+            sex_val = self._clean(embryo.get('sex_chromosomes', 'Normal')).upper()
+            is_auto_norm = not auto_val.strip() or "NORMAL" in auto_val or "EUPLOID" in auto_val
+            is_sex_norm = "NORMAL" in sex_val
+            if is_auto_norm and is_sex_norm and clf.is_ambiguous_or_normal_interp(interp_text):
+                interp_text = "Euploid"
             interp = interp_text
 
-            res_color = self._get_result_color(raw_result, interp_text)
+            result_color = self._classify_color(raw_result)
+            interp_display_color = self._get_interp_only_color(interp_text)
 
             raw_mt = self._clean(embryo.get('mtcopy'), 'NA')
             mtcopy = raw_mt if interp_text.upper() == "EUPLOID" else "NA"
@@ -608,9 +619,9 @@ class PGTAReportTemplate:
             data.append([
                 self._wrap_text(str(idx), align='CENTER'),
                 self._wrap_text(short_id, align='CENTER'),
-                self._wrap_text(self._wrap_colored(res_sum, res_color, bold=False), align='CENTER'),
+                self._wrap_text(self._wrap_colored(res_sum, result_color, bold=False), align='CENTER'),
                 self._wrap_text(mtcopy, align='CENTER'),
-                self._wrap_text(self._wrap_colored(interp, res_color, bold=False), align='CENTER'),
+                self._wrap_text(self._wrap_colored(interp, interp_display_color, bold=False), align='CENTER'),
             ])
         
         table = Table(data, colWidths=[50, 95, 185, 80, 86])
@@ -641,9 +652,11 @@ class PGTAReportTemplate:
         elements.append(Paragraph(self.METHODOLOGY_TEXT, self.styles['PGTABodyText']))
         elements.append(Spacer(1, 12))
 
-        elements.append(self._create_section_header("Conditions for reporting mosaicism"))
-        elements.append(Spacer(1, 8))
-        elements.append(Paragraph(self.MOSAICISM_TEXT, self.styles['PGTABodyText']))
+        elements.append(KeepTogether([
+            self._create_section_header("Conditions for reporting mosaicism"),
+            Spacer(1, 8),
+            Paragraph(self.MOSAICISM_TEXT, self.styles['PGTABodyText']),
+        ]))
         elements.append(Spacer(1, 6))
         for bullet in self.MOSAICISM_BULLETS:
             elements.append(Paragraph(f"• {bullet}", self.styles['PGTABulletText']))
@@ -747,8 +760,12 @@ class PGTAReportTemplate:
         sex_text = clf.sanitize_sex_chromosomes(existing_sex, raw_result, info["classification"])
 
         interp_text = self._clean(embryo_data.get('interpretation'), 'NA')
-        interp_color = self._get_result_color(raw_result, interp_text)
-        
+        is_auto_norm = not autosomes_text.strip() or "NORMAL" in autosomes_text.upper() or "EUPLOID" in autosomes_text.upper()
+        is_sex_norm = "NORMAL" in sex_text.upper()
+        if is_auto_norm and is_sex_norm and clf.is_ambiguous_or_normal_interp(interp_text):
+            interp_text = "Euploid"
+        interp_color = self._get_interp_only_color(interp_text)
+
         auto_color = colors.black
         auto_upper = autosomes_text.upper()
         
@@ -762,7 +779,15 @@ class PGTAReportTemplate:
             auto_color = colors.red
         elif 'CNV STATUS' in auto_upper:
             auto_color = colors.red
-        
+
+        interp_upper_for_auto = interp_text.upper()
+        if 'ANEUPLOID' in interp_upper_for_auto or 'CHAOTIC' in interp_upper_for_auto:
+            auto_color = colors.red
+        elif 'MOSAIC' in interp_upper_for_auto:
+            auto_color = colors.blue
+        elif 'INCONCLUSIVE' in interp_upper_for_auto:
+            auto_color = colors.black
+
         sex_up = sex_text.upper().strip()
         sex_color = colors.black
         if "MOSAIC" in sex_up:
@@ -904,13 +929,13 @@ class PGTAReportTemplate:
             for i in range(1, 23):
                 status = chr_statuses.get(str(i), 'N')
                 s_color = self._get_status_color(status)
-                
+
                 f_size = 8 if len(status) > 2 else 9
                 cnv_row.append(self._wrap_text(self._wrap_colored(status, s_color, bold=True), bold=True, font_size=f_size, align='CENTER'))
-                
+
             data = [header, cnv_row]
             col_widths = [75] + [19.13] * 22
-        
+
         table = Table(data, colWidths=col_widths)
         
         table.setStyle(TableStyle([
@@ -1022,23 +1047,14 @@ class PGTAReportTemplate:
             return colors.blue
         return colors.black
 
-    def _get_result_color(self, result_text, interpretation_text):
-        """Determine if text should be Red (Aneuploid), Blue (Mosaic) or Black (Euploid)"""
-        int_up = interpretation_text.upper() if interpretation_text else ""
-
-        red_keywords = ["MONOSOMY", "TRISOMY", "SEGMENTAL GAIN", "SEGMENTAL LOSS",
-                        "MULTIPLE CHROMOSOMAL ABNORMALITIES", "ANEUPLOID", "CHAOTIC", "MCA"]
-        if any(kw in int_up for kw in red_keywords):
+    def _get_interp_only_color(self, interp_text):
+        """Color driven strictly by the Interpretation text itself (NA/Inconclusive always black)"""
+        i = (interp_text or "").upper()
+        if any(kw in i for kw in ("ANEUPLOID", "CHAOTIC", "(-)")):
             return colors.red
-
-        blue_keywords = ["MOSAIC", "LOW LEVEL", "HIGH LEVEL", "COMPLEX", "MG-", "ML-", "SML", "SMG"]
-        if any(kw in int_up for kw in blue_keywords):
+        if "MOSAIC" in i:
             return colors.blue
-
-        if "EUPLOID" in int_up and "ANEUPLOID" not in int_up:
-            return colors.black
-
-        return self._classify_color(result_text)
+        return colors.black
 
     def _get_autosome_color(self, autosome_text):
         """Special color logic for autosomes field"""

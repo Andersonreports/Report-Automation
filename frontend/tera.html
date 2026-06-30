@@ -1215,6 +1215,9 @@
         <h3>Select Patient</h3>
         <button class="modal-close" onclick="document.getElementById('pfModalOverlay').style.display='none'">&times;</button>
       </div>
+      <div style="margin-bottom:8px;">
+        <input type="text" id="pfModalSearch" placeholder="Search by name or patient no..." oninput="_pfFilterModalList(this.value)" style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;box-sizing:border-box;">
+      </div>
       <div id="pfModalList" style="display:flex;flex-direction:column;gap:6px;"></div>
     </div>
   </div>
@@ -1316,6 +1319,36 @@
     }
 
     
+    let _pfLastPatients = [];
+
+    function _pfRenderModalList(patients) {
+        const listEl = document.getElementById("pfModalList");
+        listEl.innerHTML = "";
+        if (!patients.length) {
+            listEl.innerHTML = '<div style="padding:10px; font-size:12px; color:#888;">No matching patients.</div>';
+            return;
+        }
+        patients.forEach(p => {
+            const btn = document.createElement("button");
+            btn.textContent = `${p.patient_name} - ${p.gender || ""}/${p.age ?? ""} - ${p.patient_no} - ${(p.sample_receipt_date || "").split(" ")[0]}`;
+            btn.style.cssText = "text-align:left;padding:9px 12px;border:1.5px solid #ddd;border-radius:7px;background:#f9f9f9;cursor:pointer;font-size:12px;width:100%;transition:0.15s;font-family:'Inter',sans-serif;";
+            btn.onmouseover = () => btn.style.background = "#e8f0fb";
+            btn.onmouseout = () => btn.style.background = "#f9f9f9";
+            btn.onclick = () => _pfApplyPatient(p);
+            listEl.appendChild(btn);
+        });
+    }
+
+    function _pfFilterModalList(query) {
+        const q = (query || "").trim().toLowerCase();
+        if (!q) { _pfRenderModalList(_pfLastPatients); return; }
+        const filtered = _pfLastPatients.filter(p =>
+            (p.patient_name || "").toLowerCase().includes(q) ||
+            (p.patient_no || "").toLowerCase().includes(q)
+        );
+        _pfRenderModalList(filtered);
+    }
+
     function _pfApplyPatient(p) {
         const inputs = document.querySelectorAll("#manual .form-grid input");
         if (inputs[0]) inputs[0].value = p.patient_name || "";
@@ -1334,7 +1367,6 @@
         const toEl = document.getElementById("pfToDate");
         const findBtn = document.getElementById("pfFindBtn");
         const statusEl = document.getElementById("pfStatus");
-        const listEl = document.getElementById("pfModalList");
         if (!findBtn) return;
         findBtn.addEventListener("click", async () => {
             const fromDate = fromEl.value, toDate = toEl.value;
@@ -1350,20 +1382,10 @@
                 if (!res.ok) { statusEl.textContent = data.detail || "Search failed."; return; }
                 const patients = data.patients || [];
                 statusEl.textContent = `${patients.length} found`;
-                listEl.innerHTML = "";
-                if (!patients.length) {
-                    listEl.innerHTML = '<div style="padding:10px; font-size:12px; color:#888;">No patients in this date range.</div>';
-                } else {
-                    patients.forEach(p => {
-                        const btn = document.createElement("button");
-                        btn.textContent = `${p.patient_name} - ${p.gender || ""}/${p.age ?? ""} - ${p.patient_no} - ${(p.sample_receipt_date || "").split(" ")[0]}`;
-                        btn.style.cssText = "text-align:left;padding:9px 12px;border:1.5px solid #ddd;border-radius:7px;background:#f9f9f9;cursor:pointer;font-size:12px;width:100%;transition:0.15s;font-family:'Inter',sans-serif;";
-                        btn.onmouseover = () => btn.style.background = "#e8f0fb";
-                        btn.onmouseout = () => btn.style.background = "#f9f9f9";
-                        btn.onclick = () => _pfApplyPatient(p);
-                        listEl.appendChild(btn);
-                    });
-                }
+                _pfLastPatients = patients;
+                const searchEl = document.getElementById("pfModalSearch");
+                if (searchEl) searchEl.value = "";
+                _pfRenderModalList(patients);
                 const overlay = document.getElementById("pfModalOverlay");
                 const rect = findBtn.getBoundingClientRect();
                 overlay.style.top = (window.scrollY + rect.bottom + 6) + "px";

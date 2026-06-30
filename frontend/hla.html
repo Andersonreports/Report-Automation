@@ -618,6 +618,7 @@
   <div class="hla-modal-backdrop" id="pfModalBackdrop" style="display:none;">
     <div class="hla-modal">
       <h4>Select Patient</h4>
+      <input type="text" id="pfModalSearch" placeholder="Search by name or patient no..." style="width:100%;padding:7px 10px;border:1px solid var(--input-border);border-radius:8px;font-size:12px;box-sizing:border-box;">
       <div class="hla-modal-list" id="pfModalList"></div>
       <div class="hla-modal-actions">
         <button type="button" id="pfModalCloseBtn" style="border-color:var(--input-border); background:#fff;">Close</button>
@@ -717,32 +718,53 @@
         return data.patients || [];
       }
 
+      let _pfLastPatients = [];
+      const searchEl = document.getElementById('pfModalSearch');
+
+      function renderModalList(patients) {
+        listEl.innerHTML = '';
+        if (!patients.length) {
+          listEl.innerHTML = '<div style="padding:10px; font-size:12.5px; color:var(--text-muted);">No matching patients.</div>';
+          return;
+        }
+        patients.forEach(p => {
+          const item = document.createElement('div');
+          item.className = 'hla-modal-item';
+          item.textContent = `${p.patient_name} - ${p.gender || ''}/${p.age ?? ''} - ${p.patient_no} - ${(p.sample_receipt_date || '').split(' ')[0]}`;
+          item.draggable = true;
+          item.addEventListener('dragstart', e => {
+            draggedPatient = p;
+            item.classList.add('dragging');
+            e.dataTransfer.effectAllowed = 'copy';
+            e.dataTransfer.setData('text/plain', p.patient_no || '');
+          });
+          item.addEventListener('dragend', () => { item.classList.remove('dragging'); draggedPatient = null; });
+          item.addEventListener('click', () => applyPatient(p));
+          listEl.appendChild(item);
+        });
+      }
+
+      if (searchEl) {
+        searchEl.addEventListener('input', () => {
+          const q = searchEl.value.trim().toLowerCase();
+          if (!q) { renderModalList(_pfLastPatients); return; }
+          const filtered = _pfLastPatients.filter(p =>
+            (p.patient_name || '').toLowerCase().includes(q) ||
+            (p.patient_no || '').toLowerCase().includes(q)
+          );
+          renderModalList(filtered);
+        });
+      }
+
       findBtn.addEventListener('click', async () => {
         statusEl.textContent = 'Searching...';
         try {
           const patients = await fetchPatients();
           if (patients === null) return;
           statusEl.textContent = `${patients.length} found`;
-          listEl.innerHTML = '';
-          if (!patients.length) {
-            listEl.innerHTML = '<div style="padding:10px; font-size:12.5px; color:var(--text-muted);">No patients in this date range.</div>';
-          } else {
-            patients.forEach(p => {
-              const item = document.createElement('div');
-              item.className = 'hla-modal-item';
-              item.textContent = `${p.patient_name} - ${p.gender || ''}/${p.age ?? ''} - ${p.patient_no} - ${(p.sample_receipt_date || '').split(' ')[0]}`;
-              item.draggable = true;
-              item.addEventListener('dragstart', e => {
-                draggedPatient = p;
-                item.classList.add('dragging');
-                e.dataTransfer.effectAllowed = 'copy';
-                e.dataTransfer.setData('text/plain', p.patient_no || '');
-              });
-              item.addEventListener('dragend', () => { item.classList.remove('dragging'); draggedPatient = null; });
-              item.addEventListener('click', () => applyPatient(p));
-              listEl.appendChild(item);
-            });
-          }
+          _pfLastPatients = patients;
+          if (searchEl) searchEl.value = '';
+          renderModalList(patients);
           const rect = findBtn.getBoundingClientRect();
           backdrop.style.top = (window.scrollY + rect.bottom + 6) + 'px';
           backdrop.style.left = (window.scrollX + rect.left) + 'px';

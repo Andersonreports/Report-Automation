@@ -633,6 +633,9 @@
         <h3><i class="fas fa-user-injured"></i> Select Patient</h3>
         <button class="modal-close" onclick="document.getElementById('pfModalOverlay').style.display='none'"><i class="fas fa-times"></i></button>
       </div>
+      <div style="padding:8px 8px 0;">
+        <input type="text" id="pfModalSearch" placeholder="Search by name or patient no..." oninput="_pfFilterModalList(this.value)" style="width:100%;padding:7px 10px;border:1px solid var(--card-border);border-radius:8px;font-size:12px;box-sizing:border-box;">
+      </div>
       <div class="modal-body" id="pfModalList"></div>
     </div>
   </div>
@@ -1027,9 +1030,40 @@
     $("pfStatus").textContent = "Patient details applied.";
   }
 
+  var _pfLastPatients = [];
+
+  function _pfRenderModalList(patients){
+    var listEl=$("pfModalList");
+    listEl.innerHTML = "";
+    if(!patients.length){
+      listEl.innerHTML = '<div class="empty">No matching patients.</div>';
+      return;
+    }
+    patients.forEach(function(p){
+      var row=document.createElement("div");
+      row.className="draft-item";
+      row.style.cursor="pointer";
+      var span=document.createElement("span");
+      span.className="draft-name";
+      span.textContent = p.patient_name+" - "+(p.gender||"")+"/"+(p.age!=null?p.age:"")+" - "+p.patient_no+" - "+(p.sample_receipt_date||"").split(" ")[0];
+      row.appendChild(span);
+      row.addEventListener("click", function(){ _pfApplyPatient(p); });
+      listEl.appendChild(row);
+    });
+  }
+
+  function _pfFilterModalList(query){
+    var q = (query||"").trim().toLowerCase();
+    if(!q){ _pfRenderModalList(_pfLastPatients); return; }
+    var filtered = _pfLastPatients.filter(function(p){
+      return (p.patient_name||"").toLowerCase().indexOf(q)>=0 || (p.patient_no||"").toLowerCase().indexOf(q)>=0;
+    });
+    _pfRenderModalList(filtered);
+  }
+
   $("pfFindBtn").addEventListener("click", function(){
     var fromDate=$("pfFromDate").value, toDate=$("pfToDate").value;
-    var statusEl=$("pfStatus"), listEl=$("pfModalList");
+    var statusEl=$("pfStatus");
     if(!fromDate||!toDate){ statusEl.textContent="Pick both dates first."; return; }
     statusEl.textContent="Searching...";
     fetch(apiUrl("/access/patients"), {
@@ -1041,22 +1075,10 @@
       if(!r.ok){ statusEl.textContent = (r.data && r.data.detail) || "Search failed."; return; }
       var patients = r.data.patients || [];
       statusEl.textContent = patients.length+" found";
-      listEl.innerHTML = "";
-      if(!patients.length){
-        listEl.innerHTML = '<div class="empty">No patients in this date range.</div>';
-      } else {
-        patients.forEach(function(p){
-          var row=document.createElement("div");
-          row.className="draft-item";
-          row.style.cursor="pointer";
-          var span=document.createElement("span");
-          span.className="draft-name";
-          span.textContent = p.patient_name+" - "+(p.gender||"")+"/"+(p.age!=null?p.age:"")+" - "+p.patient_no+" - "+(p.sample_receipt_date||"").split(" ")[0];
-          row.appendChild(span);
-          row.addEventListener("click", function(){ _pfApplyPatient(p); });
-          listEl.appendChild(row);
-        });
-      }
+      _pfLastPatients = patients;
+      var searchEl=$("pfModalSearch");
+      if(searchEl) searchEl.value = "";
+      _pfRenderModalList(patients);
       var overlay=$("pfModalOverlay");
       var rect=$("pfFindBtn").getBoundingClientRect();
       overlay.style.top=(window.scrollY+rect.bottom+6)+"px";

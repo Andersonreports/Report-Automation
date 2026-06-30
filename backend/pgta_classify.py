@@ -8,6 +8,8 @@ LOW_MOSAIC     = "LOW_MOSAIC"
 HIGH_MOSAIC    = "HIGH_MOSAIC"
 COMPLEX_MOSAIC = "COMPLEX_MOSAIC"
 FAILED         = "FAILED"
+INCONCLUSIVE   = "INCONCLUSIVE"
+LOW_DNA        = "LOW_DNA"
 
 SUMMARY_TEXT = {
     EUPLOID:        "Normal chromosome complement",
@@ -17,6 +19,8 @@ SUMMARY_TEXT = {
     HIGH_MOSAIC:    "Mosaic chromosome complement",
     COMPLEX_MOSAIC: "Mosaic chromosome complement",
     FAILED:         "No result obtained",
+    INCONCLUSIVE:   "Inconclusive",
+    LOW_DNA:        "Low DNA concentration",
 }
 
 RESULT_TEXT = {
@@ -27,6 +31,8 @@ RESULT_TEXT = {
     HIGH_MOSAIC:    "The embryo contains mosaic chromosome complement",
     COMPLEX_MOSAIC: "The embryo contains mosaic chromosome complement",
     FAILED:         "No result obtained",
+    INCONCLUSIVE:   "Inconclusive",
+    LOW_DNA:        "Low DNA concentration",
 }
 
 _KEYWORD_MAP = {
@@ -34,7 +40,7 @@ _KEYWORD_MAP = {
     "NORMAL":                      EUPLOID,
     "NORMAL CHROMOSOME COMPLEMENT":EUPLOID,
     "ANEUPLOID":                   ANEUPLOID,
-    "MULTIPLE CHROMOSOMAL ABNORMALITIES": ANEUPLOID,
+    "MULTIPLE CHROMOSOMAL ABNORMALITIES": SEGMENTAL,
     "SEGMENTAL":                   SEGMENTAL,
     "LOW LEVEL MOSAIC":            LOW_MOSAIC,
     "LOW MOSAIC":                  LOW_MOSAIC,
@@ -44,7 +50,10 @@ _KEYWORD_MAP = {
     "FAILED":                      FAILED,
     "NO RESULT":                   FAILED,
     "NO RESULT OBTAINED":          FAILED,
-    "INCONCLUSIVE":                FAILED,
+    "INCONCLUSIVE":                INCONCLUSIVE,
+    "LOW DNA CONCENTRATION":       LOW_DNA,
+    "LOW DNA":                     LOW_DNA,
+    "NO DNA":                      LOW_DNA,
 }
 
 
@@ -63,7 +72,13 @@ def classify_embryo(raw_result):
     if su in _KEYWORD_MAP:
         return _make(_KEYWORD_MAP[su])
 
-    if any(k in su for k in ("FAILED", "NO RESULT", "INCONCLUSIVE")):
+    if "INCONCLUSIVE" in su:
+        return _make(INCONCLUSIVE)
+
+    if "LOW DNA" in su or "NO DNA" in su:
+        return _make(LOW_DNA)
+
+    if any(k in su for k in ("FAILED", "NO RESULT")):
         return _make(FAILED)
 
     pcts = [_extract_pct(t) for t in re.findall(r'[~\d.%]+', s) if _extract_pct(t) is not None]
@@ -113,6 +128,13 @@ def classify_embryo(raw_result):
         return _make(ANEUPLOID)
 
     return _make(EUPLOID)
+
+
+def is_ambiguous_or_normal_interp(interp_text):
+    s = (interp_text or "").strip().upper()
+    if s in ("", "NA", "N/A"):
+        return True
+    return bool(re.search(r'\bNORMAL\b', s) or re.search(r'\bEUPLOID\b', s))
 
 
 def _make(cls):
@@ -192,20 +214,27 @@ def validate_statuses(statuses, raw_result):
 def derive_autosomes(raw_result, chromosome_statuses, existing_autosomes=""):
     cls = classify_embryo(raw_result)["classification"]
 
-    if cls == EUPLOID:
-        return "Normal"
-    if cls == FAILED:
-        return "No result"
-
     existing = (existing_autosomes or "").strip()
     raw_codes_pattern = re.compile(
         r'\b(euploid|aneuploid|mosaic|normal|multiple chromosomal|low level|high level|complex|no result)\b',
         re.IGNORECASE
     )
-    if existing and not raw_codes_pattern.search(existing):
-        existing = re.sub(r'\b(XX|XY)\b', '', existing, flags=re.IGNORECASE).strip(', ')
-        if existing:
-            return existing
+    has_custom_existing = bool(existing) and not raw_codes_pattern.search(existing)
+    if has_custom_existing:
+        cleaned_existing = re.sub(r'\b(XX|XY)\b', '', existing, flags=re.IGNORECASE).strip(', ')
+        has_custom_existing = bool(cleaned_existing)
+
+    if cls == EUPLOID:
+        return cleaned_existing if has_custom_existing else "Normal"
+    if cls == FAILED:
+        return cleaned_existing if has_custom_existing else "No result"
+    if cls == INCONCLUSIVE:
+        return cleaned_existing if has_custom_existing else "Inconclusive"
+    if cls == LOW_DNA:
+        return cleaned_existing if has_custom_existing else "Low DNA concentration"
+
+    if has_custom_existing:
+        return cleaned_existing
 
     parts = []
     for i in range(1, 23):
