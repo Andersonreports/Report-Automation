@@ -843,6 +843,21 @@ function renderManualForm() {
     buildSabSection(col, rtype);
   }
 
+  if (["single_hla", "transplant_donor", "ngs_photo", "loci11", "rpl_couple", "single_rpl"].includes(rtype)) {
+    const methCard = el("div", { class: "card" }, [el("h3", {}, "Methodology")]);
+    const methTA = el("textarea", {
+      placeholder: "Leave blank to use default (MiniSeq or SurfSeq based on NABL setting)",
+      style: "resize:vertical; min-height:60px;",
+      oninput: scheduleManualPreview
+    });
+    manualSpecialFields.methodology = methTA;
+    methCard.appendChild(el("div", { class: "field full" }, [
+      el("label", {}, "METHODOLOGY (OPTIONAL OVERRIDE)"),
+      methTA,
+    ]));
+    col.appendChild(methCard);
+  }
+
   col.appendChild(buildGenBar(generateManual));
   scheduleManualPreview();
 }
@@ -1126,10 +1141,12 @@ function buildPraSection(col, rtype) {
 }
 
 
-function applySabImportData(sab, data) {
+function applySabImportData(sab, data, overwritePatient = true) {
   const fields = data.patient || {};
   Object.entries(fields).forEach(([k, v]) => {
-    if (sab.patient[k] && v) sab.patient[k].value = v;
+    if (sab.patient[k] && v) {
+      if (overwritePatient || !sab.patient[k].value.trim()) sab.patient[k].value = v;
+    }
   });
   if (data.alleles && data.alleles.length) {
     sab.alleleTextarea.value = data.alleles.map(([a, m]) => `${a},${m}`).join("\n");
@@ -1449,6 +1466,9 @@ function collectManualCase() {
   if (rtype === "ngs_photo") {
     c.ngs_photo_interpretation = manualSpecialFields.ngs_photo_interpretation
       ? manualSpecialFields.ngs_photo_interpretation.value.trim() : "";
+  }
+  if (manualSpecialFields.methodology) {
+    c.methodology = manualSpecialFields.methodology.value.trim();
   }
 
   return c;
@@ -1821,6 +1841,9 @@ function populateManualForm(c) {
     manualSpecialFields.ngs_photo_interpretation.value = _savedInterp;
     _ngsPhotoLastAutoInterp = _savedInterp;
   }
+  if (manualSpecialFields.methodology) {
+    manualSpecialFields.methodology.value = c.methodology || "";
+  }
 
   scheduleManualPreview();
 }
@@ -2012,12 +2035,22 @@ async function importSabToManual(sabFileInput, sabKitSelect) {
     const data = await r.json();
     const sabClass = data.sab_class || "I";
     const rtype = sabClass === "II" ? "sab_class2" : "sab_class1";
-    state.rtype = rtype;
-    const templateSelect = document.getElementById("templateSelect");
-    if (templateSelect) templateSelect.value = RTYPE_TO_TEMPLATE_NAME[rtype] || "SAB Class I";
-    renderManualForm();
+
+    // Save patient data before potentially re-rendering the form
+    capturePatientForRestore();
+    const hadPatient = !!(state.savedPatient && (state.savedPatient.name || state.savedPatient.pin));
+
+    if (state.rtype !== rtype) {
+      state.rtype = rtype;
+      const templateSelect = document.getElementById("templateSelect");
+      if (templateSelect) templateSelect.value = RTYPE_TO_TEMPLATE_NAME[rtype] || "SAB Class I";
+      renderManualForm();
+      if (hadPatient) restorePatientAfterRender();
+    }
+
     if (manualSpecialFields.sab) {
-      applySabImportData(manualSpecialFields.sab, data);
+      // If patient was already selected, preserve their details; only import SAB result data
+      applySabImportData(manualSpecialFields.sab, data, !hadPatient);
     }
     statusEl.textContent = "Imported: " + fileName;
     showToast("SAB Excel imported into Single Entry form.", "success");
@@ -2025,8 +2058,6 @@ async function importSabToManual(sabFileInput, sabKitSelect) {
     statusEl.textContent = "";
     showToast("SAB import error: " + e.message, "error");
   } finally {
-    
-    
     sabFileInput.value = "";
   }
 }
@@ -2072,13 +2103,51 @@ async function importBulkSabExcel(sabFileInput, sabKitSelect) {
       sab_chart_bytes: data.chart_bytes || null,
       sab_class: sabClass,
     };
-    state.bulkCases = [newCase];
-    state.bulkSelected = new Set([0]);
-    state.bulkCurrentIndex = -1;
-    renderBulkList();
-    selectBulkCase(0);
-    statusEl.textContent = "Imported: " + fileName;
-    showToast("SAB case loaded into bulk list.", "success");
+
+    if (state.bulkCases.length > 0) {
+      // Try to match an existing patient by PIN or sample number
+      const sabPin = ((data.patient || {}).pin || "").trim();
+      const sabSample = ((data.patient || {}).sample_number || "").trim();
+      let matchIdx = -1;
+      if (sabPin || sabSample) {
+        matchIdx = state.bulkCases.findIndex(c => {
+          const p = c.patient || {};
+          const ePin = (p.pin || "").trim();
+          const eSample = (p.sample_number || "").trim();
+          return (sabPin && ePin && ePin === sabPin) || (sabSample && eSample && eSample === sabSample);
+        });
+      }
+      if (matchIdx >= 0) {
+        const existing = state.bulkCases[matchIdx];
+        existing.report_type = newCase.report_type;
+        existing.sab_alleles = newCase.sab_alleles;
+        existing.sab_chart_bytes = newCase.sab_chart_bytes;
+        existing.sab_class = newCase.sab_class;
+        if (patient.remarks) existing.patient.remarks = patient.remarks;
+        if (patient.comments) existing.patient.comments = patient.comments;
+        renderBulkList();
+        selectBulkCase(matchIdx);
+        statusEl.textContent = "Merged into patient: " + fileName;
+        showToast("SAB data merged into existing patient.", "success");
+      } else {
+        // No match — add as a new case rather than wiping the list
+        const newIdx = state.bulkCases.length;
+        state.bulkCases.push(newCase);
+        state.bulkSelected.add(newIdx);
+        renderBulkList();
+        selectBulkCase(newIdx);
+        statusEl.textContent = "Imported: " + fileName;
+        showToast("SAB case added to bulk list.", "success");
+      }
+    } else {
+      state.bulkCases = [newCase];
+      state.bulkSelected = new Set([0]);
+      state.bulkCurrentIndex = -1;
+      renderBulkList();
+      selectBulkCase(0);
+      statusEl.textContent = "Imported: " + fileName;
+      showToast("SAB case loaded into bulk list.", "success");
+    }
   } catch (e) {
     statusEl.textContent = "";
     showToast("SAB import error: " + e.message, "error");
@@ -2899,7 +2968,7 @@ function renderBulkEditor(i) {
   if (c.report_type === "ngs_photo") {
     const interpCard = el("div", { class: "card" }, [el("h3", {}, "Interpretation")]);
     const interpTA = el("textarea", {});
-    
+
     if (!c.ngs_photo_interpretation) {
       const _pName = (c.patient?.name || "").trim() || "—";
       const _donors = c.donors || [];
@@ -2915,6 +2984,21 @@ function renderBulkEditor(i) {
     interpTA.addEventListener("input", () => { c.ngs_photo_interpretation = interpTA.value; scheduleBulkPreview(i); });
     interpCard.appendChild(el("div", { class: "field full" }, [el("label", {}, "INTERPRETATION (OPTIONAL OVERRIDE)"), interpTA]));
     editCol.appendChild(interpCard);
+  }
+
+  if (["single_hla", "transplant_donor", "ngs_photo", "loci11", "rpl_couple", "single_rpl"].includes(c.report_type)) {
+    const methCard = el("div", { class: "card" }, [el("h3", {}, "Methodology")]);
+    const methTA = el("textarea", {
+      placeholder: "Leave blank to use default (MiniSeq or SurfSeq based on NABL setting)",
+      style: "resize:vertical; min-height:60px;"
+    });
+    methTA.value = c.methodology || "";
+    methTA.addEventListener("input", () => { c.methodology = methTA.value; scheduleBulkPreview(i); });
+    methCard.appendChild(el("div", { class: "field full" }, [
+      el("label", {}, "METHODOLOGY (OPTIONAL OVERRIDE)"),
+      methTA,
+    ]));
+    editCol.appendChild(methCard);
   }
 
 }
@@ -2974,6 +3058,7 @@ async function generateBulk(mode) {
   }
   const withLogo = checked(document.getElementById("bulkLogoChk"));
   const stamp = checked(document.getElementById("globalStampChk"));
+  const nabl = checked(document.getElementById("globalNablChk"));
 
   const progWrap = document.getElementById("bulkProgressWrap");
   const progBar = document.getElementById("bulkProgressBar");
@@ -2981,7 +3066,7 @@ async function generateBulk(mode) {
   progBar.style.width = "10%";
 
   try {
-    const resp = await apiPost("/hla/generate-bulk", { cases, output_dir: dirHandle ? undefined : (outputDir || undefined), with_logo: withLogo, signature_stamp: stamp });
+    const resp = await apiPost("/hla/generate-bulk", { cases, output_dir: dirHandle ? undefined : (outputDir || undefined), with_logo: withLogo, signature_stamp: stamp, nabl });
     progBar.style.width = "70%";
     if (dirHandle && resp.success && resp.success.length) {
       let written = 0;

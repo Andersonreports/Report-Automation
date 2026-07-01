@@ -334,6 +334,9 @@ async def generate_bulk(request_body: dict):
     output_dir = request_body.get("output_dir") or None
     with_logo  = request_body.get("with_logo", True)
     sig_stamp  = request_body.get("signature_stamp", False)
+    # nabl sent by the frontend reflects the global checkbox at generate time;
+    # fall back to per-case value if the request predates this field.
+    req_nabl   = request_body.get("nabl", None)
 
     settings    = _load_settings()
     sig_counts  = {**DEFAULT_SIG_COUNTS, **settings.get("sig_counts", {})}
@@ -350,7 +353,8 @@ async def generate_bulk(request_body: dict):
         c["with_logo"]       = with_logo
         c["signature_stamp"] = sig_stamp
         rtype = c.get("report_type", "single_hla")
-        nabl  = c.get("nabl", True)
+        nabl  = req_nabl if req_nabl is not None else c.get("nabl", True)
+        c["nabl"] = nabl
 
         if rtype not in ("sab_class1", "sab_class2") and _has_insufficient_data(c.get("patient", {})):
             failed.append({"filename": c.get("patient", {}).get("name", "?"), "error": "Insufficient Data"})

@@ -660,7 +660,7 @@ _DEGREE_MAP = {
 # and Hospital/Clinic name fields re-case ALL-CAPS input (is_name=True) so they'd
 # fall through to default title-casing without this explicit whitelist entry.
 _ABBREV_SET = {"edta", "dna", "rna", "pcr", "bmt", "hla", "rpl", "rif", "nips", "poc", "ngs", "wbc", "rbc", "idd",
-               "esic", "aiims"}
+               "esic", "aiims", "kims"}
 _PREFIX_MAP_TC = {"mr": "Mr", "mrs": "Mrs", "ms": "Ms", "master": "Master", "dr": "Dr"}
 
 
@@ -1548,7 +1548,7 @@ def _methodology_block(case: dict, S: dict, merge: bool = False) -> list:
     nabl   = case.get("nabl", True)
     imgt   = case.get("imgt_release", "") or "3.56.0"  # Default IMGT version if not specified
     method = case.get("methodology", "") or (METHODOLOGY_MINISEQ if nabl else METHODOLOGY_SURFSEQ)
-    status = case.get("typing_status", "Complete")
+    status = case.get("typing_status", "") or "Complete"
 
     # Split into two smaller KeepTogether groups so neither block forces a large
     # blank gap when the previous section ends near a page boundary.

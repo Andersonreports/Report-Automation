@@ -300,41 +300,58 @@ def _parse_wide_format_result_csv(filepath: str) -> dict:
     Parse the wide-format HLA result CSV with one row per sample, e.g.:
         BarcodeId,SampleName,Approve,Confirm,A/1,A/2,B/1,B/2,C/1,C/2,DPB1/1,DPB1/2,DQB1/1,DQB1/2,DRB1/1,DRB1/2,Comments
     Returns: { sample_name: {"hla": {locus: [a1, a2]}, "remarks": "", "sample_ids": [...]} }
-    """
-    df = pd.read_csv(filepath)
-    df.columns = [str(c).strip() for c in df.columns]
 
-    locus_cols = {
-        "A":    ("A/1",    "A/2"),
-        "B":    ("B/1",    "B/2"),
-        "C":    ("C/1",    "C/2"),
-        "DPB1": ("DPB1/1", "DPB1/2"),
-        "DQB1": ("DQB1/1", "DQB1/2"),
-        "DRB1": ("DRB1/1", "DRB1/2"),
+    Uses csv.reader (not pandas) so that the Comments column — which can contain
+    thousands of unquoted characters including commas and bare newlines — does NOT
+    cause pandas to mis-split every patient row across hundreds of sub-rows and
+    shift allele values into wrong column positions.
+    """
+    # Positional column indices in the header row
+    COL_BARCODE  = 0
+    COL_SAMPLE   = 1
+    COL_A1, COL_A2       = 4,  5
+    COL_B1, COL_B2       = 6,  7
+    COL_C1, COL_C2       = 8,  9
+    COL_DPB1_1, COL_DPB1_2 = 10, 11
+    COL_DQB1_1, COL_DQB1_2 = 12, 13
+    COL_DRB1_1, COL_DRB1_2 = 14, 15
+
+    locus_idx = {
+        "A":    (COL_A1,    COL_A2),
+        "B":    (COL_B1,    COL_B2),
+        "C":    (COL_C1,    COL_C2),
+        "DPB1": (COL_DPB1_1, COL_DPB1_2),
+        "DQB1": (COL_DQB1_1, COL_DQB1_2),
+        "DRB1": (COL_DRB1_1, COL_DRB1_2),
     }
 
     results = {}
-    for _, row in df.iterrows():
-        sample = _clean_str(row.get("SampleName", ""))
-        if not sample:
-            continue
-        barcode = _clean_str(row.get("BarcodeId", ""))
-        hla = {}
-        for locus, (c1, c2) in locus_cols.items():
-            a1 = _clean_allele(str(row.get(c1, "-")))
-            a2 = _clean_allele(str(row.get(c2, "-")))
-            if a1 and not a2:
-                a2 = a1
-            hla[locus] = [a1, a2]
-        results[sample] = {
-            "hla": hla,
-            # NOTE: the "Comments" column here is the genotyping software's raw
-            # allele-ambiguity dump (thousands of characters), not a clinical
-            # remark — never surface it as report "remarks" (it overflows the
-            # PDF page and crashes layout).
-            "remarks": "",
-            "sample_ids": [s for s in (sample, barcode) if s],
-        }
+    with open(filepath, "r", encoding="utf-8-sig", errors="replace", newline="") as f:
+        reader = csv.reader(f)
+        for i, row in enumerate(reader):
+            if i == 0:
+                continue  # skip header
+            if len(row) < COL_DRB1_2 + 1:
+                continue  # continuation row from a split multi-line Comments field
+            sample = row[COL_SAMPLE].strip()
+            if not sample or sample.lower() in ("samplename", "nan", ""):
+                continue  # still a continuation / junk row
+            barcode = row[COL_BARCODE].strip()
+            hla = {}
+            for locus, (i1, i2) in locus_idx.items():
+                a1 = _clean_allele(row[i1].strip())
+                a2 = _clean_allele(row[i2].strip())
+                if a1 and not a2:
+                    a2 = a1
+                hla[locus] = [a1, a2]
+            results[sample] = {
+                "hla": hla,
+                # NOTE: the "Comments" column is the genotyping software's raw
+                # allele-ambiguity dump (thousands of characters), not a clinical
+                # remark — never surface it as report "remarks".
+                "remarks": "",
+                "sample_ids": [s for s in (sample, barcode) if s],
+            }
     return results
 
 
@@ -1344,7 +1361,7 @@ def _parse_patient_list_csv(filepath: str, nabl: bool = True) -> list:
             "methodology":     "",
             "imgt_release":    "",
             "coverage":        "",
-            "typing_status":   "",
+            "typing_status":   "Complete",
             "reviewer":        "",
             "patient":         patient_dict,
             "donors":          [],
