@@ -1573,20 +1573,8 @@ def _methodology_block(case: dict, S: dict, merge: bool = False) -> list:
     ]))
 
     # The personal remarks are rendered below each person's locus table in
-    # _ngs_person_block, so this static "Remarks:" coverage label is only shown
-    # when there's actual remarks content somewhere â otherwise it renders as a
-    # blank, orphan label in the IMGT/Coverage section.
-    def _has_real_remarks(p):
-        v = str((p or {}).get("remarks", "") or "").strip()
-        return bool(v) and v not in ("â", "-", "NA", "N/A", "None", "null")
-    _patient_mb = case.get("patient", {})
-    _donors_mb  = case.get("donors", []) or []
-    _show_remarks_label = _has_real_remarks(_patient_mb) or any(_has_real_remarks(d) for d in _donors_mb)
-    coverage_block = [Paragraph(f"<b>IMGT/HLA Release</b> {imgt}", S["body"])]
-    if _show_remarks_label:
-        coverage_block.append(Paragraph("<b>Remarks:</b>", S["body"]))
-    coverage_block.append(cov_table)
-
+    # _ngs_person_block, so no separate "Remarks:" label is needed here.
+    coverage_block = [Paragraph(f"<b>IMGT/HLA Release</b> {imgt}", S["body"]), cov_table]
     # Group 2: Methodology + HR + Typing Status (~40 pt)
     # 11-Loci's reference layout puts the "Methodology:" label on its own line,
     # with the method sentence on the line below â other report types keep the

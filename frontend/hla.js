@@ -2999,6 +2999,16 @@ function renderBulkEditor(i) {
       methTA,
     ]));
     editCol.appendChild(methCard);
+
+    const statusCard = el("div", { class: "card" }, [el("h3", {}, "Typing Status")]);
+    const statusSel = el("select", {}, ["Complete", "Incomplete"].map(o => el("option", { value: o }, o)));
+    statusSel.value = c.typing_status === "Incomplete" ? "Incomplete" : "Complete";
+    statusSel.addEventListener("change", () => { c.typing_status = statusSel.value; scheduleBulkPreview(i); });
+    statusCard.appendChild(el("div", { class: "field full" }, [
+      el("label", {}, "TYPING STATUS"),
+      statusSel,
+    ]));
+    editCol.appendChild(statusCard);
   }
 
 }
