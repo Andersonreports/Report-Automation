@@ -295,6 +295,54 @@ def _parse_long_format_result_csv(filepath: str) -> dict:
     return results
 
 
+def _allele_locus(value: Optional[str]) -> Optional[str]:
+    """
+    An allele string always carries its true locus as the prefix before '*'
+    (e.g. "B*52:01:01" -> "B", or "HLA-A*02:11:01" -> "A" in ambiguity-dump text).
+    """
+    if not value or "*" not in value:
+        return None
+    prefix = value.split("*", 1)[0].strip().upper()
+    if prefix.startswith("HLA-"):
+        prefix = prefix[4:]
+    return prefix or None
+
+
+def _allele_locus_ok(value: Optional[str], expected_locus: str) -> bool:
+    locus = _allele_locus(value)
+    return locus is None or locus == expected_locus
+
+
+# Fixed relative order of the 12 per-locus allele columns in the wide-format
+# Result CSV, regardless of where they start (see _find_locus_block_start).
+_WIDE_LOCUS_SEQUENCE = ["A", "A", "B", "B", "C", "C", "DPB1", "DPB1", "DQB1", "DQB1", "DRB1", "DRB1"]
+
+
+def _find_locus_block_start(row: list) -> Optional[int]:
+    """
+    Locate where the 12 consecutive per-locus allele fields begin in a row by
+    finding the first position whose own allele prefixes match the expected
+    A,A,B,B,C,C,DPB1,DPB1,DQB1,DQB1,DRB1,DRB1 sequence.
+
+    The header declares these columns at a fixed offset (4, after BarcodeId/
+    SampleName/Approve/Confirm), but some rows are missing the Approve/Confirm
+    flags entirely, which shifts every allele column two positions early. Since
+    each allele carries its own locus in its prefix, scanning for that sequence
+    finds the true start regardless of how many leading columns are present,
+    instead of trusting position 4 blindly.
+    """
+    max_start = len(row) - len(_WIDE_LOCUS_SEQUENCE)
+    for start in range(2, min(max_start, 8) + 1):
+        if all(_allele_locus(row[start + off].strip()) in (expected, None)
+               for off, expected in enumerate(_WIDE_LOCUS_SEQUENCE)):
+            # Require at least one real prefix match in the window so an
+            # all-blank stretch doesn't count as a false-positive anchor.
+            if any(_allele_locus(row[start + off].strip()) == expected
+                   for off, expected in enumerate(_WIDE_LOCUS_SEQUENCE)):
+                return start
+    return None
+
+
 def _parse_wide_format_result_csv(filepath: str) -> dict:
     """
     Parse the wide-format HLA result CSV with one row per sample, e.g.:
@@ -306,24 +354,9 @@ def _parse_wide_format_result_csv(filepath: str) -> dict:
     cause pandas to mis-split every patient row across hundreds of sub-rows and
     shift allele values into wrong column positions.
     """
-    # Positional column indices in the header row
-    COL_BARCODE  = 0
-    COL_SAMPLE   = 1
-    COL_A1, COL_A2       = 4,  5
-    COL_B1, COL_B2       = 6,  7
-    COL_C1, COL_C2       = 8,  9
-    COL_DPB1_1, COL_DPB1_2 = 10, 11
-    COL_DQB1_1, COL_DQB1_2 = 12, 13
-    COL_DRB1_1, COL_DRB1_2 = 14, 15
-
-    locus_idx = {
-        "A":    (COL_A1,    COL_A2),
-        "B":    (COL_B1,    COL_B2),
-        "C":    (COL_C1,    COL_C2),
-        "DPB1": (COL_DPB1_1, COL_DPB1_2),
-        "DQB1": (COL_DQB1_1, COL_DQB1_2),
-        "DRB1": (COL_DRB1_1, COL_DRB1_2),
-    }
+    COL_BARCODE = 0
+    COL_SAMPLE  = 1
+    MIN_ROW_LEN = 2 + len(_WIDE_LOCUS_SEQUENCE)  # BarcodeId, SampleName + 12 allele fields
 
     results = {}
     with open(filepath, "r", encoding="utf-8-sig", errors="replace", newline="") as f:
@@ -331,19 +364,33 @@ def _parse_wide_format_result_csv(filepath: str) -> dict:
         for i, row in enumerate(reader):
             if i == 0:
                 continue  # skip header
-            if len(row) < COL_DRB1_2 + 1:
+            if len(row) < MIN_ROW_LEN:
                 continue  # continuation row from a split multi-line Comments field
             sample = row[COL_SAMPLE].strip()
             if not sample or sample.lower() in ("samplename", "nan", ""):
                 continue  # still a continuation / junk row
             barcode = row[COL_BARCODE].strip()
+
+            start = _find_locus_block_start(row)
             hla = {}
-            for locus, (i1, i2) in locus_idx.items():
-                a1 = _clean_allele(row[i1].strip())
-                a2 = _clean_allele(row[i2].strip())
-                if a1 and not a2:
-                    a2 = a1
-                hla[locus] = [a1, a2]
+            if start is None:
+                print(f"[hla_data_parser] WARNING: sample '{sample}' — couldn't locate its "
+                      f"allele columns at all (row likely misaligned/corrupted); left blank.")
+                hla = {locus: [None, None] for locus in ("A", "B", "C", "DPB1", "DQB1", "DRB1")}
+            else:
+                if start != 4:
+                    print(f"[hla_data_parser] INFO: sample '{sample}' allele columns started "
+                          f"at position {start} instead of the usual 4 (row is missing leading "
+                          f"columns, e.g. Approve/Confirm) — recovered by locating alleles by "
+                          f"their own locus prefix.")
+                for idx, locus in enumerate(("A", "B", "C", "DPB1", "DQB1", "DRB1")):
+                    i1, i2 = start + idx * 2, start + idx * 2 + 1
+                    a1 = _clean_allele(row[i1].strip())
+                    a2 = _clean_allele(row[i2].strip())
+                    if a1 and not a2:
+                        a2 = a1
+                    hla[locus] = [a1, a2]
+
             results[sample] = {
                 "hla": hla,
                 # NOTE: the "Comments" column is the genotyping software's raw
