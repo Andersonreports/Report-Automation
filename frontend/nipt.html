@@ -1461,6 +1461,12 @@
       <label class="format-check"><input type="checkbox" id="cbDocx" checked> DOCX</label>
       <label class="format-check"><input type="checkbox" id="cbBranding" checked> With Branding Logo</label>
       <div class="export-sep"></div>
+      <label class="ex-title" style="margin-right:4px;">Template:</label>
+      <select id="templateSelect" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border,#ccc);">
+        <option value="1" selected>YOURGENE</option>
+        <option value="2">GENEMIND</option>
+      </select>
+      <div class="export-sep"></div>
       <div class="out-folder-wrap">
         <label>Output Folder:</label>
         <input type="text" id="outFolder" placeholder="Type or paste output folder path…"
@@ -2085,6 +2091,11 @@
       buildChrGrid();
       loadSettings();
       document.getElementById('cbBranding').addEventListener('change', schedulePreview);
+      document.getElementById('templateSelect').addEventListener('change', () => {
+        saveSettings();
+        schedulePreview();
+        if (typeof scheduleBatchPreview === 'function') scheduleBatchPreview();
+      });
       checkServer();
       
       const _retryInterval = setInterval(() => {
@@ -2129,6 +2140,7 @@
       if (s.cbPdf !== undefined) document.getElementById('cbPdf').checked = s.cbPdf;
       if (s.cbDocx !== undefined) document.getElementById('cbDocx').checked = s.cbDocx;
       if (s.cbBranding !== undefined) document.getElementById('cbBranding').checked = s.cbBranding;
+      if (s.template !== undefined) document.getElementById('templateSelect').value = s.template;
     }
     function saveSettings() {
       localStorage.setItem('nipt_settings', JSON.stringify({
@@ -2137,6 +2149,7 @@
         cbPdf: document.getElementById('cbPdf').checked,
         cbDocx: document.getElementById('cbDocx').checked,
         cbBranding: document.getElementById('cbBranding').checked,
+        template: document.getElementById('templateSelect').value,
       }));
     }
     
@@ -2315,7 +2328,7 @@
         const r = await _apiFetch('/nipt/preview', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ patient_data: p, z_scores: z, show_logo: document.getElementById('cbBranding').checked })
+          body: JSON.stringify({ patient_data: p, z_scores: z, show_logo: document.getElementById('cbBranding').checked, template: parseInt(document.getElementById('templateSelect').value, 10) })
         });
         const d = await r.json();
         if (d.preview_url) {
@@ -2354,7 +2367,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             patient_data: p, z_scores: z,
-            options: { show_logo: document.getElementById('cbBranding').checked, formats }
+            options: { show_logo: document.getElementById('cbBranding').checked, formats, template: parseInt(document.getElementById('templateSelect').value, 10) }
           })
         });
         const d = await r.json();
@@ -2802,7 +2815,7 @@
         const r = await _apiFetch('/nipt/preview', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ patient_data: p, z_scores: z, show_logo: document.getElementById('cbBranding').checked })
+          body: JSON.stringify({ patient_data: p, z_scores: z, show_logo: document.getElementById('cbBranding').checked, template: parseInt(document.getElementById('templateSelect').value, 10) })
         });
         const d = await r.json();
         if (d.preview_url) {
@@ -2842,7 +2855,7 @@
           body: JSON.stringify({
             patient_data: pat,
             z_scores: buildZFromPatient(pat),
-            options: { show_logo: document.getElementById('cbBranding').checked, formats }
+            options: { show_logo: document.getElementById('cbBranding').checked, formats, template: parseInt(document.getElementById('templateSelect').value, 10) }
           })
         });
         const d = await r.json();
@@ -2886,7 +2899,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             patients: batchPatients,
-            options: { show_logo: document.getElementById('cbBranding').checked, formats }
+            options: { show_logo: document.getElementById('cbBranding').checked, formats, template: parseInt(document.getElementById('templateSelect').value, 10) }
           })
         });
         const d = await r.json();

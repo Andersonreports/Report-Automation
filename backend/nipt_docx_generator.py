@@ -26,7 +26,9 @@ class NIPTDocxGenerator:
     }
 
     METHODOLOGY_TEXT = """Maternal whole blood sample was taken from the pregnant mother after 10-week gestation with no risk to the fetus. The circulating cell-free placental DNA was isolated and purified, which was then converted into genomic DNA library using Yourgene cfDNA Library prep kit. This was followed by automated size selection of fragment lengths by QS250 for enriching fetal fraction. The enriched sample pool was subjected to high throughput sequencing using Ion GeneStudio S5 Plus™ System. Finally, analysis was performed using Sage Link V2."""
-    
+
+    METHODOLOGY_TEXT_T2 = """Maternal whole blood sample was collected from the pregnant woman after 10th week of gestation with no risk to the fetus. The circulating cell-free DNA (including both maternal and fetal DNA) was isolated from the maternal blood sample. This DNA was then converted into genomic DNA libraries using GeneSout cell-free DNA library preparation kit V1.0 followed by low coverage whole genome sequencing using NGS technology (GeneMind). The unique reads of each chromosome are calculated and compared to an optimal reference control sample. Data is analyzed using GeneMind's proprietary bioinformatics algorithms (Fetal Chromosome Aneuploidy Analysis Software) and an assessment is produced for the conditions tested only."""
+
     LIMITATIONS_TEXT = [
         "Test performance is valid only for full chromosomal aneuploidies involving all the autosomes and sex chromosomes with an accuracy of up to 99% for aneuploidies pertaining to chromosomes 13, 18 and 21. The method is intended for use in pregnant women who are at least 10+ weeks pregnant. The method is suitable for both singleton and twin pregnancies. The accuracy may be slightly lower in twin pregnancies due to multiple sources of fetal DNA. Patients with malignancy or a history of malignancy, patients with bone marrow or organ transplant, patients pregnant with more than 2 fetuses are not eligible for the test.",
         "<b>For vanishing twins, sampling must be performed 8 weeks after vanishing event.</b> The test is not intended and not validated for mosaicism, triploidy, partial trisomy/monosomy, uniparental disomy or translocations. Other genomic abnormalities not covered by this assay may impact the phenotype.",
@@ -41,8 +43,28 @@ class NIPTDocxGenerator:
         {"name": "Dr. Suriyakumar.G", "title": "Director"}
     ]
 
-    def __init__(self, output_path, with_logo=True):
+    # Per-template content: thresholds, reference-interval text and methodology
+    TEMPLATE_CONFIG = {
+        1: {
+            'methodology': METHODOLOGY_TEXT,
+            'trisomy_threshold': 2.8,
+            'autosome_threshold': 6.0,
+            'trisomy_ref': '-6<Z score<2.8',
+            'autosome_ref': '-6<Z score<6',
+        },
+        2: {
+            'methodology': METHODOLOGY_TEXT_T2,
+            'trisomy_threshold': 3.0,
+            'autosome_threshold': 4.5,
+            'trisomy_ref': 'Z score<3',
+            'autosome_ref': '-4.5<Z score<4.5',
+        },
+    }
+
+    def __init__(self, output_path, with_logo=True, template=1):
         self.output_path = output_path
+        self.template = template if template in self.TEMPLATE_CONFIG else 1
+        self.cfg = self.TEMPLATE_CONFIG[self.template]
         self.doc = Document()
         self._setup_page(with_logo)
 
@@ -147,8 +169,10 @@ class NIPTDocxGenerator:
         
         ff = z_scores.get('fetal_fraction', 0)
         overall_risk = "Low risk"
-        is_high = any(z_scores.get(f'chr{i}', 0) > (2.8 if i in [13,18,21] else 6.0) for i in range(1, 23))
-        if is_high or z_scores.get('chrX', 0) > 6.0: overall_risk = "High risk"
+        tri_thresh = self.cfg['trisomy_threshold']
+        auto_thresh = self.cfg['autosome_threshold']
+        is_high = any(z_scores.get(f'chr{i}', 0) > (tri_thresh if i in [13,18,21] else auto_thresh) for i in range(1, 23))
+        if is_high or z_scores.get('chrX', 0) > auto_thresh: overall_risk = "High risk"
         
         self._add_section_header("Result Summary")
         res_table = self.doc.add_table(rows=1, cols=2)
@@ -201,7 +225,7 @@ class NIPTDocxGenerator:
         p2.style.font.name = 'Segoe UI'
         
         self._add_section_header("Test Method")
-        self.doc.add_paragraph(self.METHODOLOGY_TEXT)
+        self.doc.add_paragraph(self.cfg['methodology'])
         
         self._add_section_header("Test Limitations")
         for p_text in self.LIMITATIONS_TEXT[:2]:
@@ -231,7 +255,9 @@ class NIPTDocxGenerator:
                 self.doc.add_paragraph(p_text)
         
         self._add_section_header("Regulatory & Validation Notes")
-        self.doc.add_paragraph("Test performance is based on laboratory-validated parameters; results may vary across populations and platforms. Not intended for use in multi-fetal reduction, mosaic embryo transfer, or post-transplant pregnancies.")
+        self.doc.add_paragraph("Test performance is based on laboratory-validated parameters; results may vary across populations and platforms.")
+        p_reg = self.doc.add_paragraph()
+        p_reg.add_run("Not intended for use in multi-fetal reduction, mosaic embryo transfer, or post-transplant pregnancies.").bold = True
         self._add_section_header("Disclaimer")
         self.doc.add_paragraph("No irreversible actions should be taken based solely upon the results of this screening test. The manner in which this information is used to guide patient care is the responsibility of the health care provider, including advising for the need for genetic counseling or diagnostic testing. Any test should be interpreted in the context of all available clinical findings. As with any screening test, any positive result should be confirmed with diagnostic testing.")
         
@@ -240,31 +266,46 @@ class NIPTDocxGenerator:
         self._add_header_text(5)
         
         self._add_section_header("Test specifications")
-        
-        p1 = self.doc.add_paragraph()
-        p1.add_run("Table 1: Performance of Sage 32 NIPT workflow in singleton pregnancies").bold = True
-        self._add_metrics_table_1()
-        
-        self.doc.add_paragraph()
-        p1_cap = self.doc.add_paragraph("PPV – Positive predictive value; NPV – Negative predictive value; FPR – False positive rate; FNR – False negative rate")
-        p1_cap.style.font.name = 'Segoe UI'
-        p1_cap.style.font.size = Pt(7)
-        p1_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        
-        self.doc.add_paragraph()
-        p2 = self.doc.add_paragraph()
-        p2.add_run("Table 2: Performance of Sage 32 NIPT workflow in twin pregnancies").bold = True
-        self._add_metrics_table_2()
-        
-        self.doc.add_paragraph()
-        p2_cap = self.doc.add_paragraph("PPV – Positive predictive value; NPV – Negative predictive value; FPR – False positive rate; FNR – False negative rate")
-        p2_cap.style.font.name = 'Segoe UI'
-        p2_cap.style.font.size = Pt(7)
-        p2_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        
-        self.doc.add_page_break()
-        if with_logo: self._add_logo()
-        self._add_header_text(6)
+
+        if self.template == 2:
+            p1 = self.doc.add_paragraph()
+            p1.add_run("Table: Performance of NIGM in 20,000 retrospective clinical samples").bold = True
+            self._add_metrics_table_nigm()
+
+            self.doc.add_paragraph()
+            p1_cap = self.doc.add_paragraph("PPV – Positive predictive value; NPV – Negative predictive value")
+            p1_cap.style.font.name = 'Segoe UI'
+            p1_cap.style.font.size = Pt(7)
+            p1_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        else:
+            p1 = self.doc.add_paragraph()
+            p1.add_run("Table 1: Performance of Sage 32 NIPT workflow in singleton pregnancies").bold = True
+            self._add_metrics_table_1()
+
+            self.doc.add_paragraph()
+            p1_cap = self.doc.add_paragraph("PPV – Positive predictive value; NPV – Negative predictive value; FPR – False positive rate; FNR – False negative rate")
+            p1_cap.style.font.name = 'Segoe UI'
+            p1_cap.style.font.size = Pt(7)
+            p1_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+            self.doc.add_paragraph()
+            p2 = self.doc.add_paragraph()
+            p2.add_run("Table 2: Performance of Sage 32 NIPT workflow in twin pregnancies").bold = True
+            self._add_metrics_table_2()
+
+            self.doc.add_paragraph()
+            p2_cap = self.doc.add_paragraph("PPV – Positive predictive value; NPV – Negative predictive value; FPR – False positive rate; FNR – False negative rate")
+            p2_cap.style.font.name = 'Segoe UI'
+            p2_cap.style.font.size = Pt(7)
+            p2_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+        if self.template == 2:
+            # Plenty of room left on the specifications page — keep the algorithm here instead of forcing a new page
+            self.doc.add_paragraph()
+        else:
+            self.doc.add_page_break()
+            if with_logo: self._add_logo()
+            self._add_header_text(6)
         self._add_section_header("Prenatal Testing Algorithm")
         try:
             from nipt_assets import ALGO_CHART_B64
@@ -278,7 +319,12 @@ class NIPTDocxGenerator:
             os.unlink(algo_path)
         except:
             self.doc.add_paragraph("[Algorithm Flowchart Image Missing]")
-        
+
+        if self.template == 2:
+            # Keep References & Signatures together on their own page rather than splitting
+            self.doc.add_page_break()
+            if with_logo: self._add_logo()
+
         self._add_section_header("References")
         refs = [
             ('Bianchi DW, Platt LD, Goldberg JD, Abuhamad AZ, Sehnert AJ, Rava RP. Genome-wide fetal aneuploidy detection by maternal plasma DNA sequencing. ', 'Obstetrics & Gynecology', '. 2012 May 1;119(5):890-901.'),
@@ -339,9 +385,19 @@ class NIPTDocxGenerator:
             if m: return f"{int(m.group(1)):02d}-{int(m.group(2)):02d}-{m.group(3)}"
             return d
 
-        _preg_abbr = re.compile(r'\b([A-Za-z]{1,5})\b')
+        # Only true medical/fertility abbreviations are forced to ALL CAPS;
+        # ordinary words like "Twin"/"Singleton" stay in normal title case.
+        _PREG_ABBR = {
+            'IVF', 'ICSI', 'IUI', 'FET', 'ART', 'ZIFT', 'GIFT',
+            'DCDA', 'MCDA', 'MCMA', 'DCDT', 'MCMT',
+        }
+        _preg_word = re.compile(r'\b([A-Za-z]+)\b')
         def fmt_preg(text):
-            return _preg_abbr.sub(lambda mo: mo.group().upper(), text.title())
+            titled = text.title()
+            return _preg_word.sub(
+                lambda mo: mo.group().upper() if mo.group().upper() in _PREG_ABBR else mo.group(),
+                titled,
+            )
 
         table = self.doc.add_table(rows=6, cols=4)
         table.autofit = False
@@ -406,12 +462,14 @@ class NIPTDocxGenerator:
         table.rows[0].cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
         table.rows[0].cells[1].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
         
+        tri_thresh = self.cfg['trisomy_threshold']
+        auto_thresh = self.cfg['autosome_threshold']
         targets = [
-            ("Chromosome 21", z_scores.get('chr21', 0), 2.8),
-            ("Chromosome 18", z_scores.get('chr18', 0), 2.8),
-            ("Chromosome 13", z_scores.get('chr13', 0), 2.8),
-            ("Sex Chromosomes*", z_scores.get('chrX', 0), 6.0),
-            ("Other Autosomes", 0, 6.0)
+            ("Chromosome 21", z_scores.get('chr21', 0), tri_thresh),
+            ("Chromosome 18", z_scores.get('chr18', 0), tri_thresh),
+            ("Chromosome 13", z_scores.get('chr13', 0), tri_thresh),
+            ("Sex Chromosomes*", z_scores.get('chrX', 0), auto_thresh),
+            ("Other Autosomes", 0, auto_thresh)
         ]
         for i, (name, val, thresh) in enumerate(targets, 1):
             row = table.rows[i]
@@ -444,9 +502,10 @@ class NIPTDocxGenerator:
         
         for i in range(1, 23):
             val = z_scores.get(f'chr{i}', 0)
-            thresh = 2.8 if i in [13, 18, 21] else 6.0
+            is_trisomy = i in [13, 18, 21]
+            thresh = self.cfg['trisomy_threshold'] if is_trisomy else self.cfg['autosome_threshold']
             risk = "Low risk" if val <= thresh else "High risk"
-            ref = "-6<Z score<2.8" if i in [13, 18, 21] else "-6<Z score<6"
+            ref = self.cfg['trisomy_ref'] if is_trisomy else self.cfg['autosome_ref']
             row = table.rows[i]
             row.cells[0].text = f"  Chromosome {i}"
             row.cells[0].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.LEFT
@@ -575,7 +634,50 @@ class NIPTDocxGenerator:
                 table.rows[i].cells[c].paragraphs[0].style.font.size = Pt(8)
                 table.rows[i].cells[c].vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
 
+    def _add_metrics_table_nigm(self):
+        table = self.doc.add_table(rows=5, cols=5)
+        table.style = 'Table Grid'
+        hdr = ["Condition", "Sensitivity", "Specificity", "PPV", "NPV"]
+        for i, h in enumerate(hdr):
+            table.rows[0].cells[i].text = h
+            self._set_cell_background(table.rows[0].cells[i], self.COLORS['results_header_bg'])
+            for r_ in table.rows[0].cells[i].paragraphs[0].runs: r_.font.bold = True
+            table.rows[0].cells[i].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+            table.rows[0].cells[i].vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+
+        try:
+            from docx.shared import Inches
+            table.rows[0].height = Inches(0.4)
+        except:
+            pass
+        data = [
+            ["Trisomy 21", "100%", "99.92%", "95.58%", "100%"],
+            ["Trisomy 18", "100%", "99.85%", "73.53%", "100%"],
+            ["Trisomy 13", "100%", ">99.89%", "78.13%", "100%"],
+            ["Sex chromosomal\naneuploidies", "93.55%", ">99.47%", "64.44%", "99.93%"],
+        ]
+        for i, r in enumerate(data, 1):
+            self._set_cell_background(table.rows[i].cells[0], 'E2E2E2')
+            for c in range(1, 5):
+                self._set_cell_background(table.rows[i].cells[c], self.COLORS['grey_bg'])
+            for c, txt in enumerate(r):
+                if '\n' in txt:
+                    parts = txt.split('\n')
+                    table.rows[i].cells[c].text = parts[0] + " "
+                    p = table.rows[i].cells[c].paragraphs[0]
+                    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    p.style.font.size = Pt(9)
+                    run2 = p.add_run(parts[1])
+                    run2.font.size = Pt(6)
+                    table.rows[i].cells[c].vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+                else:
+                    table.rows[i].cells[c].text = txt
+                    table.rows[i].cells[c].paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                    table.rows[i].cells[c].paragraphs[0].style.font.size = Pt(9)
+                    table.rows[i].cells[c].vertical_alignment = WD_CELL_VERTICAL_ALIGNMENT.CENTER
+
 if __name__ == "__main__":
-    g = NIPTDocxGenerator("test_nipt_v3.docx")
-    g.generate({'name': 'TEST'}, {f'chr{i}': 0.1 for i in range(1, 23)})
-    print("V3 DOCX Corrected.")
+    dummy_z = {f'chr{i}': 0.1 for i in range(1, 23)}
+    NIPTDocxGenerator("test_nipt_v3_t1.docx", template=1).generate({'name': 'TEST'}, dummy_z)
+    NIPTDocxGenerator("test_nipt_v3_t2.docx", template=2).generate({'name': 'TEST'}, dummy_z)
+    print("V3 DOCX (1 & 2) Corrected.")

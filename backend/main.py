@@ -1011,8 +1011,11 @@ _HOSPITAL_ACRONYMS = {
 def _title_case_words(value: str) -> str:
     text = " ".join(w[:1].upper() + w[1:].lower()
                     for w in str(value or "").strip().split())
-    return re.sub(r"\b(Mr|Mrs|Ms|Dr)\.\s*([a-z])",
+    text = re.sub(r"\b(Mr|Mrs|Ms|Dr)\.\s*([a-z])",
                   lambda m: f"{m.group(1)}. {m.group(2).upper()}", text)
+    # Hospital codes appended in parentheses, e.g. "Jane Doe (sdcgh12cf)",
+    # must always render in full caps regardless of how they were typed.
+    return re.sub(r"\(([^)]*)\)", lambda m: f"({m.group(1).upper()})", text)
 
 
 def _fmt_hospital(value: str) -> str:
@@ -1032,17 +1035,21 @@ def _norm_patient(p: dict) -> dict:
             p[k] = _title_case_words(p.get(k, ""))
     if "hospital" in p:
         p["hospital"] = _fmt_hospital(p.get("hospital", ""))
+    if "preg_status" in p:
+        # e.g. "TWIN" / "twin" / "TwIn" -> "Twin"
+        p["preg_status"] = str(p.get("preg_status", "")).strip().capitalize()
     if "clinician_qual" in p:
         p["clinician_qual"] = re.sub(r'[A-Za-z]+', lambda m: m.group().upper(),
                                      str(p.get("clinician_qual", "")))
     return p
 
 
-def _nipt_base_filename(name: str, with_logo: bool) -> str:
+def _nipt_base_filename(name: str, with_logo: bool, template: int = 1) -> str:
     n = _title_case_words(name) or "Patient"
     n = re.sub(r'[<>:"/\\|?*]+', "", n)
     n = re.sub(r"\s+", "_", n).strip("_.") or "Patient"
-    return f"{n}_NIPT_Report_{'with_logo' if with_logo else 'without_logo'}"
+    tmpl_tag = "_T2" if template == 2 else ""
+    return f"{n}_NIPT_Report{tmpl_tag}_{'with_logo' if with_logo else 'without_logo'}"
 
 
 def _safe_float(v):
@@ -1075,15 +1082,16 @@ async def nipt_preview(request: Request):
         data = await request.json()
         p_info = _norm_patient(dict(data.get("patient_data", {})))
         show_logo = bool(data.get("show_logo", True))
+        template = int(data.get("template", 1) or 1)
         try:
-            fname = _nipt_base_filename(p_info.get("name", ""), show_logo)
+            fname = _nipt_base_filename(p_info.get("name", ""), show_logo, template)
         except Exception:
             fname = "preview"
         file_id = f"{fname}_{uuid.uuid4().hex[:8]}.pdf"
         filepath = os.path.join(TEMP_DIR, file_id)
         z_scores = {k: _safe_float(v)
                     for k, v in data.get("z_scores", {}).items()}
-        NIPTReportTemplate(filepath).generate(
+        NIPTReportTemplate(filepath, template=template).generate(
             p_info, z_scores, with_logo=show_logo)
         return {"preview_url": f"/nipt/preview-file/{file_id}"}
     except Exception as e:
@@ -1113,21 +1121,22 @@ async def nipt_generate(request: Request):
         options = data.get("options", {})
         show_logo = bool(options.get("show_logo", True))
         formats = options.get("formats", ["pdf"])
+        template = int(options.get("template", 1) or 1)
 
-        base = _nipt_base_filename(p_info.get("name", ""), show_logo)
+        base = _nipt_base_filename(p_info.get("name", ""), show_logo, template)
         results = {}
 
         if "pdf" in formats:
             fn = base + ".pdf"
             fp = os.path.join(NIPT_REPORT_DIR, fn)
-            NIPTReportTemplate(fp).generate(
+            NIPTReportTemplate(fp, template=template).generate(
                 p_info, z_scores, with_logo=show_logo)
             results["pdf"] = {"file": fn, "url": f"/reports-nipt/{fn}"}
 
         if "docx" in formats:
             fn = base + ".docx"
             fp = os.path.join(NIPT_REPORT_DIR, fn)
-            NIPTDocxGenerator(fp).generate(
+            NIPTDocxGenerator(fp, template=template).generate(
                 p_info, z_scores, with_logo=show_logo)
             results["docx"] = {"file": fn, "url": f"/reports-nipt/{fn}"}
 
@@ -1149,22 +1158,23 @@ async def nipt_generate_batch(request: Request):
         options  = data.get("options", {})
         show_logo = bool(options.get("show_logo", True))
         formats   = options.get("formats", ["pdf"])
+        template  = int(options.get("template", 1) or 1)
 
         def _gen_one(pat):
             p_info   = _norm_patient(dict(pat))
             z_scores = {k: _safe_float(v) for k, v in pat.items()
                         if k.startswith("chr")}
-            base = _nipt_base_filename(p_info.get("name", ""), show_logo)
+            base = _nipt_base_filename(p_info.get("name", ""), show_logo, template)
             out  = {}
             if "pdf" in formats:
                 fn = base + ".pdf"
                 fp = os.path.join(NIPT_REPORT_DIR, fn)
-                NIPTReportTemplate(fp).generate(p_info, z_scores, with_logo=show_logo)
+                NIPTReportTemplate(fp, template=template).generate(p_info, z_scores, with_logo=show_logo)
                 out["pdf"] = {"file": fn, "url": f"/reports-nipt/{fn}"}
             if "docx" in formats:
                 fn = base + ".docx"
                 fp = os.path.join(NIPT_REPORT_DIR, fn)
-                NIPTDocxGenerator(fp).generate(p_info, z_scores, with_logo=show_logo)
+                NIPTDocxGenerator(fp, template=template).generate(p_info, z_scores, with_logo=show_logo)
                 out["docx"] = {"file": fn, "url": f"/reports-nipt/{fn}"}
             return {"name": p_info.get("name", ""), "results": out}
 
