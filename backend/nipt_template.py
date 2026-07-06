@@ -473,13 +473,20 @@ class NIPTReportTemplate:
 
         _dob = fmt_date(data.get('dob',''))
         _age = str(data.get('age','') or '').strip()
-        dob_age_value = f"{_dob} / {_age}" if _dob and _age else (_dob or _age)
+        if _dob and _age:
+            dob_age_label, dob_age_value = "Date of Birth / Age", f"{_dob} / {_age}"
+        elif _dob:
+            dob_age_label, dob_age_value = "Date of Birth", _dob
+        elif _age:
+            dob_age_label, dob_age_value = "Age", _age
+        else:
+            dob_age_label, dob_age_value = "Date of Birth / Age", ""
         _clin_name = data.get('clinician', '')
         _clin_qual = data.get('clinician_qual', '').strip()
         clinician_display = f"{_clin_name}, {_clin_qual}" if _clin_name and _clin_qual else _clin_name or _clin_qual
         table_data = [
             [L("Patient name"), V(data.get('name','')), L("Specimen"), V(data.get('specimen','Peripheral blood').title())],
-            [L("Date of Birth / Age"), V(dob_age_value), L("PIN"), V(data.get('pin',''))],
+            [L(dob_age_label), V(dob_age_value), L("PIN"), V(data.get('pin',''))],
             [L("Gestational Age"), V(data.get('ga','')), L("Sample Number"), V(data.get('sample_id',''))],
             [L("Pregnancy Type; status"), V(f"{fmt_preg(data.get('preg_type',''))}; {fmt_preg(data.get('preg_status',''))}".strip('; ')), L("Sample collection date"), V(fmt_date(data.get('collection_date','')))],
             [L("Referring Clinician"), V(clinician_display), L("Sample received date"), V(fmt_date(data.get('received_date','')))],

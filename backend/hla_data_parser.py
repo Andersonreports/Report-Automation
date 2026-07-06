@@ -30,7 +30,11 @@ def _fmt_date(val) -> str:
     s = str(val).strip()
     parts = re.split(r"[/\-]", s)
     if len(parts) == 3:
-        dd, mm, yyyy = parts[0].strip(), parts[1].strip(), parts[2].strip()
+        a, b, c = parts[0].strip(), parts[1].strip(), parts[2].strip()
+        if len(a) == 4:
+            yyyy, mm, dd = a, b, c
+        else:
+            dd, mm, yyyy = a, b, c
         return f"{dd.zfill(2)}-{mm.zfill(2)}-{yyyy}"
     return s
 

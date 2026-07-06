@@ -350,13 +350,22 @@ class NIPTDocxGenerator:
         table.columns[2].width = Inches(1.5)
         table.columns[3].width = Inches(0.85)
 
-        dob_label = data.get('dob_type', 'Date of Birth')
+        _dob = fmt_date(data.get('dob',''))
+        _age = str(data.get('age','') or '').strip()
+        if _dob and _age:
+            dob_label, dob_value = "Date of Birth / Age", f"{_dob} / {_age}"
+        elif _dob:
+            dob_label, dob_value = "Date of Birth", _dob
+        elif _age:
+            dob_label, dob_value = "Age", _age
+        else:
+            dob_label, dob_value = "Date of Birth", ""
         _clin_name = data.get('clinician', '')
         _clin_qual = data.get('clinician_qual', '').strip()
         clinician_display = f"{_clin_name}, {_clin_qual}" if _clin_name and _clin_qual else _clin_name or _clin_qual
         mapping = [
             ("Patient name", data.get('name',''), "Specimen", data.get('specimen','Peripheral blood').title()),
-            (dob_label, fmt_date(data.get('dob','')), "PIN", data.get('pin','')),
+            (dob_label, dob_value, "PIN", data.get('pin','')),
             ("Gestational Age", data.get('ga',''), "Sample Number", data.get('sample_id','')),
             ("Pregnancy Type; status", f"{fmt_preg(data.get('preg_type',''))}; {fmt_preg(data.get('preg_status',''))}".strip('; '), "Sample collection date", fmt_date(data.get('collection_date',''))),
             ("Referring Clinician", clinician_display, "Sample received date", fmt_date(data.get('received_date',''))),

@@ -69,6 +69,11 @@ const DEFAULT_SIG_COUNTS = {
 
 const SAB_KIT_NAMES = ["Immucor", "One Lambda"];
 
+const NGS_KITS = {
+  gendx:   { label: "GENDx",   imgt_release: "3.62",   methodology: "Typing by NGS Surfseq using GENDx Kit" },
+  immucor: { label: "IMMUCOR", imgt_release: "3.56.0", methodology: "Typing by NGS illumina MiniSeq using MIA FORA NGS Kits from IMMUCOR." },
+};
+
 function sabKitId(name) {
   const s = String(name || "").trim().toLowerCase();
   if (s.includes("lambda") || s.includes("kit 2") || s.includes("kit2")) return "kit2";
@@ -2036,7 +2041,6 @@ async function importSabToManual(sabFileInput, sabKitSelect) {
     const sabClass = data.sab_class || "I";
     const rtype = sabClass === "II" ? "sab_class2" : "sab_class1";
 
-    // Save patient data before potentially re-rendering the form
     capturePatientForRestore();
     const hadPatient = !!(state.savedPatient && (state.savedPatient.name || state.savedPatient.pin));
 
@@ -2049,7 +2053,6 @@ async function importSabToManual(sabFileInput, sabKitSelect) {
     }
 
     if (manualSpecialFields.sab) {
-      // If patient was already selected, preserve their details; only import SAB result data
       applySabImportData(manualSpecialFields.sab, data, !hadPatient);
     }
     statusEl.textContent = "Imported: " + fileName;
@@ -2105,7 +2108,6 @@ async function importBulkSabExcel(sabFileInput, sabKitSelect) {
     };
 
     if (state.bulkCases.length > 0) {
-      // Try to match an existing patient by PIN or sample number
       const sabPin = ((data.patient || {}).pin || "").trim();
       const sabSample = ((data.patient || {}).sample_number || "").trim();
       let matchIdx = -1;
@@ -2130,7 +2132,6 @@ async function importBulkSabExcel(sabFileInput, sabKitSelect) {
         statusEl.textContent = "Merged into patient: " + fileName;
         showToast("SAB data merged into existing patient.", "success");
       } else {
-        // No match — add as a new case rather than wiping the list
         const newIdx = state.bulkCases.length;
         state.bulkCases.push(newCase);
         state.bulkSelected.add(newIdx);
@@ -2987,6 +2988,10 @@ function renderBulkEditor(i) {
   }
 
   if (["single_hla", "transplant_donor", "ngs_photo", "loci11", "rpl_couple", "single_rpl"].includes(c.report_type)) {
+    const imgtInput = el("input", { type: "text", placeholder: "e.g. 3.56.0" });
+    imgtInput.value = c.imgt_release || "";
+    imgtInput.addEventListener("input", () => { c.imgt_release = imgtInput.value; scheduleBulkPreview(i); });
+
     const methCard = el("div", { class: "card" }, [el("h3", {}, "Methodology")]);
     const methTA = el("textarea", {
       placeholder: "Leave blank to use default (MiniSeq or SurfSeq based on NABL setting)",
@@ -2998,6 +3003,37 @@ function renderBulkEditor(i) {
       el("label", {}, "METHODOLOGY (OPTIONAL OVERRIDE)"),
       methTA,
     ]));
+
+    const kitCard = el("div", { class: "card" }, [el("h3", {}, "Kit")]);
+    const kitSel = el("select", {}, [
+      el("option", { value: "" }, "Select kit to auto-fill IMGT Release + Methodology"),
+      ...Object.entries(NGS_KITS).map(([key, k]) => el("option", { value: key }, k.label)),
+    ]);
+    kitSel.value = c.kit || "";
+    kitSel.addEventListener("change", () => {
+      c.kit = kitSel.value;
+      const preset = NGS_KITS[kitSel.value];
+      if (preset) {
+        c.imgt_release = preset.imgt_release;
+        c.methodology = preset.methodology;
+        imgtInput.value = preset.imgt_release;
+        methTA.value = preset.methodology;
+      }
+      scheduleBulkPreview(i);
+    });
+    kitCard.appendChild(el("div", { class: "field full" }, [
+      el("label", {}, "KIT"),
+      kitSel,
+    ]));
+    editCol.appendChild(kitCard);
+
+    const imgtCard = el("div", { class: "card" }, [el("h3", {}, "IMGT/HLA Release")]);
+    imgtCard.appendChild(el("div", { class: "field full" }, [
+      el("label", {}, "IMGT/HLA RELEASE"),
+      imgtInput,
+    ]));
+    editCol.appendChild(imgtCard);
+
     editCol.appendChild(methCard);
 
     const statusCard = el("div", { class: "card" }, [el("h3", {}, "Typing Status")]);

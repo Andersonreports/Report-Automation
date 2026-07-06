@@ -640,19 +640,51 @@
       const downloadCsvBtn = document.getElementById('pfDownloadCsvBtn');
       document.getElementById('pfModalCloseBtn').addEventListener('click', () => { backdrop.style.display = 'none'; });
 
+      const templateSelectEl = document.getElementById('templateSelect');
+      if (templateSelectEl) {
+        templateSelectEl.addEventListener('change', () => { statusEl.textContent = ''; });
+      }
+
       let draggedPatient = null;
 
-      function fillField(key, value) {
-        if (value === undefined || value === null || value === '') return;
-        if (manualFields[key]) manualFields[key].value = value;
+      const CROSSMATCH_RTYPES = ['cdc_crossmatch', 'dsa_crossmatch', 'flow_crossmatch'];
+      const PRA_RTYPES = ['pra_class1', 'pra_class2', 'mixed_pra'];
+      const SAB_RTYPES = ['sab_class1', 'sab_class2'];
+
+      function getPatientFieldTarget() {
+        const rtype = state.rtype;
+        if (rtype === 'luminex_typing' && manualSpecialFields.luminex) {
+          return { fields: manualSpecialFields.luminex.patient, nameKey: 'patient_name' };
+        }
+        if (CROSSMATCH_RTYPES.includes(rtype) && manualSpecialFields.crossmatch) {
+          return { fields: manualSpecialFields.crossmatch.patient, nameKey: 'name' };
+        }
+        if (rtype === 'kir_genotyping' && manualSpecialFields.kir) {
+          return { fields: manualSpecialFields.kir.patient, nameKey: 'patient_name' };
+        }
+        if (PRA_RTYPES.includes(rtype) && manualSpecialFields.pra) {
+          return { fields: manualSpecialFields.pra.patient, nameKey: 'patient_name', splitAge: true };
+        }
+        if (SAB_RTYPES.includes(rtype) && manualSpecialFields.sab) {
+          return { fields: manualSpecialFields.sab.patient, nameKey: 'patient_name' };
+        }
+        return { fields: manualFields, nameKey: 'patient_name' };
       }
 
       function applyPatient(p) {
-        fillField('patient_name', p.patient_name);
-        fillField('name', p.patient_name);
-        fillField('age', p.age);
-        fillField('gender', p.gender);
-        if (p.age != null && p.gender) fillField('gender_age', `${p.gender} / ${p.age}`);
+        const target = getPatientFieldTarget();
+        const fields = target.fields || {};
+        function fillField(key, value) {
+          if (value === undefined || value === null || value === '') return;
+          if (fields[key]) fields[key].value = value;
+        }
+        fillField(target.nameKey, p.patient_name);
+        if (target.splitAge) {
+          fillField('gender', p.gender);
+          fillField('age', p.age);
+        } else if (p.age != null && p.gender) {
+          fillField('gender_age', `${p.gender} / ${p.age}`);
+        }
         fillField('sample_number', p.lab_no);
         fillField('pin', p.patient_no);
         const isoDate = (p.sample_receipt_date || '').split(' ')[0];
@@ -665,17 +697,30 @@
       }
 
       function applyDonor(p) {
-        if (!manualDonorFields.length) {
+        const rtype = state.rtype;
+        let df = null;
+        let isMulti = false;
+
+        if (rtype === 'luminex_typing' && manualSpecialFields.luminex) {
+          df = manualSpecialFields.luminex.donor;
+        } else if (CROSSMATCH_RTYPES.includes(rtype) && manualSpecialFields.crossmatch) {
+          df = manualSpecialFields.crossmatch.donor;
+        } else if (manualDonorFields.length) {
+          isMulti = true;
+          df = manualDonorFields[manualDonorFields.length - 1];
+          const lastIsFilled = df.name && df.name.value && df.name.value.trim() !== '';
+          if (lastIsFilled && typeof MULTI_DONOR_RTYPES !== 'undefined' && MULTI_DONOR_RTYPES.includes(rtype)) {
+            const sectionTitle = rtype === 'rpl_couple' ? 'Spouse / Donor' : 'Donor';
+            addManualDonorCard(rtype, sectionTitle);
+            df = manualDonorFields[manualDonorFields.length - 1];
+          }
+        }
+
+        if (!df) {
           statusEl.textContent = 'This report type has no Donor section.';
           return;
         }
-        let df = manualDonorFields[manualDonorFields.length - 1];
-        const lastIsFilled = df.name && df.name.value && df.name.value.trim() !== '';
-        if (lastIsFilled && typeof MULTI_DONOR_RTYPES !== 'undefined' && MULTI_DONOR_RTYPES.includes(state.rtype)) {
-          const sectionTitle = state.rtype === 'rpl_couple' ? 'Spouse / Donor' : 'Donor';
-          addManualDonorCard(state.rtype, sectionTitle);
-          df = manualDonorFields[manualDonorFields.length - 1];
-        }
+
         function fillDonorField(key, value) {
           if (value === undefined || value === null || value === '') return;
           if (df[key]) df[key].value = value;
@@ -690,7 +735,7 @@
         fillDonorField('collection_date', displayDate);
         fillDonorField('receipt_date', displayDate);
         if (typeof scheduleManualPreview === 'function') scheduleManualPreview();
-        statusEl.textContent = `Donor ${manualDonorFields.length} details applied.`;
+        statusEl.textContent = isMulti ? `Donor ${manualDonorFields.length} details applied.` : 'Donor details applied.';
       }
 
       function setupDropTarget(el, onDrop) {
