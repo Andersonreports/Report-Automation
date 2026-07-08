@@ -1009,8 +1009,12 @@ _HOSPITAL_ACRONYMS = {
 
 
 def _title_case_words(value: str) -> str:
-    text = " ".join(w[:1].upper() + w[1:].lower()
-                    for w in str(value or "").strip().split())
+    def _w(w):
+        # Alphanumeric tokens (e.g. hospital/MRD codes like "Mdr07072") stay full caps.
+        if any(c.isdigit() for c in w) and any(c.isalpha() for c in w):
+            return w.upper()
+        return w[:1].upper() + w[1:].lower()
+    text = " ".join(_w(w) for w in str(value or "").strip().split())
     text = re.sub(r"\b(Mr|Mrs|Ms|Dr)\.\s*([a-z])",
                   lambda m: f"{m.group(1)}. {m.group(2).upper()}", text)
     # Hospital codes appended in parentheses, e.g. "Jane Doe (sdcgh12cf)",
