@@ -191,12 +191,18 @@
         }
 
         input[id^="pr_"]::-webkit-outer-spin-button,
-        input[id^="pr_"]::-webkit-inner-spin-button {
+        input[id^="pr_"]::-webkit-inner-spin-button,
+        input[id^="mrp_"]::-webkit-outer-spin-button,
+        input[id^="mrp_"]::-webkit-inner-spin-button,
+        input[id^="b2b_"]::-webkit-outer-spin-button,
+        input[id^="b2b_"]::-webkit-inner-spin-button {
             -webkit-appearance: none;
             margin: 0;
         }
 
-        input[id^="pr_"] {
+        input[id^="pr_"],
+        input[id^="mrp_"],
+        input[id^="b2b_"] {
             -moz-appearance: textfield;
             appearance: textfield;
         }
@@ -1251,6 +1257,8 @@
                     nSamples: r.nSamples,
                     dataSize: r.dataSize,
                     tat: r.tat,
+                    mrp: r.mrp,
+                    b2b: r.b2b,
                     price: r.price
                 })),
                 extraRows: getExtraRows()
@@ -1300,11 +1308,15 @@
                         const ns = document.getElementById('ns_' + id);
                         const ds = document.getElementById('ds_' + id);
                         const tatEl = document.getElementById('tat_' + id);
+                        const mrpEl = document.getElementById('mrp_' + id);
+                        const b2bEl = document.getElementById('b2b_' + id);
                         const pr = document.getElementById('pr_' + id);
                         if (st) st.value = r.sType;
                         if (ns) ns.value = r.nSamples;
                         if (ds) ds.value = r.dataSize || '';
                         if (tatEl) tatEl.value = r.tat || '';
+                        if (mrpEl) mrpEl.value = r.mrp || '';
+                        if (b2bEl) b2bEl.value = r.b2b || '';
                         if (pr) pr.value = r.price;
                     });
                     _loading = false;
@@ -1386,6 +1398,16 @@
                 <input type="text" id="tat_${id}" placeholder="e.g. 7 days" oninput="refresh()">
             </div>
         </div>
+        <div class="grid2">
+            <div class="fg">
+                <label>MRP (₹) <span style="font-weight:400;color:#999;font-size:.7rem">(optional)</span></label>
+                <input type="number" id="mrp_${id}" placeholder="e.g. 15000" min="0" oninput="refresh()" onwheel="this.blur()">
+            </div>
+            <div class="fg">
+                <label>B2B (₹) <span style="font-weight:400;color:#999;font-size:.7rem">(optional)</span></label>
+                <input type="number" id="b2b_${id}" placeholder="e.g. 12000" min="0" oninput="refresh()" onwheel="this.blur()">
+            </div>
+        </div>
         <div class="fg">
             <label>Price per Sample (₹)</label>
             <input type="number" id="pr_${id}" placeholder="e.g. 13500" min="0" oninput="refresh()" onwheel="this.blur()">
@@ -1464,11 +1486,13 @@
                 const nSamples = parseFloat($(`ns_${id}`)?.value) || 0;
                 const dataSize = $(`ds_${id}`)?.value?.trim() || '';
                 const tat = $(`tat_${id}`)?.value?.trim() || '';
+                const mrp = parseFloat($(`mrp_${id}`)?.value) || 0;
+                const b2b = parseFloat($(`b2b_${id}`)?.value) || 0;
                 const price = parseFloat($(`pr_${id}`)?.value) || 0;
                 const rowTotal = nSamples * price;
                 const rtEl = $(`rt_${id}`);
                 if (rtEl) rtEl.textContent = `Row Total: ₹ ${inr(rowTotal)}`;
-                rows.push({ id, desc, sType, nSamples, dataSize, tat, price, rowTotal });
+                rows.push({ id, desc, sType, nSamples, dataSize, tat, mrp, b2b, price, rowTotal });
             });
             return rows;
         }
@@ -1510,8 +1534,10 @@
             
             const hasDataSize = rows.some(r => r.dataSize);
             const hasTAT = rows.some(r => r.tat);
-            const extraCols = (hasDataSize ? 1 : 0) + (hasTAT ? 1 : 0);
-            
+            const hasMRP = rows.some(r => r.mrp);
+            const hasB2B = rows.some(r => r.b2b);
+            const extraCols = (hasDataSize ? 1 : 0) + (hasTAT ? 1 : 0) + (hasMRP ? 1 : 0) + (hasB2B ? 1 : 0);
+
             $('p-thead').innerHTML = `<tr>
 <th style="width:5%">S.No</th>
 <th>Service Description</th>
@@ -1519,6 +1545,8 @@
 <th>No. of sample</th>
 ${hasDataSize ? '<th>Data Size</th>' : ''}
 ${hasTAT ? '<th>TAT</th>' : ''}
+${hasMRP ? '<th>MRP</th>' : ''}
+${hasB2B ? '<th>B2B</th>' : ''}
 <th>Price</th>
 <th>Total Price</th>
 </tr>`;
@@ -1538,6 +1566,8 @@ ${hasTAT ? '<th>TAT</th>' : ''}
 <td>${r.nSamples || '—'}</td>
 ${hasDataSize ? `<td>${r.dataSize || '—'}</td>` : ''}
 ${hasTAT ? `<td>${r.tat || '—'}</td>` : ''}
+${hasMRP ? `<td>${r.mrp ? inr(r.mrp) : '—'}</td>` : ''}
+${hasB2B ? `<td>${r.b2b ? inr(r.b2b) : '—'}</td>` : ''}
 <td>${r.price ? inr(r.price) : '—'}</td>
 <td>${r.rowTotal ? inr(r.rowTotal) : '—'}</td>
 </tr>
