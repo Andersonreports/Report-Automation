@@ -5360,11 +5360,27 @@
       <h4> Embryo: ${esc(emb.embryo_id || ("Embryo " + (ei + 1)))}</h4>
       <div class="bulk-editor-field"><label>Embryo ID:</label><input value="${esc(emb.embryo_id || "")}" oninput="state.bulkPatients[${i}].embryos[${ei}].embryo_id=this.value;scheduleBulkPreview()"></div>
       <div class="bulk-editor-field"><label>Result Summary:</label>
-        <select style="color:${getResultColor(RESULT_SUMMARY_OPTIONS.includes(emb.result_summary) ? emb.result_summary : getPrettySummary(emb.result_summary))};font-weight:600;" onchange="this.style.color=getResultColor(this.value);state.bulkPatients[${i}].embryos[${ei}].result_summary=this.value;renderBulkEditor(${i});scheduleBulkPreview()">
-          ${RESULT_SUMMARY_OPTIONS.map(v => `<option style="color:${getResultColor(v)};"${(RESULT_SUMMARY_OPTIONS.includes(emb.result_summary) ? emb.result_summary : getPrettySummary(emb.result_summary)) === v ? " selected" : ""}>${esc(v)}</option>`).join("")}
+        ${(() => {
+          const matchedRS = RESULT_SUMMARY_OPTIONS.includes(emb.result_summary) ? emb.result_summary : getPrettySummary(emb.result_summary);
+          const isCustomRS = !RESULT_SUMMARY_OPTIONS.includes(matchedRS);
+          return `<select style="color:${getResultColor(matchedRS)};font-weight:600;" onchange="onBulkResultSummarySelect(${i},${ei},this.value,this)">
+          ${RESULT_SUMMARY_OPTIONS.map(v => `<option style="color:${getResultColor(v)};"${!isCustomRS && matchedRS === v ? " selected" : ""}>${esc(v)}</option>`).join("")}
+          <option value="__custom__"${isCustomRS ? " selected" : ""}>Other (edit below)</option>
         </select>
+        <input type="text" style="margin-top:6px;${isCustomRS ? "" : "display:none;"}" placeholder="Type custom result summary..." value="${esc(isCustomRS ? (emb.result_summary || "") : "")}" oninput="state.bulkPatients[${i}].embryos[${ei}].result_summary=this.value;scheduleBulkPreview()">`;
+        })()}
       </div>
-      <div class="bulk-editor-field"><label>Result Description:</label><input value="${esc(emb.result_description || emb.result_summary || "")}" oninput="state.bulkPatients[${i}].embryos[${ei}].result_description=this.value;scheduleBulkPreview()"></div>
+      <div class="bulk-editor-field"><label>Result Description:</label>
+        ${(() => {
+          const rdVal = emb.result_description || emb.result_summary || "";
+          const isCustomRD = !RESULT_SUMMARY_OPTIONS.includes(rdVal);
+          return `<select onchange="onBulkResultDescSelect(${i},${ei},this.value)">
+          ${RESULT_SUMMARY_OPTIONS.map(v => `<option${!isCustomRD && rdVal === v ? " selected" : ""}>${esc(v)}</option>`).join("")}
+          <option value="__custom__"${isCustomRD ? " selected" : ""}>Other (edit below)</option>
+        </select>
+        <input type="text" style="margin-top:6px;${isCustomRD ? "" : "display:none;"}" placeholder="Type custom result description..." value="${esc(isCustomRD ? rdVal : "")}" oninput="state.bulkPatients[${i}].embryos[${ei}].result_description=this.value;scheduleBulkPreview()">`;
+        })()}
+      </div>
       <div class="bulk-editor-field"><label>Autosomes:</label><input value="${esc(emb.autosomes || "Normal")}" oninput="state.bulkPatients[${i}].embryos[${ei}].autosomes=this.value;scheduleBulkPreview()"></div>
       <div class="bulk-editor-field"><label>Sex Chromosomes:</label>
         <input type="text" list="bulk-sex-dl-${i}-${ei}" value="${esc(emb.sex_chromosomes || "Normal")}" placeholder="Normal, -X, Mosaic +X..."
@@ -5407,6 +5423,35 @@
       if (!emb) return;
       emb.result_summary = value;
       selectEl.style.color = getResultColor(value);
+      scheduleBulkPreview();
+    }
+
+    function onBulkResultSummarySelect(pi, ei, value, selectEl) {
+      const emb = state.bulkPatients[pi]?.embryos?.[ei];
+      if (!emb) return;
+      if (value === "__custom__") {
+        if (RESULT_SUMMARY_OPTIONS.includes(emb.result_summary)) emb.result_summary = "";
+        renderBulkEditor(pi);
+        scheduleBulkPreview();
+        return;
+      }
+      emb.result_summary = value;
+      if (selectEl) selectEl.style.color = getResultColor(value);
+      renderBulkEditor(pi);
+      scheduleBulkPreview();
+    }
+
+    function onBulkResultDescSelect(pi, ei, value) {
+      const emb = state.bulkPatients[pi]?.embryos?.[ei];
+      if (!emb) return;
+      if (value === "__custom__") {
+        if (RESULT_SUMMARY_OPTIONS.includes(emb.result_description)) emb.result_description = "";
+        renderBulkEditor(pi);
+        scheduleBulkPreview();
+        return;
+      }
+      emb.result_description = value;
+      renderBulkEditor(pi);
       scheduleBulkPreview();
     }
 

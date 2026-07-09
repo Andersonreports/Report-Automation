@@ -669,19 +669,24 @@ async def _parse_pgta_excel_core(contents: bytes):
         tok = s.split()[0] if s.split() else s
         return re.sub(r'[^A-Z0-9]', '', tok)
 
-    def short_embryo_id(sname):
+    def short_embryo_id(sname, matched_patient=None):
         # "PATIENT-V1_extra" -> "V1": strip the patient-name prefix and any
         # trailing "_..." suffix from a composite bulk-import sample name.
-        # Done once here (parse time) so the editable Embryo ID field starts
-        # clean; the renderer then shows it verbatim, with no further
-        # reinterpretation of dashes the user later types.
-        short_id = sname
-        if '-' in sname:
-            parts = sname.split('-')
-            if len(parts) >= 2:
-                id_part = parts[1]
-                short_id = id_part.split('_')[0] if '_' in id_part else id_part
-        return short_id
+        # Only stripped when the text before the dash actually matches the
+        # matched patient's name/first token -- otherwise the dash is part
+        # of the embryo tag itself (e.g. "BP-1") and must be kept verbatim.
+        base = sname.split('_')[0] if '_' in sname else sname
+        if '-' in base and matched_patient is not None:
+            prefix, _, rest = base.partition('-')
+            prefix_n = norm(prefix)
+            name_n = matched_patient.get("_name_n", "")
+            first_tok = matched_patient.get("_first_tok", "")
+            if rest and prefix_n and (
+                (name_n and (prefix_n == name_n or name_n.startswith(prefix_n))) or
+                (first_tok and prefix_n == first_tok)
+            ):
+                return rest
+        return base
 
     det_i = next((i for i, s in enumerate(
         sheets_lower) if 'detail' in s), None)
@@ -748,18 +753,6 @@ async def _parse_pgta_excel_core(contents: bytes):
                 row, ['Sample name', 'Sample Name', 'sample_name', 'Sample ID'])
             if not sname or sname in matched_samples:
                 continue
-            emb = {
-                "embryo_id":           short_embryo_id(sname),
-                "result_summary":      clean_val(row, ['Result', 'result', 'Summary']),
-                "interpretation":      clean_val(row, ['Conclusion', 'Interpretation', 'interpretation']),
-                "mtcopy":              clean_val(row, ['MTcopy', 'MT Copy', 'mtcopy', 'MT']),
-                "autosomes":           clean_val(row, ['AUTOSOMES', 'Autosomes', 'autosomes', 'Aneuploidy']),
-                "sex_chromosomes":     clean_val(row, ['SEX', 'Sex Chromosomes', 'sex_chromosomes', 'Sex'], 'Normal'),
-                "result_description":  clean_val(row, ['Result', 'result_description']),
-                "chromosome_statuses": {},
-                "mosaic_percentages":  {},
-                "inconclusive_comment": ""
-            }
             ns = norm(sname)
             sample_base = sname.split('_')[0]
             sample_first_tok = re.sub(
@@ -776,6 +769,19 @@ async def _parse_pgta_excel_core(contents: bytes):
             if matched is None:
                 matched = next(
                     (p for p in patients if len(p["_first_tok"]) >= 4 and p["_first_tok"] == sample_first_tok), None)
+
+            emb = {
+                "embryo_id":           short_embryo_id(sname, matched),
+                "result_summary":      clean_val(row, ['Result', 'result', 'Summary']),
+                "interpretation":      clean_val(row, ['Conclusion', 'Interpretation', 'interpretation']),
+                "mtcopy":              clean_val(row, ['MTcopy', 'MT Copy', 'mtcopy', 'MT']),
+                "autosomes":           clean_val(row, ['AUTOSOMES', 'Autosomes', 'autosomes', 'Aneuploidy']),
+                "sex_chromosomes":     clean_val(row, ['SEX', 'Sex Chromosomes', 'sex_chromosomes', 'Sex'], 'Normal'),
+                "result_description":  clean_val(row, ['Result', 'result_description']),
+                "chromosome_statuses": {},
+                "mosaic_percentages":  {},
+                "inconclusive_comment": ""
+            }
 
             if matched:
                 matched_samples.add(sname)
