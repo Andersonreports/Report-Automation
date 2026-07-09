@@ -5306,6 +5306,7 @@
     <div class="bulk-editor-field"><label>Biopsy Performed By:</label><input value="${esc(p.biopsy_performed_by || "")}" oninput="state.bulkPatients[${i}].biopsy_performed_by=this.value;scheduleBulkPreview()"></div>
     <div class="bulk-editor-field"><label>Report Date:</label><input value="${esc(p.report_date || todayStr())}" oninput="state.bulkPatients[${i}].report_date=this.value;scheduleBulkPreview()"></div>
     <div class="bulk-editor-field"><label>Indication:</label><textarea rows="3" oninput="state.bulkPatients[${i}].indication=this.value;scheduleBulkPreview()">${esc(p.indication || "")}</textarea></div>
+    <div class="bulk-editor-field"><label>Results Summary Comment:</label><textarea rows="2" oninput="state.bulkPatients[${i}].results_summary_comment=this.value;scheduleBulkPreview()">${esc(p.results_summary_comment || "")}</textarea></div>
   </div>`;
 
 
@@ -5497,7 +5498,7 @@
           hospital_clinic: p.hospital_clinic || "", sample_collection_date: p.sample_collection_date || "",
           specimen: p.specimen || "DAY 5 TROPHECTODERM BIOPSY", sample_receipt_date: p.sample_receipt_date || "",
           biopsy_performed_by: p.biopsy_performed_by || "", report_date: p.report_date || todayStr(),
-          indication: p.indication || "", results_summary_comment: ""
+          indication: p.indication || "", results_summary_comment: p.results_summary_comment || ""
         },
         embryos: embryos,
         options: { show_logo: showLogo, show_grid: showGrid, formats: ["pdf"] },
@@ -5509,7 +5510,7 @@
           hospital_clinic: p.hospital_clinic || "", sample_collection_date: p.sample_collection_date || "",
           specimen: p.specimen || "DAY 5 TROPHECTODERM BIOPSY", sample_receipt_date: p.sample_receipt_date || "",
           biopsy_performed_by: p.biopsy_performed_by || "", report_date: p.report_date || todayStr(),
-          indication: p.indication || "", results_summary_comment: ""
+          indication: p.indication || "", results_summary_comment: p.results_summary_comment || ""
         },
         embryos_data: embryos, show_logo: showLogo, show_grid: showGrid
       };

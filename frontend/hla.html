@@ -825,13 +825,18 @@
       }
 
       function patientsToCsv(patients) {
-        const header = ['Patient Name', 'Gender', 'Age', 'Patient No', 'Sample Receipt Date'];
+        const header = [
+          'Patient Name', 'Gender', 'Age', 'Patient No', 'Sample Receipt Date',
+          'Diagnosis', 'Referred By', 'Hospital/Clinic', 'Specimen', 'Relationship',
+          'Remarks', 'Hospital MR No', 'Collection Date', 'Report Date',
+        ];
         const rows = patients.map(p => [
           p.patient_name || '',
           p.gender || '',
           p.age ?? '',
           p.patient_no || '',
           (p.sample_receipt_date || '').split(' ')[0],
+          '', '', '', '', '', '', '', '', '',
         ]);
         return [header, ...rows].map(r => r.map(csvEscape).join(',')).join('\r\n');
       }

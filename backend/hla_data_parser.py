@@ -1367,6 +1367,14 @@ def parse_kir_excel(filepath: str, nabl: bool = True) -> list:
 
 
 
+def _plc_getv(row, keys, default: str = "") -> str:
+    for k in keys:
+        v = _clean_str(row.get(k, ""))
+        if v:
+            return v
+    return default
+
+
 def _parse_patient_list_csv(filepath: str, nabl: bool = True) -> list:
     try:
         df = pd.read_csv(filepath)
@@ -1384,20 +1392,20 @@ def _parse_patient_list_csv(filepath: str, nabl: bool = True) -> list:
         patient_dict = {
             "name":            _sentence_case(name),
             "gender_age":      _build_gender_age(row),
-            "diagnosis":       "",
-            "referred_by":     "",
-            "hospital_clinic": "",
-            "specimen":        "",
-            "relationship":    "",
-            "remarks":         "",
-            "hospital_mr_no":  "",
+            "diagnosis":       _plc_getv(row, ["diagnosis", "indication", "clinical diagnosis"]),
+            "referred_by":     _plc_getv(row, ["referred by", "referring clinician", "referring doctor", "ref doctor", "doctor"]),
+            "hospital_clinic": _plc_getv(row, ["hospital/clinic", "hospital clinic", "hospital/clinic name", "hospital", "clinic"]),
+            "specimen":        _plc_getv(row, ["specimen", "specimen type", "sample type"]),
+            "relationship":    _plc_getv(row, ["relationship", "relation"]),
+            "remarks":         _plc_getv(row, ["remarks", "comment", "comments"]),
+            "hospital_mr_no":  _plc_getv(row, ["hospital mr no", "hospital mrn", "mr no", "mrn"]),
             "pin":             _clean_str(row.get("patient no", "")),
             "sample_number":   _clean_str(
                 row.get("sample number", row.get("sample no", row.get("barcode", "")))
             ),
-            "collection_date": "",
+            "collection_date": _fmt_date(_plc_getv(row, ["collection date", "sample collection date"])),
             "receipt_date":    _fmt_date(row.get("sample receipt date", "")),
-            "report_date":     "",
+            "report_date":     _fmt_date(_plc_getv(row, ["report date"])),
             "match":           "",
             "hla":                   {locus: [None, None] for locus in ["A", "B", "C", "DRB1", "DQB1", "DPB1"]},
             "hla_c_type":            "",
