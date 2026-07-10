@@ -20,9 +20,8 @@ FRONTEND_DIR = os.environ.get("FRONTEND_DIR") or os.path.join(os.path.dirname(BA
 KARYO_REPORT_DIR = os.path.join(BASE_DIR, "reports-karyotype")
 KARYO_TEMP_DIR   = os.path.join(BASE_DIR, "temp", "karyotype")
 KARYO_IMG_DIR    = os.path.join(BASE_DIR, "uploads", "karyotype_img")
-KARYO_DRAFT_DIR  = os.path.join(BASE_DIR, "drafts", "KARYOTYPE")
 
-for _d in (KARYO_REPORT_DIR, KARYO_TEMP_DIR, KARYO_IMG_DIR, KARYO_DRAFT_DIR):
+for _d in (KARYO_REPORT_DIR, KARYO_TEMP_DIR, KARYO_IMG_DIR):
     os.makedirs(_d, exist_ok=True)
 
 
@@ -540,42 +539,6 @@ def register_karyotype_routes(app):
             import traceback
             return JSONResponse({"error": str(e), "trace": traceback.format_exc()},
                                 status_code=500)
-
-    @app.post("/karyotype/draft/save")
-    async def karyotype_save_draft(request: Request):
-        body = await request.json()
-        name = _clean((body.get("data", {}) or {}).get("NAME", "")) or "draft"
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        fname = f"karyo_draft_{_safe_component(name).replace(' ', '_')}_{ts}.json"
-        with open(os.path.join(KARYO_DRAFT_DIR, fname), "w", encoding="utf-8") as f:
-            json.dump(body, f, indent=2, ensure_ascii=False)
-        return {"saved": fname}
-
-    @app.get("/karyotype/draft/list")
-    def karyotype_list_drafts():
-        try:
-            files = sorted(
-                [f for f in os.listdir(KARYO_DRAFT_DIR) if f.endswith(".json")],
-                reverse=True)
-            return {"drafts": files}
-        except Exception:
-            return {"drafts": []}
-
-    @app.get("/karyotype/draft/load/{filename}")
-    def karyotype_load_draft(filename: str):
-        p = os.path.join(KARYO_DRAFT_DIR, os.path.basename(filename))
-        if not os.path.isfile(p):
-            return JSONResponse({"error": "not found"}, status_code=404)
-        with open(p, encoding="utf-8") as f:
-            return json.load(f)
-
-    @app.delete("/karyotype/draft/delete/{filename}")
-    def karyotype_delete_draft(filename: str):
-        p = os.path.join(KARYO_DRAFT_DIR, os.path.basename(filename))
-        if os.path.isfile(p):
-            os.remove(p)
-            return {"deleted": filename}
-        return JSONResponse({"error": "not found"}, status_code=404)
 
     @app.get("/karyotype/storage/list")
     def karyotype_storage_list():

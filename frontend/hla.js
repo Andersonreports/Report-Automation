@@ -787,7 +787,7 @@ function renderManualForm() {
     col.appendChild(interpCard);
   }
 
-  if (rtype === "single_rpl") {
+  if (rtype === "single_rpl" || rtype === "rpl_couple") {
     const rplRefCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-dna" }), " RPL Reference"])]);
     const hlaCInput = el("input", { type: "text", placeholder: "e.g. C1, C2 (leave blank to auto-detect from HLA-C alleles)", oninput: scheduleManualPreview });
     manualSpecialFields.rpl_hla_c = hlaCInput;
@@ -1452,7 +1452,7 @@ function collectManualCase() {
 
   const c = { report_type: rtype, nabl, with_logo: state.withLogo, signature_stamp: stamp, patient, donors, rpl_reference: {} };
 
-  if (rtype === "single_rpl" && manualSpecialFields.rpl_hla_c) {
+  if ((rtype === "single_rpl" || rtype === "rpl_couple") && manualSpecialFields.rpl_hla_c) {
     c.rpl_reference = { hla_c_patient: manualSpecialFields.rpl_hla_c.value.trim() };
   }
   if (rtype === "single_locus") {
@@ -1587,25 +1587,25 @@ function showInputModal(title, defaultValue) {
   });
 }
 
-function showPickerModal(title, items) {
+function _pickDraftFile() {
   return new Promise(resolve => {
-    const backdrop = el("div", { class: "hla-modal-backdrop" });
-    const list = el("div", { class: "hla-modal-list" });
-    items.forEach(name => {
-      const btn = el("button", { class: "hla-modal-item" }, name);
-      btn.addEventListener("click", () => { document.body.removeChild(backdrop); resolve(name); });
-      list.appendChild(btn);
-    });
-    const cancelBtn = el("button", { style: "background:transparent;color:var(--text-muted);border-color:var(--input-border);padding:7px 18px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid;" }, "Cancel");
-    cancelBtn.addEventListener("click", () => { document.body.removeChild(backdrop); resolve(null); });
-    const modal = el("div", { class: "hla-modal" }, [
-      el("h4", {}, title),
-      list,
-      el("div", { class: "hla-modal-actions" }, [cancelBtn]),
-    ]);
-    backdrop.appendChild(modal);
-    document.body.appendChild(backdrop);
-    backdrop.addEventListener("click", e => { if (e.target === backdrop) { document.body.removeChild(backdrop); resolve(null); } });
+    const input = el("input", { type: "file", accept: ".json", class: "hidden" });
+    input.addEventListener("change", () => resolve(input.files[0] || null));
+    document.body.appendChild(input);
+    input.click();
+    setTimeout(() => document.body.removeChild(input), 0);
+  });
+}
+
+function _readJsonFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try { resolve(JSON.parse(e.target.result)); }
+      catch (ex) { reject(ex); }
+    };
+    reader.onerror = () => reject(new Error("Could not read file"));
+    reader.readAsText(file);
   });
 }
 
@@ -1625,10 +1625,9 @@ async function saveDraft(scope) {
   const name = await showInputModal("Save Draft", defaultName);
   if (!name) return;
   const data = scope === "manual" ? { rtype: state.rtype, case: collectManualCase() } : { cases: state.bulkCases };
-  try {
-    await apiPost("/hla/drafts/save", { name, data });
-    showToast("Draft saved: " + name, "success");
-  } catch (e) { showToast("Error saving draft", "error"); }
+  const filename = `HLA_${_sanitizeFilename(name)}_${_todayStamp()}.json`;
+  _downloadJson(data, filename);
+  showToast("Draft saved to your Downloads folder: " + filename, "success");
 }
 
 async function loadDraftFromPdf(file) {
@@ -1643,7 +1642,11 @@ async function loadDraftFromPdf(file) {
       throw new Error(msg);
     }
     const result = await r.json();
-    showToast(`Saved as draft "${result.draft_name}" — open it via Load Draft.`, "success");
+    state.rtype = result.rtype || (result.case && result.case.report_type) || "single_hla";
+    document.getElementById("templateSelect").value = Object.keys(TEMPLATE_TO_RTYPE).find(k => TEMPLATE_TO_RTYPE[k] === state.rtype) || "With CL";
+    renderManualForm();
+    setTimeout(() => populateManualForm(result.case), 50);
+    showToast("Loaded from PDF: " + ((result.case.patient || {}).name || file.name), "success");
   } catch (e) {
     showToast("Could not read this PDF: " + e.message, "error");
   }
@@ -1651,11 +1654,9 @@ async function loadDraftFromPdf(file) {
 
 async function loadDraft(scope) {
   try {
-    const list = await apiGet("/hla/drafts");
-    if (!list.drafts || !list.drafts.length) { showToast("No drafts found.", "error"); return; }
-    const name = await showPickerModal("Select a Draft to Load", list.drafts);
-    if (!name) return;
-    const data = await apiGet("/hla/drafts/" + encodeURIComponent(name));
+    const file = await _pickDraftFile();
+    if (!file) return;
+    const data = await _readJsonFile(file);
     if (scope === "manual" && data.case) {
       state.rtype = data.rtype || "single_hla";
       document.getElementById("templateSelect").value = Object.keys(TEMPLATE_TO_RTYPE).find(k => TEMPLATE_TO_RTYPE[k] === state.rtype) || "With CL";
@@ -1664,9 +1665,12 @@ async function loadDraft(scope) {
     } else if (scope === "bulk" && data.cases) {
       state.bulkCases = data.cases;
       renderBulkList();
+    } else {
+      showToast("This draft file doesn't match the expected format for this tab.", "error");
+      return;
     }
-    showToast("Draft loaded: " + name, "success");
-  } catch (e) { showToast("Error loading draft", "error"); }
+    showToast("Draft loaded: " + file.name, "success");
+  } catch (e) { showToast("Error loading draft: " + e.message, "error"); }
 }
 
 function populateManualForm(c) {
@@ -1827,7 +1831,7 @@ function populateManualForm(c) {
     });
   }
 
-  if (rtype === "single_rpl" && manualSpecialFields.rpl_hla_c) {
+  if ((rtype === "single_rpl" || rtype === "rpl_couple") && manualSpecialFields.rpl_hla_c) {
     manualSpecialFields.rpl_hla_c.value = (c.rpl_reference && c.rpl_reference.hla_c_patient) || "";
   }
   if (rtype === "single_locus") {
@@ -2950,7 +2954,7 @@ function renderBulkEditor(i) {
     editCol.appendChild(addDonorRow);
   }
 
-  if (c.report_type === "single_rpl") {
+  if (c.report_type === "single_rpl" || c.report_type === "rpl_couple") {
     const rplRefCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-dna" }), " RPL Reference"])]);
     const hlaCInput = el("input", { type: "text",
       placeholder: "e.g. C1, C2 (leave blank to auto-detect from HLA-C alleles)",

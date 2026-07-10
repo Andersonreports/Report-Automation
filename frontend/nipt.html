@@ -2390,6 +2390,11 @@
     
     
     
+    function _draftStamp() {
+      const d = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+    }
     function saveDraftManual() {
       const { p, z } = collectManual();
       const payload = { patient_details: p, z_scores: z };
@@ -2397,13 +2402,9 @@
       const blob = new Blob([json], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `Draft_${(p.name || 'Patient').replace(/\s+/g, '_')}_NIPT.json`;
+      a.download = `NIPT_Draft_${(p.name || 'Patient').replace(/\s+/g, '_')}_${_draftStamp()}.json`;
       a.click();
-      fetch(`${BASE}/nipt/draft/save`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: json
-      }).then(r => r.json()).then(res => {
-        if (res.status === 'saved') showToast(`Draft saved to drafts/NIPT/${res.filename}`, 'success');
-      }).catch(e => console.warn('[NIPS] draft save failed:', e));
+      showToast('Draft saved to your Downloads folder', 'success');
     }
     function loadDraftManual() {
       document.getElementById('draftLoadInput').value = '';
@@ -2953,13 +2954,9 @@
       const blob = new Blob([json], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `Draft_${(pat.name || 'Patient').replace(/\s+/g, '_')}_NIPT.json`;
+      a.download = `NIPT_Draft_${(pat.name || 'Patient').replace(/\s+/g, '_')}_${_draftStamp()}.json`;
       a.click();
-      fetch(`${BASE}/nipt/draft/save`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: json
-      }).then(r => r.json()).then(res => {
-        if (res.status === 'saved') showToast(`Draft saved to drafts/NIPT/${res.filename}`, 'success');
-      }).catch(e => console.warn('[NIPS] draft save failed:', e));
+      showToast('Draft saved to your Downloads folder', 'success');
     }
     function saveBulkDraft() {
       if (currentBatchIdx >= 0) saveBatchEditor(currentBatchIdx);
@@ -2968,14 +2965,9 @@
       const blob = new Blob([json], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'BulkDraft_NIPT.json';
+      a.download = `NIPT_BulkDraft_${_draftStamp()}.json`;
       a.click();
-      const payload = JSON.stringify({ patient_details: { name: 'BulkDraft' }, patients: batchPatients, _type: 'nipt_bulk_draft' }, null, 2);
-      fetch(`${BASE}/nipt/draft/save`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload
-      }).then(r => r.json()).then(res => {
-        if (res.status === 'saved') showToast(`Draft saved to drafts/NIPT/${res.filename}`, 'success');
-      }).catch(e => console.warn('[NIPS] draft save failed:', e));
+      showToast('Draft saved to your Downloads folder', 'success');
     }
     function loadBulkDraft() {
       document.getElementById('bulkDraftLoadInput').value = '';

@@ -4164,12 +4164,7 @@
         showToast("Couldn't save draft in browser storage — downloading file instead (" + (e.message || e) + ")", "error");
       }
 
-      fetch(`${BASE}/save-draft/pgta_manual`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(draftData)
-      }).catch(e => console.warn("Server manual draft save failed:", e));
-
-      const filename = `pgta_draft_${patientName}_${todayStr()}_${Date.now()}.json`;
+      const filename = `PGTA_Draft_${patientName}_${todayStr()}_${Date.now()}.json`;
       const blob = new Blob([JSON.stringify(draftData, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a"); a.href = url; a.download = filename; a.click();
@@ -4262,12 +4257,13 @@
       } catch(e) {
         showToast("Storage full — cannot save draft", "error"); return;
       }
-      
-      fetch(`${BASE}/save-draft/pgta_bulk`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(draftData)
-      }).catch(e => console.warn("Server bulk draft save failed:", e));
-      showToast(`Draft saved: ${patientsToSave.length} patient(s)`, "success");
+
+      const filename = `PGTA_BulkDraft_${patientsToSave.length}patients_${todayStr()}_${ts}.json`;
+      const blob = new Blob([JSON.stringify(draftData, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+      showToast(`Draft saved: ${filename}`, "success");
     }
 
     function loadBulkDraft() {

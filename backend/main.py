@@ -35,9 +35,8 @@ REPORT_DIR = os.path.join(BASE_DIR, "reports")
 PGTA_REPORT_DIR = os.path.join(BASE_DIR, "reports-pgta")
 TEMP_DIR = os.path.join(BASE_DIR, "temp")
 PGTA_CNV_DIR = os.path.join(BASE_DIR, "uploads", "pgta_cnv")
-PGTA_DRAFT_DIR = os.path.join(BASE_DIR, "drafts", "PGTA")
 
-for d in (REPORT_DIR, PGTA_REPORT_DIR, TEMP_DIR, PGTA_CNV_DIR, PGTA_DRAFT_DIR):
+for d in (REPORT_DIR, PGTA_REPORT_DIR, TEMP_DIR, PGTA_CNV_DIR):
     os.makedirs(d, exist_ok=True)
 
 TEMP_CLEANUP_INTERVAL_SECONDS = 24 * 60 * 60
@@ -46,7 +45,7 @@ TEMP_MAX_AGE_SECONDS = 24 * 60 * 60
 
 def _cleanup_old_files():
     now = time.time()
-    cleanup_dirs = [TEMP_DIR, REPORT_DIR, PGTA_REPORT_DIR] + [
+    cleanup_dirs = [TEMP_DIR, REPORT_DIR, PGTA_REPORT_DIR, os.path.join(BASE_DIR, "drafts")] + [
         os.path.join(BASE_DIR, name)
         for name in ("reports-nipt", "reports-hla", "reports-karyotype")
     ]
@@ -55,6 +54,8 @@ def _cleanup_old_files():
             continue
         for dirpath, dirnames, filenames in os.walk(base, topdown=False):
             for name in filenames:
+                if name == "hla_settings.json":
+                    continue  # persistent app settings, not a draft -- never age out
                 fp = os.path.join(dirpath, name)
                 try:
                     if now - os.path.getmtime(fp) >= TEMP_MAX_AGE_SECONDS:
@@ -371,39 +372,6 @@ async def upload_excel(file: UploadFile = File(...)):
         return {"rows": rows}
     except Exception as e:
         return {"error": str(e), "rows": []}
-
-
-
-TERA_DRAFT_DIR = os.path.join(BASE_DIR, "drafts", "TERA")
-os.makedirs(TERA_DRAFT_DIR, exist_ok=True)
-
-
-@app.post("/save-draft/{draft_type}")
-async def save_draft(draft_type: str, request: Request):
-    data = await request.json()
-    fname = re.sub(r'[^a-zA-Z0-9_-]', '_', draft_type) + ".json"
-    with open(os.path.join(TERA_DRAFT_DIR, fname), "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-    return {"status": "saved"}
-
-
-@app.get("/list-drafts")
-def list_drafts():
-    try:
-        files = sorted(os.listdir(TERA_DRAFT_DIR), reverse=True)
-        return {"drafts": [{"draft_type": f.replace(".json", ""), "filename": f} for f in files if f.endswith(".json")]}
-    except Exception as e:
-        return {"drafts": [], "error": str(e)}
-
-
-@app.get("/load-draft/{draft_type}")
-def load_draft(draft_type: str):
-    fname = re.sub(r'[^a-zA-Z0-9_-]', '_', draft_type) + ".json"
-    fpath = os.path.join(TERA_DRAFT_DIR, fname)
-    if not os.path.exists(fpath):
-        return {"data": None}
-    with open(fpath, encoding="utf-8") as f:
-        return {"data": json.load(f)}
 
 
 
@@ -841,46 +809,6 @@ async def pgta_parse_excel_bulk(files: List[UploadFile] = File(...)):
 
 
 
-@app.post("/pgta/draft/save")
-async def pgta_save_draft(request: Request):
-    try:
-        body = await request.json()
-        patient = body.get("patient", {})
-        pname = re.sub(r'[^a-zA-Z0-9 ]', '', str(patient.get("patient_name",
-                       "draft"))).replace(" ", "_").strip() or "draft"
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        fname = f"pgta_bulk_draft_{pname}_{ts}.json"
-        fpath = os.path.join(PGTA_DRAFT_DIR, fname)
-        with open(fpath, "w", encoding="utf-8") as f:
-            json.dump({"patients": [patient], "_type": "pgta_bulk_draft",
-                      "_savedAt": datetime.now().isoformat()}, f, indent=2)
-        return {"status": "saved", "filename": fname}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-
-@app.get("/pgta/draft/list")
-def pgta_list_drafts():
-    try:
-        files = sorted([f for f in os.listdir(PGTA_DRAFT_DIR)
-                       if f.endswith(".json")], reverse=True)
-        return {"files": files}
-    except Exception as e:
-        return {"files": [], "error": str(e)}
-
-
-@app.delete("/pgta/draft/delete/{filename}")
-def pgta_delete_draft(filename: str):
-    try:
-        fp = os.path.join(PGTA_DRAFT_DIR, os.path.basename(filename))
-        if os.path.exists(fp):
-            os.remove(fp)
-            return {"status": "deleted"}
-        return {"status": "not_found"}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-
 
 @app.post("/pgta/autosave")
 async def pgta_autosave_push(request: Request):
@@ -985,9 +913,7 @@ def health():
 
 
 NIPT_REPORT_DIR = os.path.join(BASE_DIR, "reports-nipt")
-NIPT_DRAFT_DIR = os.path.join(BASE_DIR, "drafts", "NIPT")
 os.makedirs(NIPT_REPORT_DIR, exist_ok=True)
-os.makedirs(NIPT_DRAFT_DIR,  exist_ok=True)
 
 app.mount("/reports-nipt", StaticFiles(directory=NIPT_REPORT_DIR),
           name="reports-nipt")
@@ -1308,51 +1234,6 @@ async def nipt_parse_excel(file: UploadFile = File(...)):
         import traceback
         traceback.print_exc()
         return {"error": str(e), "patients": []}
-
-
-
-@app.post("/nipt/draft/save")
-async def nipt_save_draft(request: Request):
-    try:
-        body = await request.json()
-        pname = re.sub(r'[^a-zA-Z0-9 ]', '',
-                       str(body.get("patient_details", {}).get("name", "draft"))
-                       ).replace(" ", "_").strip() or "draft"
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        fname = f"nipt_draft_{pname}_{ts}.json"
-        with open(os.path.join(NIPT_DRAFT_DIR, fname), "w", encoding="utf-8") as f:
-            json.dump(body, f, indent=2)
-        return {"status": "saved", "filename": fname}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-
-@app.get("/nipt/draft/list")
-def nipt_list_drafts():
-    try:
-        files = sorted([f for f in os.listdir(NIPT_DRAFT_DIR)
-                       if f.endswith(".json")], reverse=True)
-        return {"files": files}
-    except Exception as e:
-        return {"files": [], "error": str(e)}
-
-
-@app.get("/nipt/draft/load/{filename}")
-def nipt_load_draft(filename: str):
-    fpath = os.path.join(NIPT_DRAFT_DIR, os.path.basename(filename))
-    if not os.path.exists(fpath):
-        return {"data": None}
-    with open(fpath, encoding="utf-8") as f:
-        return {"data": json.load(f)}
-
-
-@app.delete("/nipt/draft/delete/{filename}")
-def nipt_delete_draft(filename: str):
-    fp = os.path.join(NIPT_DRAFT_DIR, os.path.basename(filename))
-    if os.path.exists(fp):
-        os.remove(fp)
-        return {"status": "deleted"}
-    return {"status": "not_found"}
 
 
 
