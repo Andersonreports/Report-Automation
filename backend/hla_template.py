@@ -50,7 +50,7 @@ MARGIN_R = 15 * mm
 MARGIN_T = 2  * mm
 MARGIN_B = 3  * mm
 CONTENT_W = PAGE_W - MARGIN_L - MARGIN_R   
-QR_ZONE   = 30 * mm  
+QR_ZONE   = 28.5 * mm
 C_NGS_TITLE     = colors.HexColor("#002060")   
 C_INFO_BG       = colors.HexColor("#E2E2E2")  
 C_HLA_HDR       = colors.HexColor("#FABF8F")   
@@ -551,19 +551,48 @@ def _normalize_age(gender_age: str) -> str:
 
 
 def _fit_one_line(text: str, avail_pts: float, base_style: ParagraphStyle,
-                  min_size: float = 6.5) -> Paragraph:
-    """Render *text* at full font, wrapping onto extra lines when it is too wide.
+                  min_size: float = 6.5, max_lines: int = 2) -> Paragraph:
+    """Render *text* at full font, wrapping onto up to *max_lines* lines and
+    truncating with an ellipsis if it still doesn't fit.
 
     Used for free-text demography values such as a lengthy Hospital/Clinic name.
-    The value keeps its normal font size and is allowed to wrap to a second line
-    rather than being shrunk to fit on one line; the demography row simply grows
-    taller to accommodate the extra line (the rows top-align, so the label stays
-    anchored to the first wrapped line).
+    The row height must stay bounded/predictable regardless of how long the
+    value is: several report layouts follow this demography table with a
+    KeepTogether(title + results table) block, and an unbounded number of
+    wrapped lines here can eat into the remaining space on the page enough
+    that the whole KeepTogether block gets pushed onto a fresh page, leaving
+    most of the current page blank.
 
-    (*avail_pts* and *min_size* are retained for call-site compatibility; the
-    Paragraph wraps to its cell width on its own, so they are no longer used.)
+    (*min_size* is retained for call-site compatibility; text is no longer
+    shrunk to a smaller font, only wrapped/truncated.)
     """
-    return Paragraph(text or "", base_style)
+    s = (text or "").strip()
+    if not s:
+        return Paragraph("", base_style)
+
+    font_name, font_size = base_style.fontName, base_style.fontSize
+
+    def _w(t):
+        return pdfmetrics.stringWidth(t, font_name, font_size)
+
+    words = s.split()
+    lines = []
+    i = 0
+    while i < len(words) and len(lines) < max_lines:
+        line = words[i]
+        i += 1
+        while i < len(words) and _w(line + " " + words[i]) <= avail_pts:
+            line += " " + words[i]
+            i += 1
+        lines.append(line)
+
+    if i < len(words):
+        last = (lines[-1] + " " + " ".join(words[i:])).strip()
+        while last and _w(last + "…") > avail_pts:
+            last = last[:-1].rstrip()
+        lines[-1] = (last + "…") if last else "…"
+
+    return Paragraph("<br/>".join(lines), base_style)
 
 
 def _demography_col_widths(patient: dict, donor: dict, nabl: bool = False) -> list:

@@ -1223,7 +1223,15 @@ function buildSabSection(col, rtype) {
     scheduleManualPreview();
   };
   praInput.addEventListener("input", refreshPra);
-  classSelect.addEventListener("change", refreshPra);
+  classSelect.addEventListener("change", () => {
+    const newRtype = classSelect.value === "II" ? "sab_class2" : "sab_class1";
+    if (state.rtype !== newRtype) {
+      state.rtype = newRtype;
+      const templateSelect = document.getElementById("templateSelect");
+      if (templateSelect) templateSelect.value = RTYPE_TO_TEMPLATE_NAME[newRtype] || templateSelect.value;
+    }
+    refreshPra();
+  });
 
   
   const alleleCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-vial" }), " Allele Data (one per line: Allele,MFI)"])]);
@@ -1590,10 +1598,12 @@ function showInputModal(title, defaultValue) {
 function _pickDraftFile() {
   return new Promise(resolve => {
     const input = el("input", { type: "file", accept: ".json", class: "hidden" });
-    input.addEventListener("change", () => resolve(input.files[0] || null));
     document.body.appendChild(input);
+    input.addEventListener("change", () => {
+      resolve(input.files[0] || null);
+      document.body.removeChild(input);
+    });
     input.click();
-    setTimeout(() => document.body.removeChild(input), 0);
   });
 }
 
@@ -2042,8 +2052,12 @@ async function importSabToManual(sabFileInput, sabKitSelect) {
       throw new Error(msg);
     }
     const data = await r.json();
-    const sabClass = data.sab_class || "I";
-    const rtype = sabClass === "II" ? "sab_class2" : "sab_class1";
+    let rtype = state.rtype === "sab_class2" ? "sab_class2" : "sab_class1";
+    if (data.sab_class === "I" || data.sab_class === "II") {
+      rtype = data.sab_class === "II" ? "sab_class2" : "sab_class1";
+    } else {
+      showToast("Could not detect SAB Class from this file — keeping the currently selected class. Set the SAB Class dropdown manually if it's wrong.", "info");
+    }
 
     capturePatientForRestore();
     const hadPatient = !!(state.savedPatient && (state.savedPatient.name || state.savedPatient.pin));
@@ -2085,7 +2099,8 @@ async function importBulkSabExcel(sabFileInput, sabKitSelect) {
       throw new Error(msg);
     }
     const data = await r.json();
-    const sabClass = data.sab_class || "I";
+    const detectedClass = (data.sab_class === "I" || data.sab_class === "II") ? data.sab_class : null;
+    const sabClass = detectedClass || "I";
     const fields = data.patient || {};
     const patient = emptyPerson({
       name: fields.patient_name || "", gender_age: fields.gender_age || "",
@@ -2125,16 +2140,20 @@ async function importBulkSabExcel(sabFileInput, sabKitSelect) {
       }
       if (matchIdx >= 0) {
         const existing = state.bulkCases[matchIdx];
-        existing.report_type = newCase.report_type;
+        if (detectedClass) {
+          existing.report_type = newCase.report_type;
+          existing.sab_class = newCase.sab_class;
+        }
         existing.sab_alleles = newCase.sab_alleles;
         existing.sab_chart_bytes = newCase.sab_chart_bytes;
-        existing.sab_class = newCase.sab_class;
         if (patient.remarks) existing.patient.remarks = patient.remarks;
         if (patient.comments) existing.patient.comments = patient.comments;
         renderBulkList();
         selectBulkCase(matchIdx);
         statusEl.textContent = "Merged into patient: " + fileName;
-        showToast("SAB data merged into existing patient.", "success");
+        showToast(detectedClass
+          ? "SAB data merged into existing patient."
+          : "SAB data merged — couldn't detect Class from this file, so the patient's existing SAB Class was kept.", "success");
       } else {
         const newIdx = state.bulkCases.length;
         state.bulkCases.push(newCase);
@@ -2142,7 +2161,9 @@ async function importBulkSabExcel(sabFileInput, sabKitSelect) {
         renderBulkList();
         selectBulkCase(newIdx);
         statusEl.textContent = "Imported: " + fileName;
-        showToast("SAB case added to bulk list.", "success");
+        showToast(detectedClass
+          ? "SAB case added to bulk list."
+          : "SAB case added as Class I — couldn't detect Class from this file. Check the SAB Class dropdown.", "success");
       }
     } else {
       state.bulkCases = [newCase];
