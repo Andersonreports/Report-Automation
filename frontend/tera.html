@@ -1911,6 +1911,25 @@
         return Array.from(checked).map(cb => patients[parseInt(cb.dataset.index)]);
     }
 
+    function _parseFlexDate(str) {
+        if (!str) return null;
+        const s = String(str).trim();
+        let m = s.match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/);
+        if (m) return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0));
+        m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+        if (m) return new Date(+m[3], +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
+        m = s.match(/^(\d{2})-(\d{2})-(\d{4})(?:[ T](\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+        if (m) return new Date(+m[3], +m[2] - 1, +m[1], +(m[4] || 0), +(m[5] || 0), +(m[6] || 0));
+        return null;
+    }
+
+    function _computePHours(p) {
+        const p4 = _parseFlexDate(p["P4 /hCG injection  date time"]);
+        const biopsy = _parseFlexDate(p["Biopsy time in hrs"]);
+        if (!p4 || !biopsy) return "";
+        return Math.round((biopsy - p4) / 3600000);
+    }
+
     function loadPatient(index) {
         selectedPatientIndex = index;
         const p = patients[index];
@@ -1930,7 +1949,7 @@
         document.getElementById("edit_pday").value = p["Biopsy"] || "";
         document.getElementById("edit_p4_date").value = p["P4 /hCG injection  date time"] || "";
         document.getElementById("edit_biopsy_date").value = p["Biopsy time in hrs"] || "";
-        document.getElementById("edit_phours").value = p["Biopsy time in hrs.1"] || "";
+        document.getElementById("edit_phours").value = p["Biopsy time in hrs.1"] || _computePHours(p) || "";
         document.getElementById("edit_result").value = p["TERA result"] || "Receptive";
         document.getElementById("edit_time_report").value = p["Time for report"] || "";
         document.getElementById("edit_date_received").value = p["Date of Received"] || p["Sample Receipt Date"] || "";
