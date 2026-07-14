@@ -1008,8 +1008,19 @@
                 <div class="form-section">
                     <div class="sec-title">Note</div>
                     <div class="fg">
+                        <label style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+                            <input type="checkbox" id="poNoteEnabled" checked onchange="refresh()" style="width:auto;padding:0" />
+                            Purchase order note <span style="font-weight:400;color:#999;font-size:.7rem">(optional — untick to remove)</span>
+                        </label>
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                            <span style="font-size:.83rem;color:#222">Purchase order must be received within</span>
+                            <input type="number" id="poDays" value="30" min="1" oninput="refresh()" onwheel="this.blur()" style="width:70px" />
+                            <span style="font-size:.83rem;color:#222">days.</span>
+                        </div>
+                    </div>
+                    <div class="fg">
                         <label>Bill Note <span style="font-weight:400;color:#999;font-size:.7rem">(optional — shown below service rows with ***)</span></label>
-                        <textarea id="billNote" rows="2" placeholder="e.g. Purchase order must be received within 30 days." oninput="refresh()" style="resize:vertical;min-height:52px;font-size:.83rem"></textarea>
+                        <textarea id="billNote" rows="2" placeholder="e.g. Additional remarks." oninput="refresh()" style="resize:vertical;min-height:52px;font-size:.83rem"></textarea>
                     </div>
                 </div>
                 
@@ -1244,7 +1255,9 @@
                     toCity: $('toCity').value,
                     toPin: $('toPin').value,
                     billNote: $('billNote').value,
+                    poDays: $('poDays').value,
                 },
+                poNoteEnabled: $('poNoteEnabled').checked,
                 settings: {
                     name: $('cfgName').value,
                     addr1: $('cfgAddr1').value,
@@ -1276,6 +1289,7 @@
                         if ($(id)) $(id).value = data.meta[id];
                     });
                 }
+                $('poNoteEnabled').checked = data.poNoteEnabled !== false;
                 if (data.settings) {
                     $('cfgName').value = data.settings.name || 'Anderson Diagnostic Services Private Limited';
                     $('cfgAddr1').value = data.settings.addr1 || 'No.26, Rajaratnam Street, Kilpauk';
@@ -1553,7 +1567,12 @@ ${hasB2B ? '<th>B2B</th>' : ''}
             
             document.querySelectorAll('#quotation-doc .tfoot-label').forEach(td => { td.colSpan = 5 + extraCols; });
             const noteText = ($('billNote')?.value || '').trim();
-            const poNoteRow = `<tr><td></td><td class="al" colspan="${5 + extraCols}">**Purchase order must be received within 30 days.${noteText ? '<br>***' + noteText : ''}</td></tr>`;
+            const poNoteEnabled = $('poNoteEnabled') ? $('poNoteEnabled').checked : true;
+            const poDays = parseInt($('poDays')?.value, 10) || 30;
+            const noteLines = [];
+            if (poNoteEnabled) noteLines.push(`**Purchase order must be received within ${poDays} days.`);
+            if (noteText) noteLines.push((poNoteEnabled ? '***' : '**') + noteText);
+            const poNoteRow = noteLines.length ? `<tr><td></td><td class="al" colspan="${5 + extraCols}">${noteLines.join('<br>')}</td></tr>` : '';
             if (!rows.length) {
                 $('p-rows').innerHTML =
                     '<tr><td>—</td><td class="al">—</td><td>—</td><td>—</td><td>—</td><td>—</td></tr>' + poNoteRow;
@@ -1612,6 +1631,8 @@ ${hasB2B ? `<td>${r.b2b ? inr(r.b2b) : '—'}</td>` : ''}
             ['quoteDate', 'quoteNo', 'toName', 'toDesig', 'toDept', 'toSchool', 'toInst', 'toCity', 'toPin', 'billNote']
                 .forEach(id => { if ($(id)) $(id).value = ''; });
             $('quoteDate').valueAsDate = new Date();
+            $('poDays').value = 30;
+            $('poNoteEnabled').checked = true;
             
             $('cfgName').value = 'Anderson Diagnostic Services Private Limited';
             $('cfgAddr1').value = 'No.26, Rajaratnam Street, Kilpauk';

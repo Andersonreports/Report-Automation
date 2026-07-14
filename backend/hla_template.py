@@ -13,7 +13,7 @@ from reportlab.lib.utils import ImageReader
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_RIGHT, TA_JUSTIFY
 from reportlab.platypus import (
     SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle,
-    Image, HRFlowable, PageBreak, PageBreakIfNotEmpty, KeepTogether
+    Image, HRFlowable, PageBreak, PageBreakIfNotEmpty, KeepTogether, Indenter
 )
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
@@ -595,7 +595,7 @@ def _fit_one_line(text: str, avail_pts: float, base_style: ParagraphStyle,
     return Paragraph("<br/>".join(lines), base_style)
 
 
-def _demography_col_widths(patient: dict, donor: dict, nabl: bool = False) -> list:
+def _demography_col_widths(patient: dict, donor: dict, nabl: bool = False, extra_w: float = 0.0) -> list:
     """Compute the 7 column widths for the patient/donor demography table.
 
     Layout: [lbl_L, colon_L, val_L, GAP, lbl_R, colon_R, val_R].  The patient
@@ -612,7 +612,7 @@ def _demography_col_widths(patient: dict, donor: dict, nabl: bool = False) -> li
     f0, f1, f3, f4, f5 = 0.176, 0.016, 0.012, 0.196, 0.016
     gap_w = _NABL_GAP_LOGO_W if nabl else (f3 * cw)
     fixed = (f0 + f1 + f4 + f5) * cw + gap_w
-    pool = cw - fixed
+    pool = cw - fixed + extra_w            # shared by val_L (col2) + val_R (col6)
 
     def _w(s):
         return pdfmetrics.stringWidth(s or "", F_BOLD, 10)
@@ -4167,10 +4167,28 @@ def _build_flow_report(case: dict, S: dict) -> list:
     def E():   return Paragraph("", lbl_s)
 
     cw = CONTENT_W
-    info_col_w = _demography_col_widths(patient, donor)
+    # Widen just the demography table beyond the normal content margins (via a
+    # temporary Indenter below) so a long patient/donor name has more room to
+    # stay on fewer lines before the row grows tall enough to push the
+    # Flowcytometry title+table block onto page 2 (see _hosp_extra_h clawback).
+    _DEMO_EXTRA_W = 16 * mm
+    info_col_w = _demography_col_widths(patient, donor, extra_w=_DEMO_EXTRA_W)
 
     def IV_name(text, col_w_pts):
         return Paragraph(_norm_name(text), val_s)
+
+    # Hospital/Clinic value renders at full font; a long name wraps onto an extra
+    # line (see _fit_one_line) and the row grows taller rather than the text
+    # being shrunk to fit a single line. That extra height can be just enough to
+    # push the "Flowcytometry Cross match" title+table block (kept together
+    # below) off page 1 entirely. To keep that block anchored on page 1
+    # regardless of a wrapped Hospital/Clinic name, we measure how many extra
+    # lines it actually needs and claw back the same amount of height from the
+    # spacers below, so the total content height up to that point stays ~fixed.
+    _hosp_val = _fit_one_line(_norm_name(patient.get("hospital_clinic","")), info_col_w[2], val_s)
+    _hosp_pad_w = 4 + 2   # LEFTPADDING + RIGHTPADDING applied to the value column
+    _, _hosp_h = _hosp_val.wrap(info_col_w[2] - _hosp_pad_w, 1000)
+    _hosp_extra_h = max(0.0, _hosp_h - val_s.leading)
 
     info_rows = [
         [IL("Patient name"),    IC(), IV_name(patient.get("name",""), info_col_w[2]), E(), IL("Donor name"),          IC(), IV_name(donor.get("name",""), info_col_w[6])],
@@ -4178,7 +4196,7 @@ def _build_flow_report(case: dict, S: dict) -> list:
         [IL("PIN"),             IC(), IR(patient.get("pin","")),             E(), IL("PIN"),                 IC(), IR(donor.get("pin","NA"))],
         [IL("Sample Number"),   IC(), IR(patient.get("sample_number","")),   E(), IL("Sample Number"),       IC(), IR(donor.get("sample_number","NA"))],
         [IL("Diagnosis"),       IC(), IV(patient.get("diagnosis","")),       E(), IL("Sample receipt date"), IC(), IR(donor.get("receipt_date",""))],
-        [IL("Hospital/Clinic"), IC(), _fit_one_line(_norm_name(patient.get("hospital_clinic","")), info_col_w[2], val_s), E(), IL("Report date"), IC(), IR(donor.get("report_date",""))],
+        [IL("Hospital/Clinic"), IC(), _hosp_val, E(), IL("Report date"), IC(), IR(donor.get("report_date",""))],
     ]
     info_t = Table(info_rows, colWidths=info_col_w)
     info_t.setStyle(TableStyle([
@@ -4190,8 +4208,16 @@ def _build_flow_report(case: dict, S: dict) -> list:
         ("LEFTPADDING",   (3,0), (3,-1), 0), ("RIGHTPADDING",  (3,0), (3,-1), 0),
         ("LEFTPADDING",   (5,0), (5,-1), 0), ("RIGHTPADDING",  (5,0), (5,-1), 2),
     ]))
+    # Reclaim half of _DEMO_EXTRA_W from each margin so the table renders wider
+    # on both sides, then restore the normal margins right after so nothing
+    # else in the report (results table, signatures, ...) is affected.
+    elems.append(Indenter(left=-_DEMO_EXTRA_W/2, right=-_DEMO_EXTRA_W/2))
     elems.append(info_t)
-    elems.append(Spacer(1, 4*mm))
+    elems.append(Indenter(left=_DEMO_EXTRA_W/2, right=_DEMO_EXTRA_W/2))
+    _SPACER_FLOOR = 0.3
+    _spacer1_h = max(_SPACER_FLOOR, 4*mm - _hosp_extra_h)
+    _hosp_extra_h = max(0.0, _hosp_extra_h - (4*mm - _spacer1_h))
+    elems.append(Spacer(1, _spacer1_h))
 
     _ph_w = 30*mm; _ph_h = 36*mm; _pc_w = 54*mm; _lbl_w = 38*mm
     _GREY = C_INFO_BG
@@ -4236,7 +4262,9 @@ def _build_flow_report(case: dict, S: dict) -> list:
     ]))
     photo_t.hAlign = "CENTER"
     elems.append(photo_t)
-    elems.append(Spacer(1, 2*mm))
+    _spacer2_h = max(_SPACER_FLOOR, 2*mm - _hosp_extra_h)
+    _hosp_extra_h = max(0.0, _hosp_extra_h - (2*mm - _spacer2_h))
+    elems.append(Spacer(1, _spacer2_h))
 
     _rel = _norm(_auto_relation_from_gender(donor.get("relationship", ""), donor.get("gender_age", "")))
     if _rel and _rel != "NA":
@@ -4250,7 +4278,7 @@ def _build_flow_report(case: dict, S: dict) -> list:
             ("BOTTOMPADDING", (0,0), (-1,-1), 5),
         ]))
         elems.append(_rel_t)
-        elems.append(Spacer(1, 2*mm))
+        elems.append(Spacer(1, max(_SPACER_FLOOR, 2*mm - _hosp_extra_h)))
 
     _section_title_s = ParagraphStyle("_fst", fontName=F_BOLD, fontSize=16,
                                        textColor=C_NGS_TITLE, alignment=TA_CENTER, leading=20)
@@ -4265,15 +4293,15 @@ def _build_flow_report(case: dict, S: dict) -> list:
     _tbl_col_w    = [cw*0.22, cw*0.10, cw*0.19, cw*0.49]
     _HDR_BG       = colors.HexColor("#1F3864")
     _hdr_s  = ParagraphStyle("_fth", fontName=F_BOLD, fontSize=10,
-                               textColor=colors.white, alignment=TA_CENTER, leading=13)
+                               textColor=colors.white, alignment=TA_CENTER, leading=12)
     _ab_s   = ParagraphStyle("_fab", fontName=F_BOLD, fontSize=10,
-                               textColor=BLACK, alignment=TA_CENTER, leading=13)
+                               textColor=BLACK, alignment=TA_CENTER, leading=12)
     _mcs_s  = ParagraphStyle("_fmc", fontName=F_BOLD, fontSize=10,
-                               alignment=TA_CENTER, leading=13)
+                               alignment=TA_CENTER, leading=12)
     _int_s  = ParagraphStyle("_fin", fontName=F_BOLD, fontSize=10,
-                               alignment=TA_CENTER, leading=13)
+                               alignment=TA_CENTER, leading=12)
     _ref_s  = ParagraphStyle("_frf", fontName=F_BOLD, fontSize=9,
-                               alignment=TA_LEFT, leading=13, leftIndent=4)
+                               alignment=TA_LEFT, leading=12, leftIndent=4)
 
     def _mcs_para(val, interp_val):
         """Render MCS value colored to match the interpretation result."""
@@ -4319,14 +4347,14 @@ def _build_flow_report(case: dict, S: dict) -> list:
         ("INNERGRID",     (0,0), (-1,-1), 0.5, colors.HexColor("#808080")),
         ("BOX",           (0,0), (-1,-1), 0.5, colors.HexColor("#808080")),
         ("VALIGN",        (0,0), (-1,-1), "MIDDLE"),
-        ("TOPPADDING",    (0,0), (-1,-1), 6),
-        ("BOTTOMPADDING", (0,0), (-1,-1), 6),
+        ("TOPPADDING",    (0,0), (-1,-1), 4),
+        ("BOTTOMPADDING", (0,0), (-1,-1), 4),
         ("LEFTPADDING",   (0,0), (-1,-1), 4),
         ("RIGHTPADDING",  (0,0), (-1,-1), 4),
     ]))
     elems.append(KeepTogether([
         Paragraph("<b>Flowcytometry Cross match for T &amp; B Lymphocytes</b>", _section_title_s),
-        Spacer(1, 2*mm),
+        Spacer(1, 1*mm),
         res_t,
     ]))
 
