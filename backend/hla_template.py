@@ -1351,9 +1351,9 @@ def _rpl_reference_section(rpl_ref: dict, patient: dict, donor: dict, S: dict,
 
     class2_pct = rpl_ref.get("class2_pct", "")
     if match_pct and class2_pct:
-        hla_matching_text = f"Overall â {match_pct}<br/>Class-II â {class2_pct}"
+        hla_matching_text = f"Overall - {match_pct}<br/>Class-II - {class2_pct}"
     elif match_pct:
-        hla_matching_text = f"Overall â {match_pct}"
+        hla_matching_text = f"Overall - {match_pct}"
     else:
         hla_matching_text = "\u2014"
 

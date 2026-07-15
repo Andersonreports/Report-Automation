@@ -791,9 +791,20 @@ function renderManualForm() {
     const rplRefCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-dna" }), " RPL Reference"])]);
     const hlaCInput = el("input", { type: "text", placeholder: "e.g. C1, C2 (leave blank to auto-detect from HLA-C alleles)", oninput: scheduleManualPreview });
     manualSpecialFields.rpl_hla_c = hlaCInput;
-    rplRefCard.appendChild(el("div", { class: "field-grid" }, [
+    const rplFieldRows = [
       el("div", { class: "field full" }, [el("label", {}, "HLA-C Type (Maternal/Paternal)"), hlaCInput]),
-    ]));
+    ];
+    if (rtype === "rpl_couple") {
+      const overallPctInput = el("input", { type: "text", placeholder: "Auto-calculated from Match field", oninput: scheduleManualPreview });
+      const class2PctInput = el("input", { type: "text", placeholder: "Auto-calculated from DRB1/DQB1 overlap", oninput: scheduleManualPreview });
+      manualSpecialFields.rpl_match_pct = overallPctInput;
+      manualSpecialFields.rpl_class2_pct = class2PctInput;
+      rplFieldRows.push(
+        el("div", { class: "field" }, [el("label", {}, "Overall Match % (Optional Override)"), overallPctInput]),
+        el("div", { class: "field" }, [el("label", {}, "Class-II Match % (Optional Override)"), class2PctInput]),
+      );
+    }
+    rplRefCard.appendChild(el("div", { class: "field-grid" }, rplFieldRows));
     col.appendChild(rplRefCard);
   }
 
@@ -1463,6 +1474,10 @@ function collectManualCase() {
   if ((rtype === "single_rpl" || rtype === "rpl_couple") && manualSpecialFields.rpl_hla_c) {
     c.rpl_reference = { hla_c_patient: manualSpecialFields.rpl_hla_c.value.trim() };
   }
+  if (rtype === "rpl_couple" && manualSpecialFields.rpl_match_pct) {
+    c.rpl_reference.match_pct_override = manualSpecialFields.rpl_match_pct.value.trim();
+    c.rpl_reference.class2_pct_override = manualSpecialFields.rpl_class2_pct.value.trim();
+  }
   if (rtype === "single_locus") {
     
     c.locus = manualSpecialFields.sl_locus ? manualSpecialFields.sl_locus.value.trim() : "";
@@ -1843,6 +1858,10 @@ function populateManualForm(c) {
 
   if ((rtype === "single_rpl" || rtype === "rpl_couple") && manualSpecialFields.rpl_hla_c) {
     manualSpecialFields.rpl_hla_c.value = (c.rpl_reference && c.rpl_reference.hla_c_patient) || "";
+  }
+  if (rtype === "rpl_couple" && manualSpecialFields.rpl_match_pct) {
+    manualSpecialFields.rpl_match_pct.value = (c.rpl_reference && c.rpl_reference.match_pct_override) || "";
+    manualSpecialFields.rpl_class2_pct.value = (c.rpl_reference && c.rpl_reference.class2_pct_override) || "";
   }
   if (rtype === "single_locus") {
     if (manualSpecialFields.sl_locus) manualSpecialFields.sl_locus.value = c.locus || "";
@@ -2985,9 +3004,32 @@ function renderBulkEditor(i) {
       c.rpl_reference.hla_c_patient = hlaCInput.value.trim();
       scheduleBulkPreview(i);
     });
-    rplRefCard.appendChild(el("div", { class: "field-grid" }, [
+    const rplFieldRows = [
       el("div", { class: "field full" }, [el("label", {}, "HLA-C Type (Maternal/Paternal)"), hlaCInput]),
-    ]));
+    ];
+    if (c.report_type === "rpl_couple") {
+      const overallPctInput = el("input", { type: "text",
+        placeholder: "Auto-calculated from Match field",
+        value: (c.rpl_reference && c.rpl_reference.match_pct_override) || "" });
+      overallPctInput.addEventListener("input", () => {
+        c.rpl_reference = c.rpl_reference || {};
+        c.rpl_reference.match_pct_override = overallPctInput.value.trim();
+        scheduleBulkPreview(i);
+      });
+      const class2PctInput = el("input", { type: "text",
+        placeholder: "Auto-calculated from DRB1/DQB1 overlap",
+        value: (c.rpl_reference && c.rpl_reference.class2_pct_override) || "" });
+      class2PctInput.addEventListener("input", () => {
+        c.rpl_reference = c.rpl_reference || {};
+        c.rpl_reference.class2_pct_override = class2PctInput.value.trim();
+        scheduleBulkPreview(i);
+      });
+      rplFieldRows.push(
+        el("div", { class: "field" }, [el("label", {}, "Overall Match % (Optional Override)"), overallPctInput]),
+        el("div", { class: "field" }, [el("label", {}, "Class-II Match % (Optional Override)"), class2PctInput]),
+      );
+    }
+    rplRefCard.appendChild(el("div", { class: "field-grid" }, rplFieldRows));
     editCol.appendChild(rplRefCard);
   }
 

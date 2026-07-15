@@ -138,9 +138,16 @@ def _auto_compute_derived_fields(case: dict) -> None:
             donors  = case.get("donors", [])
             donor   = donors[0] if donors else {}
             try:
-                case["rpl_reference"] = compute_rpl_reference(patient, donor)
+                computed = compute_rpl_reference(patient, donor)
             except Exception:
-                pass
+                computed = {}
+            match_override  = (ref.get("match_pct_override") or "").strip()
+            class2_override = (ref.get("class2_pct_override") or "").strip()
+            if match_override:
+                computed["match_pct"] = match_override if match_override.endswith("%") else f"{match_override}%"
+            if class2_override:
+                computed["class2_pct"] = class2_override if class2_override.endswith("%") else f"{class2_override}%"
+            case["rpl_reference"] = computed
     elif rtype == "single_rpl":
         ref = case.get("rpl_reference") or {}
         if not (ref.get("hla_c_patient") or "").strip():
