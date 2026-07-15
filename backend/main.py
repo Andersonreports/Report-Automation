@@ -362,9 +362,11 @@ async def upload_excel(file: UploadFile = File(...)):
             except (TypeError, ValueError):
                 pass
             if hasattr(v, "item"):
-                return v.item()
+                v = v.item()
             if hasattr(v, "isoformat"):
                 return str(v)
+            if isinstance(v, float):
+                return round(v, 2)
             return v
 
         rows = [{k: _safe(v) for k, v in r.items()}

@@ -107,14 +107,15 @@ RESULT_CFG = {
         "hdg_recom_y":   H - 553.3,
         "recom_line_y":  H - 562.5,
         "has_biopsy2":   False,
-        "blast_x": 171.7, "blast_y": H - 613.0,
-        "cleave_x":170.4, "cleave_y": H - 670.6,
+        "blast_x": 171.7, "blast_y": H - 598.0,
+        "cleave_x":170.4, "cleave_y": H - 655.6,
         "reco_suffix": "post first progesterone intake",
         "recom_max_w": 280,
         "icon_y": H - 694.5,
         "bold_phrase": "receptive endometrium",
         "displaced":   False,
         "asset": "RECEPTIVE",
+        "page1_num_y": 85.0,
     },
     "pre": {
         "chart_x": 334.70, "chart_y": H - 493.80, "chart_w": 218,    "chart_h": 127.3,
@@ -123,14 +124,15 @@ RESULT_CFG = {
         "hdg_recom_y":   H - 550.1,
         "recom_line_y":  H - 559.3,
         "has_biopsy2":   False,
-        "blast_x": 171.7, "blast_y": H - 609.7,
-        "cleave_x":170.4, "cleave_y": H - 667.3,
+        "blast_x": 171.7, "blast_y": H - 594.7,
+        "cleave_x":170.4, "cleave_y": H - 652.3,
         "reco_suffix": "post first progesterone intake",
         "recom_max_w": 280,
         "icon_y": H - 691.3,
         "bold_phrase": "pre-receptive endometrium",
         "displaced":   True,
         "asset": "PRE_RECEPTIVE",
+        "page1_num_y": 88.0,
     },
     "post": {
         "chart_x": 336.00, "chart_y": H - 494.05, "chart_w": 216.85, "chart_h": 127.55,
@@ -337,7 +339,10 @@ class TERAReportGenerator:
 
     def _page_number(self, c, n: int, total: int = 3):
         text = f"Page {n} of {total}"
-        y = (FTR_Y + FTR_H + 28) if self.with_logo else 36.0
+        if n == 1 and self.with_logo:
+            y = self.cfg.get("page1_num_y", FTR_Y + FTR_H + 28)
+        else:
+            y = (FTR_Y + FTR_H + 28) if self.with_logo else 36.0
         c.saveState()
         c.setFont(F_SIG, 9)
         c.setFillColor(GRAY_SIG)
@@ -662,7 +667,7 @@ class TERAReportGenerator:
 
         return [
             ("Patient Name",          name,  "PIN",                  pin),
-            ("Date of Birth/ Age",    age,   "Sample Number",        sid),
+            ("Date of Birth/Age",     age,   "Sample Number",        sid),
             ("Referring Clinician",   doc,   "Cycle type",           cyc),
             ("Hospital/Clinic",       hosp,  "First progesterone intake date", p4d),
             ("Specimen",              bno,   "Biopsy date",          biod),

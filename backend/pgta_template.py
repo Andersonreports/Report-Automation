@@ -647,7 +647,7 @@ class PGTAReportTemplate:
         elements.append(Spacer(1, 12))
 
         elements.append(KeepTogether([
-            self._create_section_header("Conditions for reporting mosaicism"),
+            self._section_header_flowable("Conditions for reporting mosaicism"),
             Spacer(1, 8),
             Paragraph(self.MOSAICISM_TEXT, self.styles['PGTABodyText']),
         ]))
@@ -668,7 +668,7 @@ class PGTAReportTemplate:
         elements.append(Spacer(1, 12))
         elements.append(Spacer(1, 12))
 
-        ref_block = [self._create_section_header("References"), Spacer(1, 8)]
+        ref_block = [self._section_header_flowable("References"), Spacer(1, 8)]
         for idx, ref in enumerate(self.REFERENCES, 1):
             ref_block.append(Paragraph(f"{idx}. {ref}", self.styles['PGTABodyText']))
         elements.append(KeepTogether(ref_block))
@@ -1009,13 +1009,20 @@ class PGTAReportTemplate:
         
         return KeepTogether(elements)
 
-    def _create_section_header(self, text, show_line=True):
-        """Create a section header with navy blue text and a slight lighter line below"""
+    def _section_header_flowable(self, text, show_line=True):
+        """Raw section-header flowable (Paragraph or bordered Table), NOT wrapped
+        in KeepTogether. Use this (instead of _create_section_header) when the
+        header is going to be placed inside another KeepTogether's content list -
+        KeepTogether.wrap() always reports a huge sentinel height to force its
+        real sizing into split(), so nesting one inside another makes the outer
+        block's first-item height look ~infinite and forces an unconditional
+        page break even when the page has plenty of room left.
+        """
         header = Paragraph(f"<b>{text}</b>", self.styles["PGTASectionHeader"])
-        
+
         if not show_line:
-            return KeepTogether([header])
-            
+            return header
+
         header_table = Table([[header]], colWidths=[490], hAlign='CENTER')
         header_table.setStyle(TableStyle([
             ("LINEBELOW", (0, 0), (-1, -1), 0.5, colors.HexColor("#989998")),
@@ -1025,7 +1032,11 @@ class PGTAReportTemplate:
             ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
             ("ALIGN", (0, 0), (-1, -1), "LEFT"),
         ] + self._get_grid_style()))
-        return KeepTogether(header_table)
+        return header_table
+
+    def _create_section_header(self, text, show_line=True):
+        """Create a section header with navy blue text and a slight lighter line below"""
+        return KeepTogether(self._section_header_flowable(text, show_line))
 
     def _classify_color(self, result_text):
         """Red for Aneuploid/Segmental, Blue for Mosaic, Black for Euploid/Inconclusive"""

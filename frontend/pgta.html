@@ -4151,33 +4151,18 @@
         _savedAt: new Date().toISOString(), _patientName: getPatientData().patient_name || ""
       };
       
-      let savedLocally = false;
-      try {
-        const key = `pgta_draft_${Date.now()}_${patientName}`;
-        localStorage.setItem(key, JSON.stringify(draftData));
-        savedLocally = true;
-
-        const allKeys = Object.keys(localStorage).filter(k => k.startsWith("pgta_draft_")).sort();
-        while (allKeys.length > 30) { localStorage.removeItem(allKeys.shift()); }
-      } catch(e) {
-        console.warn("Manual draft localStorage save failed:", e);
-        showToast("Couldn't save draft in browser storage — downloading file instead (" + (e.message || e) + ")", "error");
-      }
-
       const filename = `PGTA_Draft_${patientName}_${todayStr()}_${Date.now()}.json`;
       const blob = new Blob([JSON.stringify(draftData, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a"); a.href = url; a.download = filename; a.click();
       URL.revokeObjectURL(url);
-      if (savedLocally) {
-        _setDraftStatus(`Saved ${new Date().toLocaleTimeString()}`);
-        showToast(`Draft saved: ${filename}`, "success");
-      }
+      _setDraftStatus(`Saved ${new Date().toLocaleTimeString()}`);
+      showToast(`Draft saved: ${filename}`, "success");
     }
 
     function loadDraft() {
       _draftModalMode = "manual";
-      showDraftPickerModal();
+      loadDraftFromFile();
     }
     function clearForm() {
       if (!confirm("Clear all form data?")) return;
@@ -4240,7 +4225,6 @@
       const patientsToSave = checkedIndices.length > 0
         ? checkedIndices.map(i => state.bulkPatients[i])
         : state.bulkPatients;
-      const ts = Date.now();
       const draftData = {
         patients: JSON.parse(JSON.stringify(patientsToSave)),
         _type: "pgta_bulk_draft",
@@ -4248,17 +4232,10 @@
         _patientName: patientsToSave[0]?.patient_name || "",
         _count: patientsToSave.length
       };
-      
-      try {
-        const key = `pgta_bulk_draft_${ts}`;
-        localStorage.setItem(key, JSON.stringify(draftData));
-        const allKeys = Object.keys(localStorage).filter(k => k.startsWith("pgta_bulk_draft_")).sort();
-        while (allKeys.length > 30) { localStorage.removeItem(allKeys.shift()); }
-      } catch(e) {
-        showToast("Storage full — cannot save draft", "error"); return;
-      }
 
-      const filename = `PGTA_BulkDraft_${patientsToSave.length}patients_${todayStr()}_${ts}.json`;
+      const filename = patientsToSave.length === 1
+        ? `PGTA_Draft_${(patientsToSave[0].patient_name || "draft").replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_]/g, "")}_${todayStr()}_${Date.now()}.json`
+        : `PGTA_BulkDraft_${patientsToSave.length}patients_${todayStr()}_${Date.now()}.json`;
       const blob = new Blob([JSON.stringify(draftData, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a"); a.href = url; a.download = filename; a.click();
@@ -4268,98 +4245,7 @@
 
     function loadBulkDraft() {
       _draftModalMode = "bulk";
-      showDraftPickerModal();
-    }
-
-    function _legacyLoadBulkDraft() {
-      const input = document.createElement("input");
-      input.type = "file"; input.accept = ".json";
-      input.onchange = (e) => {
-        const file = e.target.files[0]; if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          try {
-            const d = JSON.parse(ev.target.result);
-            if (!d.patients || !Array.isArray(d.patients)) throw new Error("Not a valid bulk draft file");
-            state.bulkPatients = d.patients;
-            renderBulkPatients();
-            document.getElementById("bulkPatientSection").classList.remove("hidden");
-            const lbl2 = document.getElementById("dropZoneLabel");
-            if (lbl2) lbl2.innerHTML = `Draft loaded: <strong>${d.patients.length} patient(s)</strong> &nbsp;<small style="color:var(--text-muted);text-decoration:underline;">(click here to upload new Excel)</small>`;
-            showToast(`Bulk draft loaded: ${file.name}`, "success");
-          } catch (err) { showToast("Load failed: " + err.message, "error"); }
-        };
-        reader.readAsText(file);
-      };
-      input.click();
-    }
-
-    
-    
-    
-    function showDraftPickerModal() {
-      const isManual = _draftModalMode === "manual";
-      document.getElementById("draftModalTitle").textContent = isManual ? "Load Single Entry Draft" : "Load Bulk Draft";
-
-
-      const keys = Object.keys(localStorage)
-        .filter(k => k.startsWith("pgta_draft_") || k.startsWith("pgta_bulk_draft_"))
-        .sort()
-        .reverse();
-
-      const list = document.getElementById("draftPickerList");
-      if (keys.length === 0) {
-        list.innerHTML = `<div style="text-align:center;padding:30px 20px;color:#64748b;font-size:13px;">
-          No saved drafts found in this browser.<br>
-          <small style="font-size:11px;">Use <b>Save Draft</b> first, or click <b>Load from File</b> to open a downloaded .json draft.</small>
-        </div>`;
-      } else {
-        list.innerHTML = keys.map(key => {
-          let d;
-          try { d = JSON.parse(localStorage.getItem(key)); } catch(e) { return ""; }
-          const isBulkDraft = !!(d.patients && Array.isArray(d.patients));
-          const typeTag = isBulkDraft
-            ? `<span style="background:#dbeafe;color:#1e40af;font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;margin-right:6px;">BULK</span>`
-            : `<span style="background:#dcfce7;color:#166534;font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;margin-right:6px;">SINGLE</span>`;
-          const name = d._patientName || (d.patients && d.patients[0] && d.patients[0].patient_name) || "Unknown patient";
-          const savedAt = d._savedAt ? new Date(d._savedAt).toLocaleString() : "Unknown date";
-          const extra = d.patients ? ` &mdash; ${d.patients.length} patient${d.patients.length !== 1 ? "s" : ""}` : "";
-          return `<div style="display:flex;align-items:center;gap:8px;padding:10px 8px;border-radius:8px;margin-bottom:4px;border:1px solid transparent;cursor:pointer;"
-                       onmouseover="this.style.background='#f1f5f9';this.style.borderColor='#cbd5e1'" onmouseout="this.style.background='';this.style.borderColor='transparent'"
-                       onclick="applyDraft('${key}')">
-            <div style="flex:1;min-width:0;">
-              <div style="font-weight:600;font-size:12px;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${typeTag}${esc(name)}${extra}</div>
-              <div style="font-size:10px;color:#94a3b8;margin-top:2px;">${savedAt}</div>
-            </div>
-            <button onclick="event.stopPropagation();deleteDraft('${key}')"
-                    style="background:none;border:1px solid #fca5a5;color:#ef4444;cursor:pointer;font-size:11px;padding:3px 8px;border-radius:6px;white-space:nowrap;flex-shrink:0;"
-                    onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background=''">Delete</button>
-            <button onclick="event.stopPropagation();applyDraft('${key}')"
-                    style="background:#1F497D;color:#fff;border:none;cursor:pointer;font-size:11px;padding:4px 12px;border-radius:6px;white-space:nowrap;flex-shrink:0;">Load</button>
-          </div>`;
-        }).join("");
-      }
-      document.getElementById("draftPickerModal").style.display = "flex";
-    }
-
-    function closeDraftModal() {
-      document.getElementById("draftPickerModal").style.display = "none";
-    }
-
-    function deleteDraft(key) {
-      if (!confirm("Delete this draft?")) return;
-      localStorage.removeItem(key);
-      showDraftPickerModal(); 
-    }
-
-    function applyDraft(key) {
-      try {
-        const d = JSON.parse(localStorage.getItem(key));
-        _applyDraftSmart(d);
-        closeDraftModal();
-      } catch(err) {
-        showToast("Failed to load draft: " + err.message, "error");
-      }
+      loadDraftFromFile();
     }
 
     function _applyDraftSmart(d) {
@@ -4476,16 +4362,6 @@
           try {
             const d = JSON.parse(ev.target.result);
             _applyDraftSmart(d);
-
-            const draftIsBulk = !!(d.patients && Array.isArray(d.patients));
-            const prefix = draftIsBulk ? "pgta_bulk_draft_" : "pgta_draft_";
-            try {
-              localStorage.setItem(`${prefix}${Date.now()}`, JSON.stringify({
-                ...d, _savedAt: d._savedAt || new Date().toISOString(),
-                _patientName: d._patientName || d.patientData?.patient_name || (d.patients && d.patients[0]?.patient_name) || ""
-              }));
-            } catch(e) {}
-            closeDraftModal();
           } catch(err) { showToast("Load failed: " + err.message, "error"); }
         };
         reader.readAsText(file);
@@ -4948,7 +4824,24 @@
           matched.add(sOrig);
 
           const base = sOrig.split("_")[0];
-          const embryoId = base.includes("-") ? base.split("-").pop() : base;
+          // "PATIENT-V1" -> "V1": strip the patient-name prefix (only up to the
+          // FIRST dash), but only when that prefix actually matches this
+          // patient's name/first token - otherwise the dash is part of the
+          // embryo tag itself (e.g. "KS1-1") and must be kept verbatim.
+          // Mirrors short_embryo_id() in backend/main.py.
+          let embryoId = base;
+          if (base.includes("-")) {
+            const dashIdx = base.indexOf("-");
+            const prefix = base.slice(0, dashIdx);
+            const rest = base.slice(dashIdx + 1);
+            const prefixN = prefix.toUpperCase().replace(/[^A-Z0-9]/g, "");
+            if (rest && prefixN && (
+              (normP && (prefixN === normP || normP.startsWith(prefixN))) ||
+              (ftok && prefixN === ftok)
+            )) {
+              embryoId = rest;
+            }
+          }
           const conclusion = _cleanV(sRow["Conclusion"]).toUpperCase();
           const result = _cleanV(sRow["Result"]);
           const ru = result.toUpperCase();
@@ -5946,26 +5839,6 @@ ${d.html_diff || "<p>No differences found.</p>"}
         <input type="text" id="pfModalSearch" placeholder="Search by name or patient no..." oninput="_pfFilterModalList(this.value)" style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;box-sizing:border-box;">
       </div>
       <div id="pfModalList" style="overflow-y:auto;flex:1;padding:10px 12px;display:flex;flex-direction:column;gap:6px;"></div>
-    </div>
-  </div>
-
-  <div id="draftPickerModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.48);align-items:center;justify-content:center;">
-    <div style="background:#fff;border-radius:14px;width:520px;max-width:95vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.28);">
-      
-      <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
-        <div>
-          <div id="draftModalTitle" style="font-weight:700;font-size:14px;color:#1F497D;">Load Draft</div>
-          <div style="font-size:11px;color:#64748b;margin-top:2px;">Select a saved draft or load from a file</div>
-        </div>
-        <button onclick="closeDraftModal()" style="background:none;border:none;cursor:pointer;font-size:22px;color:#94a3b8;line-height:1;">&times;</button>
-      </div>
-      
-      <div id="draftPickerList" style="overflow-y:auto;flex:1;padding:10px 12px;"></div>
-      
-      <div style="padding:12px 16px;border-top:1px solid #e2e8f0;display:flex;gap:8px;flex-shrink:0;">
-        <button onclick="loadDraftFromFile()" style="flex:1;padding:8px 12px;background:#f1f5f9;border:1.5px solid #cbd5e1;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;color:#334155;transition:0.15s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">Load from File...</button>
-        <button onclick="closeDraftModal()" style="padding:8px 18px;background:#1F497D;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;">Cancel</button>
-      </div>
     </div>
   </div>
 
