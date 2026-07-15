@@ -430,7 +430,7 @@ class TERAReportGenerator:
             p4_dt  = self._parse_dt(self.d.get("P4 /hCG injection  date time", ""))
             bio_dt = self._parse_dt(self.d.get("Biopsy time in hrs", ""))
             if p4_dt is not None and bio_dt is not None:
-                bh_int = round((bio_dt - p4_dt).total_seconds() / 3600)
+                bh_int = self._int((bio_dt - p4_dt).total_seconds() / 3600)
         bh_lbl = f"P+{bh_int} hrs" if bh_int is not None else "the biopsy time"
 
         suffix = (" and therefore represents a displaced window of implantation."

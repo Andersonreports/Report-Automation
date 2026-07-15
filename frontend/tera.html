@@ -1827,42 +1827,37 @@
 </script>
 
   <script>
-    function uploadExcel() {
+    async function uploadExcel() {
         const fileInput = document.getElementById("excelFile");
         if (!fileInput.files.length) return;
         const file = fileInput.files[0];
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            try {
-                const data = new Uint8Array(e.target.result);
-                const wb   = XLSX.read(data, { type: "array", cellDates: true });
-                const ws   = wb.Sheets[wb.SheetNames[0]];
-                
-                const raw  = XLSX.utils.sheet_to_json(ws, { defval: "" });
-                if (!raw.length) { showToast("No data rows found in Excel file.", "error"); return; }
+        try {
+            const formData = new FormData();
+            formData.append("file", file);
+            const res = await fetch(API + "/upload-excel", { method: "POST", body: formData });
+            const result = await res.json();
+            if (result.error) { showToast("Parse error: " + result.error, "error"); return; }
+            const raw = result.rows || [];
+            if (!raw.length) { showToast("No data rows found in Excel file.", "error"); return; }
 
-                
-                patients = raw.map(row => {
-                    const out = {};
-                    Object.keys(row).forEach(k => {
-                        const v = row[k];
-                        
-                        let val = (v instanceof Date)
-                            ? v.toLocaleDateString("en-GB") + " " + v.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
-                            : String(v ?? "").trim();
-                        if (val === "NaN" || val === "undefined") val = "";
-                        out[k.trim()] = val;
-                    });
-                    return out;
+
+            patients = raw.map(row => {
+                const out = {};
+                Object.keys(row).forEach(k => {
+                    const v = row[k];
+                    let val = (v === null || v === undefined) ? "" : String(v).trim();
+                    if (val === "NaN" || val === "undefined") val = "";
+                    val = val.replace(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})(\.\d+)?$/, "$1 $2");
+                    out[k.trim()] = val;
                 });
+                return out;
+            });
 
-                renderPatientTable(patients);
-                showToast(patients.length + " patient(s) loaded.");
-            } catch(err) {
-                showToast("Parse error: " + err.message, "error");
-            }
-        };
-        reader.readAsArrayBuffer(file);
+            renderPatientTable(patients);
+            showToast(patients.length + " patient(s) loaded.");
+        } catch(err) {
+            showToast("Parse error: " + err.message, "error");
+        }
     }
 
     function searchPatients() {
