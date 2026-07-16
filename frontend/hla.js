@@ -795,8 +795,10 @@ function renderManualForm() {
       el("div", { class: "field full" }, [el("label", {}, "HLA-C Type (Maternal/Paternal)"), hlaCInput]),
     ];
     if (rtype === "rpl_couple") {
-      const overallPctInput = el("input", { type: "text", placeholder: "Auto-calculated from Match field", oninput: scheduleManualPreview });
-      const class2PctInput = el("input", { type: "text", placeholder: "Auto-calculated from DRB1/DQB1 overlap", oninput: scheduleManualPreview });
+      const overallPctInput = el("input", { type: "text", placeholder: "Auto-calculated from Match field",
+        oninput: () => { overallPctInput.dataset.userEdited = "1"; scheduleManualPreview(); } });
+      const class2PctInput = el("input", { type: "text", placeholder: "Auto-calculated from DRB1/DQB1 overlap",
+        oninput: () => { class2PctInput.dataset.userEdited = "1"; scheduleManualPreview(); } });
       manualSpecialFields.rpl_match_pct = overallPctInput;
       manualSpecialFields.rpl_class2_pct = class2PctInput;
       rplFieldRows.push(
@@ -1526,9 +1528,20 @@ async function refreshManualPreview() {
   try {
     const c = collectManualCase();
     const isSab = c.report_type === "sab_class1" || c.report_type === "sab_class2";
-    
-    
-    
+
+    if (c.report_type === "rpl_couple" && c.donors && c.donors[0] &&
+        manualSpecialFields.rpl_match_pct && manualSpecialFields.rpl_class2_pct) {
+      const overallInput = manualSpecialFields.rpl_match_pct;
+      const class2Input = manualSpecialFields.rpl_class2_pct;
+      if (overallInput.dataset.userEdited !== "1" || class2Input.dataset.userEdited !== "1") {
+        try {
+          const computed = await apiPost("/hla/compute-rpl-reference", { patient: c.patient, donor: c.donors[0] });
+          if (overallInput.dataset.userEdited !== "1") overallInput.value = (computed.match_pct || "").replace("%", "");
+          if (class2Input.dataset.userEdited !== "1") class2Input.value = (computed.class2_pct || "").replace("%", "");
+        } catch (e) { /* leave fields as-is if computation fails */ }
+      }
+    }
+
     const hasPreviewableContent = isSab
       ? ((c.patient && c.patient.name) || (c.sab_alleles && c.sab_alleles.length))
       : (c.patient && c.patient.name);
@@ -1860,8 +1873,12 @@ function populateManualForm(c) {
     manualSpecialFields.rpl_hla_c.value = (c.rpl_reference && c.rpl_reference.hla_c_patient) || "";
   }
   if (rtype === "rpl_couple" && manualSpecialFields.rpl_match_pct) {
-    manualSpecialFields.rpl_match_pct.value = (c.rpl_reference && c.rpl_reference.match_pct_override) || "";
-    manualSpecialFields.rpl_class2_pct.value = (c.rpl_reference && c.rpl_reference.class2_pct_override) || "";
+    const _ovMatch = (c.rpl_reference && c.rpl_reference.match_pct_override) || "";
+    const _ovClass2 = (c.rpl_reference && c.rpl_reference.class2_pct_override) || "";
+    manualSpecialFields.rpl_match_pct.value = _ovMatch;
+    manualSpecialFields.rpl_class2_pct.value = _ovClass2;
+    if (_ovMatch) manualSpecialFields.rpl_match_pct.dataset.userEdited = "1";
+    if (_ovClass2) manualSpecialFields.rpl_class2_pct.dataset.userEdited = "1";
   }
   if (rtype === "single_locus") {
     if (manualSpecialFields.sl_locus) manualSpecialFields.sl_locus.value = c.locus || "";
@@ -3008,9 +3025,12 @@ function renderBulkEditor(i) {
       el("div", { class: "field full" }, [el("label", {}, "HLA-C Type (Maternal/Paternal)"), hlaCInput]),
     ];
     if (c.report_type === "rpl_couple") {
+      const _stripPct = v => (v || "").toString().replace("%", "").trim();
+      const _overallStart = _stripPct(c.rpl_reference && (c.rpl_reference.match_pct_override || c.rpl_reference.match_pct));
+      const _class2Start  = _stripPct(c.rpl_reference && (c.rpl_reference.class2_pct_override || c.rpl_reference.class2_pct));
       const overallPctInput = el("input", { type: "text",
         placeholder: "Auto-calculated from Match field",
-        value: (c.rpl_reference && c.rpl_reference.match_pct_override) || "" });
+        value: _overallStart });
       overallPctInput.addEventListener("input", () => {
         c.rpl_reference = c.rpl_reference || {};
         c.rpl_reference.match_pct_override = overallPctInput.value.trim();
@@ -3018,7 +3038,7 @@ function renderBulkEditor(i) {
       });
       const class2PctInput = el("input", { type: "text",
         placeholder: "Auto-calculated from DRB1/DQB1 overlap",
-        value: (c.rpl_reference && c.rpl_reference.class2_pct_override) || "" });
+        value: _class2Start });
       class2PctInput.addEventListener("input", () => {
         c.rpl_reference = c.rpl_reference || {};
         c.rpl_reference.class2_pct_override = class2PctInput.value.trim();

@@ -133,21 +133,21 @@ def _auto_compute_derived_fields(case: dict) -> None:
     rtype = case.get("report_type", "")
     if rtype == "rpl_couple":
         ref = case.get("rpl_reference") or {}
+        match_override  = (ref.get("match_pct_override") or "").strip()
+        class2_override = (ref.get("class2_pct_override") or "").strip()
         if not (ref.get("match_str") or "").strip():
             patient = case.get("patient", {})
             donors  = case.get("donors", [])
             donor   = donors[0] if donors else {}
             try:
-                computed = compute_rpl_reference(patient, donor)
+                ref = compute_rpl_reference(patient, donor)
             except Exception:
-                computed = {}
-            match_override  = (ref.get("match_pct_override") or "").strip()
-            class2_override = (ref.get("class2_pct_override") or "").strip()
-            if match_override:
-                computed["match_pct"] = match_override if match_override.endswith("%") else f"{match_override}%"
-            if class2_override:
-                computed["class2_pct"] = class2_override if class2_override.endswith("%") else f"{class2_override}%"
-            case["rpl_reference"] = computed
+                ref = {}
+        if match_override:
+            ref["match_pct"] = match_override if match_override.endswith("%") else f"{match_override}%"
+        if class2_override:
+            ref["class2_pct"] = class2_override if class2_override.endswith("%") else f"{class2_override}%"
+        case["rpl_reference"] = ref
     elif rtype == "single_rpl":
         ref = case.get("rpl_reference") or {}
         if not (ref.get("hla_c_patient") or "").strip():
