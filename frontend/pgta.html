@@ -3011,11 +3011,11 @@
 
             <div class="bulk-top-sep"></div>
             <div class="bulk-top-file">
-              <div class="drop-zone-compact" id="resultDropZone" onclick="document.getElementById('bulkResultFileInput').click()" title="Optional: a separate Result Excel/CSV to cross-match by patient name/PIN — only patients with a matched result are shown">
+              <div class="drop-zone-compact" id="resultDropZone" onclick="document.getElementById('bulkResultFileInput').click()" title="Optional: a separate Result Excel/CSV to cross-match by patient name/PIN — only patients with a matched result are shown. You can also add CNV chart images here to auto-match them.">
                 <i class="fas fa-dna" style="color:var(--primary);font-size:14px;flex-shrink:0;"></i>
                 <span id="resultDropZoneLabel">Click to browse or drag Result Excel/CSV (optional — cross-matches by Patient No)</span>
               </div>
-              <input type="file" id="bulkResultFileInput" style="display:none;" accept=".xlsx,.xls,.csv">
+              <input type="file" id="bulkResultFileInput" style="display:none;" accept=".xlsx,.xls,.csv,.png,.jpg,.jpeg" multiple>
             </div>
 
             <div class="bulk-top-sep"></div>
@@ -3567,6 +3567,7 @@
       <td><input type="text" value="${esc(row.embryo_id)}" oninput="updateSummaryId(${idx},this.value)" style="width:80px;"></td>
       <td>
         <input type="text" list="result-summary-dl" value="${esc(matchedResult)}" style="color:${resultColor};font-weight:600;min-width:150px;"
+          onfocus="datalistShowAll(this)" onblur="datalistRestore(this)"
           oninput="this.style.color=getResultColor(this.value);updateSummaryResult(${idx},this.value)"
           placeholder="Select or type result...">
       </td>
@@ -3648,6 +3649,20 @@
       el.value = "";
     }
     function sexDatalistBlur(el) {
+      if (!el.value.trim() && el.dataset.prevVal) el.value = el.dataset.prevVal;
+      delete el.dataset.prevVal;
+    }
+
+    // A <datalist> filters its suggestions by the input's current text, so once
+    // a value is selected only look-alike options remain (e.g. selecting
+    // "...normal..." leaves just "...normal..." and "...abnormal..."). Clearing
+    // the field on focus makes the browser show the FULL option list again; the
+    // previous value is restored on blur if the user didn't pick/type anything.
+    function datalistShowAll(el) {
+      el.dataset.prevVal = el.value;
+      el.value = "";
+    }
+    function datalistRestore(el) {
       if (!el.value.trim() && el.dataset.prevVal) el.value = el.dataset.prevVal;
       delete el.dataset.prevVal;
     }
@@ -3788,6 +3803,7 @@
     <div class="embryo-row">
       <div class="embryo-field full"><label>Result Description (Page 4)</label>
         <input type="text" id="embryo-result-desc-${idx}" list="result-desc-dl" value="${esc(ef.result_description || "")}" style="color:${getDescColor(ef.result_description)};font-weight:600;"
+          onfocus="datalistShowAll(this)" onblur="datalistRestore(this)"
           oninput="this.style.color=getDescColor(this.value);onEmbryoChange(${idx},'result_description',this.value)"
           placeholder="Select or type description...">
       </div>
@@ -4684,9 +4700,6 @@
     dropZone.addEventListener("drop", e => {
       e.preventDefault(); dropZone.classList.remove("drag-over");
       if (e.dataTransfer.files.length === 0) return;
-      // Drag-drop onto the main zone keeps its historical "Excel + images" combo
-      // behavior; it only routes into cross-match mode if a Result file is
-      // already staged in the second dropzone.
       const dt = new DataTransfer();
       Array.from(e.dataTransfer.files).forEach(f => dt.items.add(f));
       bulkInput.files = dt.files;
@@ -4698,23 +4711,39 @@
     resultDropZone.addEventListener("drop", e => {
       e.preventDefault(); resultDropZone.classList.remove("drag-over");
       if (e.dataTransfer.files.length === 0) return;
-      const dt = new DataTransfer(); dt.items.add(e.dataTransfer.files[0]);
+      const dt = new DataTransfer();
+      Array.from(e.dataTransfer.files).forEach(f => dt.items.add(f));
       bulkResultInput.files = dt.files;
       _onBulkOrResultFileChosen();
     });
     bulkResultInput.addEventListener("change", () => _onBulkOrResultFileChosen());
 
+    const _isSheet = f => /\.(xlsx|xls|csv)$/i.test(f.name);
+    const _isImg = f => /\.(png|jpe?g)$/i.test(f.name);
+
     function _onBulkOrResultFileChosen() {
       const resultLbl = document.getElementById("resultDropZoneLabel");
-      if (bulkResultInput.files.length > 0 && resultLbl) {
-        resultLbl.innerHTML = `<strong>${esc(bulkResultInput.files[0].name)}</strong> &nbsp;<small style="color:var(--text-muted);text-decoration:underline;">(click to change)</small>`;
+      const all = [...Array.from(bulkInput.files), ...Array.from(bulkResultInput.files)];
+      // Chart images may be dropped into EITHER zone — gather them from both so
+      // they get auto-matched regardless of where they landed.
+      const images = all.filter(_isImg);
+      const mainSheet = Array.from(bulkInput.files).find(_isSheet);
+      const resultSheet = Array.from(bulkResultInput.files).find(_isSheet);
+
+      if (resultLbl) {
+        const rShown = resultSheet ? resultSheet.name : (images.length ? `${images.length} chart image(s)` : "");
+        if (rShown) resultLbl.innerHTML = `<strong>${esc(rShown)}</strong> &nbsp;<small style="color:var(--text-muted);text-decoration:underline;">(click to change)</small>`;
       }
-      if (bulkInput.files.length > 0 && bulkResultInput.files.length > 0) {
+
+      if (mainSheet && resultSheet) {
         // Both a Patient List and a separate Result file are staged — cross-match
-        // them instead of treating the first file as a self-contained workbook.
-        handleBulkFilesWithResult(bulkInput.files[0], bulkResultInput.files[0]);
-      } else if (bulkInput.files.length > 0) {
-        handleBulkFiles(bulkInput.files);
+        // them, then auto-map any chart images that came along.
+        handleBulkFilesWithResult(mainSheet, resultSheet, images);
+      } else if (mainSheet) {
+        handleBulkFiles([mainSheet, ...images]);
+      } else if (images.length && state.bulkPatients && state.bulkPatients.length) {
+        // Only images were added after patients were already loaded — map them.
+        autoFetchLocalCnvImages(images);
       }
     }
 
@@ -5160,7 +5189,7 @@
       return patients;
     }
 
-    async function handleBulkFilesWithResult(patientFile, resultFile) {
+    async function handleBulkFilesWithResult(patientFile, resultFile, images = []) {
       const lbl = document.getElementById("dropZoneLabel");
       const resultLbl = document.getElementById("resultDropZoneLabel");
       if (lbl) lbl.innerHTML = `<span class="spinner" style="border-color:#1F497D;border-top-color:#4F81BD;width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:6px;border-width:2px;border-style:solid;border-radius:50%;animation:spin 0.7s linear infinite;"></span>Cross-matching <strong>${esc(patientFile.name)}</strong> with <strong>${esc(resultFile.name)}</strong>…`;
@@ -5177,6 +5206,11 @@
 
         state.bulkPatients = patients;
         _trackBulkAutosaveKey(patientFile.name);
+
+        // Auto-map any CNV chart images that were dropped alongside the files.
+        let mapped = 0;
+        if (images && images.length > 0) mapped = await _autoMapCnvImagesLocal(images);
+
         renderBulkPatients();
         document.getElementById("bulkPatientSection").classList.remove("hidden");
 
@@ -5184,9 +5218,10 @@
         if (lbl) {
           let msg = `<strong>${esc(patientFile.name)}</strong> &mdash; ${patients.length} matched patient(s)`;
           if (skipped > 0) msg += ` <small style="color:var(--text-muted);">(${skipped} without a result skipped)</small>`;
+          if (mapped > 0) msg += ` <small style="color:var(--success);font-weight:bold;">(+${mapped} CNVs)</small>`;
           lbl.innerHTML = msg + ` &nbsp;<small style="color:var(--text-muted);text-decoration:underline;">(click to change)</small>`;
         }
-        showToast(`Cross-matched ${patients.length} patient(s) with results` + (skipped ? ` — ${skipped} skipped (no result)` : ""), "success");
+        showToast(`Cross-matched ${patients.length} patient(s) with results` + (skipped ? ` — ${skipped} skipped (no result)` : "") + (mapped ? ` + ${mapped} CNV chart(s)` : ""), "success");
       } catch (err) {
         if (lbl) lbl.innerHTML = `<span style="color:#c00;">Error: ${esc(err.message)}</span> &nbsp;<small style="text-decoration:underline;">(click to retry)</small>`;
         showToast("Cross-match failed: " + err.message, "error");
@@ -5512,6 +5547,7 @@
       <td><input type="text" value="${esc(emb.embryo_id || "")}" oninput="state.bulkPatients[${i}].embryos[${ei}].embryo_id=this.value;scheduleBulkPreview()" style="width:80px;"></td>
       <td>
         <input type="text" list="result-summary-dl" value="${esc(matchedResult)}" style="color:${resultColor};font-weight:600;min-width:150px;"
+          onfocus="datalistShowAll(this)" onblur="datalistRestore(this)"
           oninput="this.style.color=getResultColor(this.value);updateBulkSummaryResult(${i},${ei},this.value)"
           placeholder="Select or type result...">
       </td>
@@ -5555,6 +5591,7 @@
         ${(() => {
           const matchedRS = RESULT_SUMMARY_OPTIONS.includes(emb.result_summary) ? emb.result_summary : getPrettySummary(emb.result_summary);
           return `<input type="text" list="result-summary-dl" value="${esc(matchedRS)}" style="color:${getResultColor(matchedRS)};font-weight:600;"
+          onfocus="datalistShowAll(this)" onblur="datalistRestore(this)"
           oninput="this.style.color=getResultColor(this.value);updateBulkSummaryResult(${i},${ei},this.value)" placeholder="Select or type result summary...">`;
         })()}
       </div>
@@ -5562,6 +5599,7 @@
         ${(() => {
           const rdVal = emb.result_description || "";
           return `<input type="text" list="result-desc-dl" value="${esc(rdVal)}" style="color:${getDescColor(rdVal)};font-weight:600;"
+          onfocus="datalistShowAll(this)" onblur="datalistRestore(this)"
           oninput="this.style.color=getDescColor(this.value);state.bulkPatients[${i}].embryos[${ei}].result_description=this.value;scheduleBulkPreview()" placeholder="Select or type description...">`;
         })()}
       </div>
