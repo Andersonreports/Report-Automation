@@ -2081,6 +2081,20 @@ def _build_single_rpl(case: dict, S: dict) -> list:
     elems.append(_rpl_single_patient_table(patient, S))
     elems.append(Spacer(1, 3 * mm))
 
+    # Remarks (was previously omitted from this report entirely).
+    _rpl_rmk = _clean_display(patient.get("remarks", "") or "")
+    _rpl_rmk = _normalize_hla_alleles(_rpl_rmk) if _rpl_rmk else ""
+    if _rpl_rmk == "—":
+        _rpl_rmk = ""
+    if len(_rpl_rmk) > 600:
+        _rpl_rmk = _rpl_rmk[:580] + "..."
+    if _rpl_rmk:
+        elems.append(Paragraph(
+            f"<b>Remarks:</b> {_rpl_rmk}",
+            ParagraphStyle("rpl_single_remarks", parent=S["body_small"],
+                           fontSize=12, leading=14, alignment=TA_LEFT, spaceAfter=6)))
+        elems.append(Spacer(1, 2 * mm))
+
     hla_c_p = rpl_ref.get("hla_c_patient", "")
     if not hla_c_p:
         pc = patient.get("hla", {}).get("C", [None, None])
