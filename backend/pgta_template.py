@@ -583,9 +583,11 @@ class PGTAReportTemplate:
 
         for idx, embryo in enumerate(embryos_data, 1):
             raw_result = self._clean(embryo.get('result_summary') or embryo.get('result_description') or '')
-            
+
             info = clf.classify_embryo(raw_result)
-            res_sum = info["summary_text"]
+            # Honor the user-supplied (editable) Result Summary verbatim; only
+            # fall back to the auto-classified text when it is blank.
+            res_sum = self._clean(embryo.get('result_summary')) or info["summary_text"]
 
             if info["classification"] == clf.LOW_DNA:
                 interp_text = "NA"
@@ -741,7 +743,9 @@ class PGTAReportTemplate:
         raw_result = self._clean(embryo_data.get('result_summary') or embryo_data.get('result_description') or '')
         info = clf.classify_embryo(raw_result)
 
-        res_text = info["result_text"]
+        # Honor the user-supplied (editable) Result Description verbatim; only
+        # fall back to the auto-classified sentence when it is blank.
+        res_text = self._clean(embryo_data.get('result_description')) or info["result_text"]
 
         existing_auto = self._clean(embryo_data.get('autosomes', ''))
         chr_statuses = embryo_data.get('chromosome_statuses') or {}

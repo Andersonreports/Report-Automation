@@ -272,7 +272,8 @@ class PGTADocxGenerator:
             raw = self._clean(emb.get('result_summary') or emb.get('result_description') or '')
             info = clf.classify_embryo(raw)
 
-            res_display = info["summary_text"]
+            # Honor the user-supplied (editable) Result Summary verbatim.
+            res_display = self._clean(emb.get('result_summary')) or info["summary_text"]
 
             if info["classification"] == clf.LOW_DNA:
                 interp_text = "NA"
@@ -441,7 +442,8 @@ class PGTADocxGenerator:
         raw_result = self._clean(embryo_data.get('result_summary') or embryo_data.get('result_description') or '')
         info = clf.classify_embryo(raw_result)
 
-        res = info["result_text"]
+        # Honor the user-supplied (editable) Result Description verbatim.
+        res = self._clean(embryo_data.get('result_description')) or info["result_text"]
 
         existing_auto = self._clean(embryo_data.get('autosomes', ''))
         chr_statuses = embryo_data.get('chromosome_statuses') or {}
