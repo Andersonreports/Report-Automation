@@ -966,7 +966,12 @@
                 </div>
                 
                 <div class="form-section">
-                    <div class="sec-title">Quotation To</div>
+                    <div class="sec-title" style="display:flex;align-items:center;gap:8px;">
+                        <select id="toLabel" onchange="refresh()" style="width:auto;font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.9px;color:var(--orange);border:none;background:transparent;padding:0;margin:0;">
+                            <option value="Quotation To">Quotation To</option>
+                            <option value="Quotation">Quotation</option>
+                        </select>
+                    </div>
                     <div class="fg">
                         <label>Name</label>
                         <input type="text" id="toName" placeholder="e.g. Dr. Murali TS" />
@@ -1065,7 +1070,7 @@
                                     <span id="p-from-city">Chennai 600 010</span>
                                 </td>
                                 <td>
-                                    <b>Quotation to,</b>
+                                    <b><span id="p-to-label">Quotation to</span>,</b>
                                     <span id="p-to"></span>
                                 </td>
                             </tr>
@@ -1247,6 +1252,7 @@
                 meta: {
                     quoteDate: $('quoteDate').value,
                     quoteNo: $('quoteNo').value,
+                    toLabel: $('toLabel').value,
                     toName: $('toName').value,
                     toDesig: $('toDesig').value,
                     toDept: $('toDept').value,
@@ -1534,7 +1540,8 @@
             $('p-date').textContent = fmtDate($('quoteDate').value);
             const qn = $('quoteNo').value.trim();
             $('p-quoteNo').textContent = qn ? `Quote No: ${qn}` : '';
-            
+            $('p-to-label').textContent = $('toLabel').value === 'Quotation' ? 'Quotation' : 'Quotation to';
+
             const fields = [
                 $('toName').value,
                 $('toDesig').value,
@@ -1631,6 +1638,7 @@ ${hasB2B ? `<td>${r.b2b ? inr(r.b2b) : '—'}</td>` : ''}
             ['quoteDate', 'quoteNo', 'toName', 'toDesig', 'toDept', 'toSchool', 'toInst', 'toCity', 'toPin', 'billNote']
                 .forEach(id => { if ($(id)) $(id).value = ''; });
             $('quoteDate').valueAsDate = new Date();
+            $('toLabel').value = 'Quotation To';
             $('poDays').value = 30;
             $('poNoteEnabled').checked = true;
             
