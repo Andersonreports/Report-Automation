@@ -3639,7 +3639,7 @@
 
     function getSexChrColor(val) {
       const v = (val || "").toUpperCase().trim();
-      if (!v || v === "NORMAL") return "#000";
+      if (!v || v === "NORMAL" || v === "NA" || v === "N/A" || v === "NO RESULT") return "#000";
       if (v.includes("MOSAIC")) return "#2563eb";
       return "#dc2626";
     }
@@ -4847,9 +4847,18 @@
       for (const p of ["MRS.","MR.","SMT.","DR.","MS.","MISS.","PROF.","R.","S.","K.","M.","D.","P.","A.","B.","C.","G.","H.","J.","L.","N.","T.","V.","W."]) {
         if (s.startsWith(p)) { s = s.slice(p.length).trim(); break; }
       }
-      s = s.replace(/\([^)]*\)/g, "").replace(/[^A-Z0-9]/g, "");
+      return s.replace(/\([^)]*\)/g, "").replace(/[^A-Z0-9]/g, "");
+    }
+
+    // Some labs' Details sheets append a lone trailing initial (e.g. spouse's
+    // first letter) that the generated sample name then drops. Try matching
+    // against that shortened form only as a FALLBACK (never as the primary
+    // form) — used blindly it truncates real surnames that happen to end in
+    // one of these letters (e.g. "KAVERI NIKHIL PATEKAR", "JYOTI PARASHAR"),
+    // which silently dropped those patients from the rendered list entirely.
+    function _normNameShort(s) {
       const suffixes = ["C","D","R","S","G","K","M","N","P","T","V","W"];
-      if (s.length > 3 && !/\d/.test(s.slice(-2, -1)) && suffixes.includes(s.slice(-1)) && s.slice(0,-1).length >= 3) s = s.slice(0,-1);
+      if (s.length > 3 && !/\d/.test(s.slice(-2, -1)) && suffixes.includes(s.slice(-1)) && s.slice(0,-1).length >= 3) return s.slice(0,-1);
       return s;
     }
     function _firstToken(s) {
@@ -4903,7 +4912,7 @@
     }
 
 
-    function _stripPatientPrefix(base, normP, normSid, ftok) {
+    function _stripPatientPrefix(base, normP, normSid, ftok, normPShort) {
       if (!base.includes("-")) return base;
       const dashIdx = base.indexOf("-");
       const prefix = base.slice(0, dashIdx);
@@ -4912,9 +4921,10 @@
       const prefixN = prefix.toUpperCase().replace(/[^A-Z0-9]/g, "");
       if (!prefixN) return base;
       const matchesName = normP && (prefixN === normP || normP.startsWith(prefixN) || prefixN.startsWith(normP));
+      const matchesShort = normPShort && normPShort !== normP && (prefixN === normPShort || normPShort.startsWith(prefixN) || prefixN.startsWith(normPShort));
       const matchesTok  = ftok && prefixN === ftok;
       const matchesPin  = normSid && (prefixN === normSid || normSid.startsWith(prefixN) || prefixN.startsWith(normSid));
-      return (matchesName || matchesTok || matchesPin) ? rest : base;
+      return (matchesName || matchesShort || matchesTok || matchesPin) ? rest : base;
     }
 
     function _parseResult(rStr) {
@@ -5003,6 +5013,7 @@
 
     function _matchEmbryosForPatient(pName, pin, summaryRows, matched) {
       const normP = _normName(pName);
+      const normPShort = _normNameShort(normP);
       const normSid = _normName(pin || "");
       const ftok = _firstToken(pName);
       const embryos = [];
@@ -5017,13 +5028,16 @@
         // match strictly on it (no name fallback) so two patients with similar
         // names but different PINs can never be confused. When either side has
         // no PIN, fall back to the name / sample-name matching (boundary-aware
-        // so a shorter name like "RAM" never grabs "RAMESH-E1").
+        // so a shorter name like "RAM" never grabs "RAMESH-E1"). Try the full
+        // name first and only fall back to the suffix-shortened form if that
+        // fails, so real surnames ending in a "suffix" letter still match.
         const rowPin = _rowPin(sRow);
         let isMatch;
         if (pin && rowPin) {
           isMatch = _pinMatches(pin, rowPin);
         } else {
-          isMatch = _sampleMatchesPatient(normS, sFT, normP, normSid, ftok);
+          isMatch = _sampleMatchesPatient(normS, sFT, normP, normSid, ftok)
+            || (normPShort !== normP && _sampleMatchesPatient(normS, sFT, normPShort, normSid, ftok));
         }
         if (!isMatch) continue;
         matched.add(sOrig);
@@ -5033,7 +5047,7 @@
         // embryo ID is displayed. The prefix is stripped only when it matches
         // this patient's name/first-token/PIN - otherwise the dash is part of
         // the embryo tag itself (e.g. "KS1-1") and is kept verbatim.
-        const embryoId = _stripPatientPrefix(base, normP, normSid, ftok);
+        const embryoId = _stripPatientPrefix(base, normP, normSid, ftok, normPShort);
         embryos.push(_buildEmbryoFromSummaryRow(sRow, embryoId, sOrig));
       }
       return embryos;

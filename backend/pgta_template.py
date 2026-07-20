@@ -13,6 +13,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase.pdfmetrics import registerFontFamily
 from PIL import Image as PILImage
 import os
+import re
 import sys
 import base64
 from io import BytesIO
@@ -496,7 +497,13 @@ class PGTAReportTemplate:
         s = str(val).strip()
         if s.lower() == "nan": return default
         return s
-    
+
+    def _strip_ref_note(self, s):
+        """Drop a trailing "(...)" note from a Sample/Embryo ID, e.g. "SS1(D5)" -> "SS1".
+        Users append these in brackets as a personal reference; they should never
+        appear in the rendered report."""
+        return re.sub(r'\s*\([^)]*\)\s*$', '', s or '').strip()
+
     def _wrap_text(self, text, bold=False, font_size=None, align='LEFT', max_width=None):
         """Wrap text in a Paragraph for table cells, with automatic Line Break support"""
         if not text: return ""
@@ -610,7 +617,7 @@ class PGTAReportTemplate:
             raw_mt = self._clean(embryo.get('mtcopy'), 'NA')
             mtcopy = raw_mt if interp_text.upper() == "EUPLOID" else "NA"
 
-            short_id = self._clean(embryo.get('embryo_id'))
+            short_id = self._strip_ref_note(self._clean(embryo.get('embryo_id')))
 
             data.append([
                 self._wrap_text(str(idx), align='CENTER'),
@@ -790,13 +797,13 @@ class PGTAReportTemplate:
         sex_color = colors.black
         if "MOSAIC" in sex_up:
             sex_color = colors.blue
-        elif sex_up and sex_up not in ("NORMAL", "NO RESULT"):
+        elif sex_up and sex_up not in ("NORMAL", "NO RESULT", "NA", "N/A"):
             sex_color = colors.red
 
         raw_mt = self._clean(embryo_data.get('mtcopy', ''), 'NA')
         mtcopy = raw_mt if interp_text.upper() == "EUPLOID" else "NA"
 
-        detail_embryo_id = self._clean(embryo_data.get('embryo_id_detail')) or self._clean(embryo_data.get('embryo_id'))
+        detail_embryo_id = self._strip_ref_note(self._clean(embryo_data.get('embryo_id_detail')) or self._clean(embryo_data.get('embryo_id')))
 
         embryo_id_style = ParagraphStyle(
             name='EmbryoIDStyle',

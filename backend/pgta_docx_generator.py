@@ -8,6 +8,7 @@ from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
 import os
+import re
 import sys
 from io import BytesIO
 from datetime import datetime
@@ -133,6 +134,12 @@ class PGTADocxGenerator:
         s = str(val).strip()
         if s.lower() == "nan": return default
         return s
+
+    def _strip_ref_note(self, s):
+        """Drop a trailing "(...)" note from a Sample/Embryo ID, e.g. "SS1(D5)" -> "SS1".
+        Users append these in brackets as a personal reference; they should never
+        appear in the rendered report."""
+        return re.sub(r'\s*\([^)]*\)\s*$', '', s or '').strip()
 
 
     def generate_docx(self, output_path, patient_data, embryos_data, show_logo=True, show_grid=False):
@@ -267,7 +274,7 @@ class PGTADocxGenerator:
         for i, emb in enumerate(embryos_data, 1):
             row = res_table.rows[i]
             row.cells[0].text = str(i)
-            row.cells[1].text = self._clean(emb.get('embryo_id'))
+            row.cells[1].text = self._strip_ref_note(self._clean(emb.get('embryo_id')))
 
             raw = self._clean(emb.get('result_summary') or emb.get('result_description') or '')
             info = clf.classify_embryo(raw)
@@ -434,7 +441,7 @@ class PGTADocxGenerator:
 
         doc.add_paragraph()
 
-        eid = self._clean(embryo_data.get('embryo_id_detail')) or self._clean(embryo_data.get('embryo_id'))
+        eid = self._strip_ref_note(self._clean(embryo_data.get('embryo_id_detail')) or self._clean(embryo_data.get('embryo_id')))
         p_eid = doc.add_paragraph()
         self._set_paragraph_font(p_eid, font_name="Calibri", font_size=12, bold=True, color="#1F497D")
         p_eid.add_run(f"EMBRYO: {eid}")
@@ -478,7 +485,7 @@ class PGTADocxGenerator:
         sex_up = sex.upper().strip()
         if "MOSAIC" in sex_up:
             sex_color = "#0000FF"
-        elif sex_up and sex_up not in ("NORMAL", "NO RESULT"):
+        elif sex_up and sex_up not in ("NORMAL", "NO RESULT", "NA", "N/A"):
             sex_color = "#FF0000"
         else:
             sex_color = "#000000"
