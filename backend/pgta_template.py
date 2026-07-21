@@ -500,8 +500,9 @@ class PGTAReportTemplate:
 
     def _strip_ref_note(self, s):
         """Drop a trailing "(...)" note from a Sample/Embryo ID, e.g. "SS1(D5)" -> "SS1".
-        Users append these in brackets as a personal reference; they should never
-        appear in the rendered report."""
+        Users append these in brackets as a personal reference for the Results
+        summary Sample column only; they should not leak into any other place
+        (e.g. the embryo detail page header)."""
         return re.sub(r'\s*\([^)]*\)\s*$', '', s or '').strip()
 
     def _wrap_text(self, text, bold=False, font_size=None, align='LEFT', max_width=None):
@@ -617,7 +618,7 @@ class PGTAReportTemplate:
             raw_mt = self._clean(embryo.get('mtcopy'), 'NA')
             mtcopy = raw_mt if interp_text.upper() == "EUPLOID" else "NA"
 
-            short_id = self._strip_ref_note(self._clean(embryo.get('embryo_id')))
+            short_id = self._clean(embryo.get('embryo_id'))
 
             data.append([
                 self._wrap_text(str(idx), align='CENTER'),

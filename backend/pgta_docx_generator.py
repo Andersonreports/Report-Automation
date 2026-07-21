@@ -137,8 +137,9 @@ class PGTADocxGenerator:
 
     def _strip_ref_note(self, s):
         """Drop a trailing "(...)" note from a Sample/Embryo ID, e.g. "SS1(D5)" -> "SS1".
-        Users append these in brackets as a personal reference; they should never
-        appear in the rendered report."""
+        Users append these in brackets as a personal reference for the Results
+        summary Sample column only; they should not leak into any other place
+        (e.g. the embryo detail page header)."""
         return re.sub(r'\s*\([^)]*\)\s*$', '', s or '').strip()
 
 
@@ -274,7 +275,7 @@ class PGTADocxGenerator:
         for i, emb in enumerate(embryos_data, 1):
             row = res_table.rows[i]
             row.cells[0].text = str(i)
-            row.cells[1].text = self._strip_ref_note(self._clean(emb.get('embryo_id')))
+            row.cells[1].text = self._clean(emb.get('embryo_id'))
 
             raw = self._clean(emb.get('result_summary') or emb.get('result_description') or '')
             info = clf.classify_embryo(raw)
