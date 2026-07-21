@@ -3451,7 +3451,7 @@
     ];
     const INTERP_OPTIONS = ["Euploid", "Aneuploid", "(-)", "Chaotic embryo", "NA", "Low level mosaic", "High level mosaic", "Complex mosaic", "Inconclusive", "Low DNA concentration"];
     const SEX_OPTIONS = ["Normal", "Abnormal", "Mosaic"];
-    const SEX_DATALIST_OPTIONS = ["Normal", "Abnormal", "Mosaic", "-X", "+X", "-Y", "+Y", "Mosaic -X", "Mosaic +X", "Mosaic -Y", "Mosaic +Y"];
+    const SEX_DATALIST_OPTIONS = ["Normal", "NA", "Abnormal", "Mosaic", "-X", "+X", "-Y", "+Y", "Mosaic -X", "Mosaic +X", "Mosaic -Y", "Mosaic +Y"];
     const CHR_STATUSES = ["N", "G", "L", "SG", "SL", "M", "MG", "ML", "SMG", "SML", "SL/SG", "SG/SL", "SML/SMG", "SMG/SML"];
 
     
@@ -3638,16 +3638,12 @@
       return "#000";
     }
 
-    function getSexChrColor(val, ef) {
+    function getSexChrColor(val) {
       const v = (val || "").toUpperCase().trim();
-      const isBlankOrNA = !v || v === "NORMAL" || v === "NA" || v === "N/A" || v === "NO RESULT";
       if (v.includes("MOSAIC")) return "#2563eb";
-      if (!isBlankOrNA) return "#dc2626";
-      if (v !== "NORMAL" && ef) {
-        const resText = (ef.result_description || ef.result_summary || ef.interpretation || "").toUpperCase();
-        if (resText.includes("INCONCLUSIVE")) return "#dc2626";
-      }
-      return "#000";
+      if (v === "NA" || v === "N/A") return "#dc2626";
+      if (!v || v === "NORMAL" || v === "NO RESULT") return "#000";
+      return "#dc2626";
     }
 
     function sexDatalistFocus(el) {
@@ -3692,8 +3688,6 @@
           const rdInput = document.getElementById(`embryo-result-desc-${idx}`);
           if (rdInput) { rdInput.value = ef.result_description; rdInput.style.color = getDescColor(ef.result_description); }
         }
-        const sexInput = document.getElementById(`embryo-sex-${idx}`);
-        if (sexInput) sexInput.style.color = getSexChrColor(ef.sex_chromosomes, ef);
       }
       updateEmbryoBadge(idx, val);
       autoSetInterpretation(idx);
@@ -3821,7 +3815,7 @@
         <input type="text" value="${esc(ef.autosomes)}" oninput="onEmbryoChange(${idx},'autosomes',this.value)" placeholder="Normal, del(7)(...), +15(~30%)">
       </div>
       <div class="embryo-field"><label>Sex Chromosomes</label>
-        <input type="text" id="embryo-sex-${idx}" list="sex-dl-${idx}" value="${esc(ef.sex_chromosomes)}" style="color:${getSexChrColor(ef.sex_chromosomes, ef)};font-weight:600;" onfocus="sexDatalistFocus(this)" onblur="sexDatalistBlur(this)" oninput="this.style.color=getSexChrColor(this.value, state.embryoForms[${idx}]);onEmbryoChange(${idx},'sex_chromosomes',this.value)" placeholder="Normal, -X, Mosaic +X...">
+        <input type="text" list="sex-dl-${idx}" value="${esc(ef.sex_chromosomes)}" style="color:${getSexChrColor(ef.sex_chromosomes)};font-weight:600;" onfocus="sexDatalistFocus(this)" onblur="sexDatalistBlur(this)" oninput="this.style.color=getSexChrColor(this.value);onEmbryoChange(${idx},'sex_chromosomes',this.value)" placeholder="Normal, -X, Mosaic +X...">
         <datalist id="sex-dl-${idx}">${sexDatalist}</datalist>
       </div>
     </div>
@@ -3901,10 +3895,6 @@
         renderSummaryTable();
       }
       if (["autosomes", "sex_chromosomes", "result_description"].includes(field)) autoSetInterpretation(idx);
-      if (["result_description", "interpretation"].includes(field)) {
-        const sexInput = document.getElementById(`embryo-sex-${idx}`);
-        if (sexInput) sexInput.style.color = getSexChrColor(sexInput.value, state.embryoForms[idx]);
-      }
       schedulePreview();
     }
 
@@ -5632,9 +5622,9 @@
       <div class="bulk-editor-field"><label>Autosomes:</label><input value="${esc(emb.autosomes || "Normal")}" oninput="state.bulkPatients[${i}].embryos[${ei}].autosomes=this.value;scheduleBulkPreview()"></div>
       <div class="bulk-editor-field"><label>Sex Chromosomes:</label>
         <input type="text" list="bulk-sex-dl-${i}-${ei}" value="${esc(emb.sex_chromosomes || "Normal")}" placeholder="Normal, -X, Mosaic +X..."
-          style="color:${getSexChrColor(emb.sex_chromosomes, emb)};font-weight:600;"
+          style="color:${getSexChrColor(emb.sex_chromosomes)};font-weight:600;"
           onfocus="sexDatalistFocus(this)" onblur="sexDatalistBlur(this)"
-          oninput="this.style.color=getSexChrColor(this.value, state.bulkPatients[${i}].embryos[${ei}]);state.bulkPatients[${i}].embryos[${ei}].sex_chromosomes=this.value;scheduleBulkPreview()">
+          oninput="this.style.color=getSexChrColor(this.value);state.bulkPatients[${i}].embryos[${ei}].sex_chromosomes=this.value;scheduleBulkPreview()">
         <datalist id="bulk-sex-dl-${i}-${ei}">${SEX_DATALIST_OPTIONS.map(o => `<option value="${esc(o)}">`).join("")}</datalist>
       </div>
       <div class="bulk-editor-field"><label>Interpretation:</label>
