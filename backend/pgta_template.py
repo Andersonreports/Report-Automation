@@ -917,7 +917,7 @@ class PGTAReportTemplate:
             
             for i in range(1, 23):
                 status = chr_statuses.get(str(i), 'N')
-                perc = mosaic_percentages.get(str(i), '-')
+                perc = str(mosaic_percentages.get(str(i), '')).strip() or '-'
                 s_color = self._get_status_color(status)
                 
                 f_size = 8 if len(status) > 2 else 9

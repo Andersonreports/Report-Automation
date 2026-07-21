@@ -577,7 +577,7 @@ class PGTADocxGenerator:
             if has_mosaic:
                 cnv_table.rows[2].cells[0].text = "Mosaic (%)"
                 for i in range(1, 23):
-                    cnv_table.rows[2].cells[i].text = str(mosaic_map.get(str(i), '-'))
+                    cnv_table.rows[2].cells[i].text = str(mosaic_map.get(str(i), '')).strip() or '-'
 
             for row in cnv_table.rows:
                 for c_idx, cell in enumerate(row.cells):
