@@ -5004,8 +5004,8 @@
       return {
         embryo_id: embryoId, sample_name: sOrig,
         result_summary: rs, result_description: summaryToDescription(rs),
-        autosomes: _cleanV(sRow["AUTOSOMES"]),
-        sex_chromosomes: _cleanV(sRow["SEX"]),
+        autosomes: _getV(sRow, ["AUTOSOMES", "Autosomes", "Autosome"]),
+        sex_chromosomes: _getV(sRow, ["SEX", "Sex", "Sex Chromosomes", "Sex_Chromosomes"]),
         interpretation: interp,
         mtcopy: interp === "Euploid" ? (_cleanV(sRow["MTcopy"]) || "NA") : "NA",
         chromosome_statuses: chrStatuses, mosaic_percentages: mosaicPcts
