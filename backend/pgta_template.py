@@ -902,11 +902,11 @@ class PGTAReportTemplate:
         has_mosaic = any(
             v and str(v).strip() and str(v).strip() != '-' and re_mos.search(r'\d', str(v))
             for v in mosaic_percentages.values()
-        )
-        
+        ) or any('M' in str(v).upper() for v in chr_statuses.values())
+
         is_autosomes_normal = 'NORMAL' in autosomes or 'EUPLOID' in autosomes or not autosomes.strip()
         is_sex_mosaic = 'MOSAIC' in sex_chrs
-        
+
         if is_autosomes_normal and is_sex_mosaic:
             has_mosaic = False
             
