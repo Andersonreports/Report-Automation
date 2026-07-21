@@ -487,7 +487,9 @@ class PGTADocxGenerator:
             sex_color = "#0000FF"
         elif sex_up and sex_up not in ("NORMAL", "NO RESULT", "NA", "N/A"):
             sex_color = "#FF0000"
-        elif "INCONCLUSIVE" in interp_text.upper() and sex_up in ("NA", "N/A", "NO RESULT", ""):
+        elif sex_up in ("NA", "N/A", "NO RESULT", "") and (
+            "INCONCLUSIVE" in interp_text.upper() or "INCONCLUSIVE" in res.upper() or "INCONCLUSIVE" in raw_result.upper()
+        ):
             sex_color = "#FF0000"
         else:
             sex_color = "#000000"

@@ -799,7 +799,9 @@ class PGTAReportTemplate:
             sex_color = colors.blue
         elif sex_up and sex_up not in ("NORMAL", "NO RESULT", "NA", "N/A"):
             sex_color = colors.red
-        elif "INCONCLUSIVE" in interp_text.upper() and sex_up in ("NA", "N/A", "NO RESULT", ""):
+        elif sex_up in ("NA", "N/A", "NO RESULT", "") and (
+            "INCONCLUSIVE" in interp_text.upper() or "INCONCLUSIVE" in res_text.upper() or "INCONCLUSIVE" in raw_result.upper()
+        ):
             sex_color = colors.red
 
         raw_mt = self._clean(embryo_data.get('mtcopy', ''), 'NA')
