@@ -3446,7 +3446,8 @@
       "Multiple chromosomal abnormalities",
       "Mosaic chromosome complement",
       "Inconclusive",
-      "Low DNA concentration"
+      "Low DNA concentration",
+      "No DNA detected"
     ];
     const INTERP_OPTIONS = ["Euploid", "Aneuploid", "(-)", "Chaotic embryo", "NA", "Low level mosaic", "High level mosaic", "Complex mosaic", "Inconclusive", "Low DNA concentration"];
     const SEX_OPTIONS = ["Normal", "Abnormal", "Mosaic"];
@@ -3617,7 +3618,7 @@
     function summaryToDescription(rs) {
       const s = (rs || "").trim();
       if (s === "Mosaic chromosome complement") return "The embryo contains mosaic chromosome complement";
-      if (s === "Inconclusive" || s === "Low DNA concentration") return "Inconclusive";
+      if (s === "Inconclusive" || s === "Low DNA concentration" || s === "No DNA detected") return "Inconclusive";
       if (s === "Normal chromosome complement") return "The embryo contains normal chromosome complement";
       if (s === "Multiple chromosomal abnormalities" || s === "Abnormal chromosome complement")
         return "The embryo contains abnormal chromosome complement";
