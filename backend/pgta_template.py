@@ -367,7 +367,7 @@ class PGTAReportTemplate:
         for embryo in embryos_data:
             interp = str(embryo.get('interpretation', '')).upper()
             res = str(embryo.get('result_summary', '')).upper()
-            if "LOW DNA" not in interp and "LOW DNA" not in res:
+            if "LOW DNA" not in interp and "NO DNA" not in interp and "LOW DNA" not in res and "NO DNA" not in res:
                 all_low_dna = False
                 break
 
@@ -376,11 +376,11 @@ class PGTAReportTemplate:
             story.append(self._create_signature_table())
         else:
             story.append(PageBreak())
-        
+
         for idx, embryo in enumerate(embryos_data):
             interp = str(embryo.get('interpretation', '')).upper()
             res = str(embryo.get('result_summary', '')).upper()
-            if "LOW DNA" in interp or "LOW DNA" in res:
+            if "LOW DNA" in interp or "NO DNA" in interp or "LOW DNA" in res or "NO DNA" in res:
                 continue
                 
             story.extend(self._build_embryo_page(patient_data, embryo))

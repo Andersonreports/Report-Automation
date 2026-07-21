@@ -173,7 +173,7 @@ class PGTADocxGenerator:
         for embryo in embryos_data:
             interp = str(embryo.get('interpretation', '')).upper()
             res    = str(embryo.get('result_summary', '')).upper()
-            if "LOW DNA" not in interp and "LOW DNA" not in res:
+            if "LOW DNA" not in interp and "NO DNA" not in interp and "LOW DNA" not in res and "NO DNA" not in res:
                 all_low_dna = False
                 break
 
@@ -185,7 +185,7 @@ class PGTADocxGenerator:
             for embryo in embryos_data:
                 interp = str(embryo.get('interpretation', '')).upper()
                 res    = str(embryo.get('result_summary', '')).upper()
-                if "LOW DNA" in interp or "LOW DNA" in res:
+                if "LOW DNA" in interp or "NO DNA" in interp or "LOW DNA" in res or "NO DNA" in res:
                     continue
                 self._add_embryo_page(doc, patient_data, embryo)
 
