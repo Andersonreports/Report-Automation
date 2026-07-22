@@ -5082,6 +5082,10 @@
         const pName = _cleanV(pRow["Patient Name"]); if (!pName) continue;
         const bDate = _fmtDate(_getV(pRow, ["Date of Biopsy","Biopsy Date"]));
         const rDate = _fmtDate(_getV(pRow, ["Date Sample Received","Receipt Date"]));
+        // Most lab sheets have no separate collection-date column (collection
+        // happens the same day as the biopsy), so fall back to Biopsy Date --
+        // but honor a dedicated column when the sheet actually has one.
+        const cDate = _fmtDate(_getV(pRow, ["Sample Collection Date","Date of Sample Collection","Collection Date","Date Collected"])) || bDate;
         const pin = _getV(pRow, ["Sample ID","PIN","Patient ID"]);
 
         const info = {
@@ -5091,7 +5095,7 @@
           age: _getV(pRow, ["Age","Patient Age"]),
           sample_number: _stripDec(_getV(pRow, ["Sample Number","Sample No","Sample No.","SampleNumber","Lab Number","Lab No","Accession No","Accession Number"])),
           referring_clinician: "",
-          biopsy_date: bDate, sample_collection_date: bDate,
+          biopsy_date: bDate, sample_collection_date: cDate,
           hospital_clinic: _getV(pRow, ["Hospital/Clinic Name","Hospital/Clinic","Hospital_Clinic","Hospital","Clinic","Center"]),
           specimen: _getV(pRow, ["Specimen Type","Sample Type"], "DAY 5 TROPHECTODERM BIOPSY"),
           sample_receipt_date: rDate,
@@ -5165,6 +5169,7 @@
             gender: _getV(row, ["Gender", "Sex"]),
             sample_number: _stripDec(_getV(row, ["Sample Number", "Sample No", "Sample No.", "SampleNumber", "Lab Number", "Lab No", "Accession No", "Accession Number"])),
             biopsy_date: _fmtDate(_getV(row, ["Date of Biopsy", "Biopsy Date"])),
+            sample_collection_date: _fmtDate(_getV(row, ["Sample Collection Date", "Date of Sample Collection", "Collection Date", "Date Collected"])),
             hospital_clinic: _getV(row, ["Hospital/Clinic Name", "Hospital/Clinic", "Hospital_Clinic", "Hospital", "Clinic", "Center"]),
             specimen: _getV(row, ["Specimen Type", "Sample Type", "Specimen"], "DAY 5 TROPHECTODERM BIOPSY"),
             sample_receipt_date: _fmtDate(_getV(row, ["Sample Receipt Date", "Sample_Receipt_Date", "Date Sample Received", "Receipt Date"])),
@@ -5205,7 +5210,7 @@
           age: p.age,
           sample_number: p.sample_number,
           referring_clinician: "",
-          biopsy_date: p.biopsy_date, sample_collection_date: p.biopsy_date,
+          biopsy_date: p.biopsy_date, sample_collection_date: p.sample_collection_date || p.biopsy_date,
           hospital_clinic: p.hospital_clinic,
           specimen: p.specimen || "DAY 5 TROPHECTODERM BIOPSY",
           sample_receipt_date: p.sample_receipt_date,
