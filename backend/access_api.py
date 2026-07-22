@@ -17,6 +17,18 @@ def _require_mysql():
     if not db.mysql_enabled:
         raise HTTPException(503, _NOT_CONFIGURED_MSG)
 
+def _logged_in_user(mobile: str) -> dict:
+    if not db.mysql_enabled:
+        return {"mobile_number": mobile, "role": "user", "report": None, "access_control": False}
+
+    user = db.get_user_by_mobile_number(mobile)
+    if not user:
+        raise HTTPException(
+            403, "Your account isn't set up for any report yet. Contact an administrator."
+        )
+    return user
+
+
 @router.post("/login")
 async def login(body: dict):
     mobile = (body.get("mobile") or "").strip()
@@ -32,6 +44,8 @@ async def login(body: dict):
 
     otp_hash = result.get("hash")
     if not otp_hash:
+        if result.get("success") is True and result.get("message") == "Login successful":
+            return {**_logged_in_user(mobile), "otp_required": False}
         raise HTTPException(502, "Login succeeded but the auth service returned no OTP hash.")
 
     return {"otp_required": True, "mobile": mobile, "hash": otp_hash}
@@ -49,16 +63,7 @@ async def verify_otp(body: dict):
     except genetics.GeneticsApiError as e:
         raise HTTPException(401, str(e))
 
-    if not db.mysql_enabled:
-        
-        return {"mobile_number": mobile, "role": "user", "report": None, "access_control": False}
-
-    user = db.get_user_by_mobile_number(mobile)
-    if not user:
-        raise HTTPException(
-            403, "Your account isn't set up for any report yet. Contact an administrator."
-        )
-    return user
+    return _logged_in_user(mobile)
 
 
 @router.post("/patients")

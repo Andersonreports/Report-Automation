@@ -113,7 +113,9 @@ def genetics_login(mobile: str, password: str) -> dict:
             otp_hash = nested
         elif isinstance(nested, dict):
             otp_hash = nested.get("hash")
-    return {"hash": otp_hash}
+    result = dict(data)
+    result["hash"] = otp_hash
+    return result
 
 def verify_otp(otp: str, otp_hash: str, mobile: str) -> dict:
     return _post("/genetics/verify_otp", {"otp": otp, "hash": otp_hash, "mobile": mobile})
