@@ -3976,6 +3976,7 @@
           result_summary: sr.result_summary || ef.result_summary, result_description: ef.result_description,
           interpretation: sr.interpretation || ef.interpretation, mtcopy: sr.mtcopy !== undefined ? sr.mtcopy : ef.mtcopy,
           autosomes: ef.autosomes, sex_chromosomes: ef.sex_chromosomes, cnv_image_path: ef.cnv_image_path || "",
+          cnv_image_b64: ef.cnv_image_b64 || "",
           chromosome_statuses: ef.chromosome_statuses, mosaic_percentages: ef.mosaic_percentages,
           inconclusive_comment: ef.inconclusive_comment || ""
         };
@@ -4345,6 +4346,7 @@
           autosomes: ef.autosomes || "Normal",
           sex_chromosomes: ef.sex_chromosomes || "Normal",
           cnv_image_path: ef.cnv_image_path || "",
+          cnv_image_b64: ef.cnv_image_b64 || "",
           chromosome_statuses: ef.chromosome_statuses || {},
           mosaic_percentages: ef.mosaic_percentages || {},
           inconclusive_comment: ef.inconclusive_comment || ""
@@ -4371,10 +4373,19 @@
         autosomes: e.autosomes || "Normal",
         sex_chromosomes: e.sex_chromosomes || "Normal",
         cnv_image_path: e.cnv_image_path || "",
+        cnv_image_b64: e.cnv_image_b64 || "",
         chromosome_statuses: e.chromosome_statuses || {},
         mosaic_percentages: e.mosaic_percentages || {},
         inconclusive_comment: e.inconclusive_comment || ""
       }));
+      // Bulk mode stores CNV charts as embedded base64 (cnv_image_b64), while
+      // Single Entry's thumbnail/upload widget keys off state.cnvImages[idx].url
+      // (normally a server-uploaded path). Bridge the two so an image mapped in
+      // Bulk still shows up after converting into a manual draft.
+      const cnvImages = {};
+      embryos.forEach((e, idx) => {
+        if (e.cnv_image_b64) cnvImages[idx] = { url: e.cnv_image_b64, name: e.cnv_image_name || "CNV image" };
+      });
       return {
         patientData: {
           patient_name: p.patient_name || "", spouse_name: p.spouse_name || "",
@@ -4385,7 +4396,7 @@
           biopsy_performed_by: p.biopsy_performed_by || "", report_date: p.report_date || "",
           indication: p.indication || "", results_summary_comment: p.results_summary_comment || ""
         },
-        summaryRows, embryoForms, embryoCount: embryoForms.length || 1, cnvImages: {}
+        summaryRows, embryoForms, embryoCount: embryoForms.length || 1, cnvImages
       };
     }
 
@@ -4831,14 +4842,17 @@
       return def;
     }
     function _fmtDate(v) {
-      const s = _cleanV(v).split(" ")[0]; if (!s) return "";
+      const full = _cleanV(v); if (!full) return "";
+      // Only the first token is a real date+time split (e.g. "2026-07-15 00:00:00");
+      // free-text cells like "14 & 15-07-2026" must be kept whole, not truncated to "14".
+      const s = full.split(" ")[0];
       const patterns = [
         [/^(\d{4})-(\d{2})-(\d{2})$/, m => `${m[3]}-${m[2]}-${m[1]}`],
         [/^(\d{2})\/(\d{2})\/(\d{4})$/, m => `${m[1]}-${m[2]}-${m[3]}`],
         [/^(\d{2})-(\d{2})-(\d{4})$/, () => s],
       ];
       for (const [re, fn] of patterns) { const m = s.match(re); if (m) return fn(m); }
-      return s.replace(/\//g, "-");
+      return full.replace(/\//g, "-");
     }
     function _stripDec(v) {
       const f = parseFloat(v); return (!isNaN(f) && f === Math.floor(f)) ? String(Math.floor(f)) : v;
