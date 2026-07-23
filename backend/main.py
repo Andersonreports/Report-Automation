@@ -156,7 +156,8 @@ if os.path.isdir(FRONTEND_DIR):
 def _serve(filename: str):
     p = os.path.join(FRONTEND_DIR, filename)
     if os.path.exists(p):
-        return FileResponse(p, media_type="text/html")
+        return FileResponse(p, media_type="text/html",
+                            headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
     raise HTTPException(404, f"{filename} not found")
 
 

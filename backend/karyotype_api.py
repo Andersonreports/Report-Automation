@@ -359,7 +359,7 @@ def register_karyotype_routes(app):
     def karyotype_page():
         p = os.path.join(FRONTEND_DIR, "karyotype.html")
         if os.path.isfile(p):
-            return FileResponse(p)
+            return FileResponse(p, headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
         return JSONResponse({"error": "karyotype.html not found"}, status_code=404)
 
     @app.get("/karyotype/meta")
