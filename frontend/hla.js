@@ -789,12 +789,18 @@ function renderManualForm() {
 
   if (rtype === "single_rpl" || rtype === "rpl_couple") {
     const rplRefCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-dna" }), " RPL Reference"])]);
+    const hlaCLabel = rtype === "rpl_couple" ? "HLA-C Type (Maternal)" : "HLA-C Type (Maternal/Paternal)";
     const hlaCInput = el("input", { type: "text", placeholder: "e.g. C1, C2 (leave blank to auto-detect from HLA-C alleles)", oninput: scheduleManualPreview });
     manualSpecialFields.rpl_hla_c = hlaCInput;
     const rplFieldRows = [
-      el("div", { class: "field full" }, [el("label", {}, "HLA-C Type (Maternal/Paternal)"), hlaCInput]),
+      el("div", { class: "field full" }, [el("label", {}, hlaCLabel), hlaCInput]),
     ];
     if (rtype === "rpl_couple") {
+      const hlaCDonorInput = el("input", { type: "text", placeholder: "e.g. C1, C2 (leave blank to auto-detect from HLA-C alleles)", oninput: scheduleManualPreview });
+      manualSpecialFields.rpl_hla_c_donor = hlaCDonorInput;
+      rplFieldRows.push(
+        el("div", { class: "field full" }, [el("label", {}, "HLA-C Type (Paternal)"), hlaCDonorInput]),
+      );
       const overallPctInput = el("input", { type: "text", placeholder: "Auto-calculated from Match field",
         oninput: () => { overallPctInput.dataset.userEdited = "1"; scheduleManualPreview(); } });
       const class2PctInput = el("input", { type: "text", placeholder: "Auto-calculated from DRB1/DQB1 overlap",
@@ -1476,6 +1482,9 @@ function collectManualCase() {
   if ((rtype === "single_rpl" || rtype === "rpl_couple") && manualSpecialFields.rpl_hla_c) {
     c.rpl_reference = { hla_c_patient: manualSpecialFields.rpl_hla_c.value.trim() };
   }
+  if (rtype === "rpl_couple" && manualSpecialFields.rpl_hla_c_donor) {
+    c.rpl_reference.hla_c_donor = manualSpecialFields.rpl_hla_c_donor.value.trim();
+  }
   if (rtype === "rpl_couple" && manualSpecialFields.rpl_match_pct) {
     c.rpl_reference.match_pct_override = manualSpecialFields.rpl_match_pct.value.trim();
     c.rpl_reference.class2_pct_override = manualSpecialFields.rpl_class2_pct.value.trim();
@@ -1871,6 +1880,9 @@ function populateManualForm(c) {
 
   if ((rtype === "single_rpl" || rtype === "rpl_couple") && manualSpecialFields.rpl_hla_c) {
     manualSpecialFields.rpl_hla_c.value = (c.rpl_reference && c.rpl_reference.hla_c_patient) || "";
+  }
+  if (rtype === "rpl_couple" && manualSpecialFields.rpl_hla_c_donor) {
+    manualSpecialFields.rpl_hla_c_donor.value = (c.rpl_reference && c.rpl_reference.hla_c_donor) || "";
   }
   if (rtype === "rpl_couple" && manualSpecialFields.rpl_match_pct) {
     const _ovMatch = (c.rpl_reference && c.rpl_reference.match_pct_override) || "";
@@ -3013,6 +3025,7 @@ function renderBulkEditor(i) {
 
   if (c.report_type === "single_rpl" || c.report_type === "rpl_couple") {
     const rplRefCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-dna" }), " RPL Reference"])]);
+    const hlaCLabel = c.report_type === "rpl_couple" ? "HLA-C Type (Maternal)" : "HLA-C Type (Maternal/Paternal)";
     const hlaCInput = el("input", { type: "text",
       placeholder: "e.g. C1, C2 (leave blank to auto-detect from HLA-C alleles)",
       value: (c.rpl_reference && c.rpl_reference.hla_c_patient) || "" });
@@ -3022,9 +3035,20 @@ function renderBulkEditor(i) {
       scheduleBulkPreview(i);
     });
     const rplFieldRows = [
-      el("div", { class: "field full" }, [el("label", {}, "HLA-C Type (Maternal/Paternal)"), hlaCInput]),
+      el("div", { class: "field full" }, [el("label", {}, hlaCLabel), hlaCInput]),
     ];
     if (c.report_type === "rpl_couple") {
+      const hlaCDonorInput = el("input", { type: "text",
+        placeholder: "e.g. C1, C2 (leave blank to auto-detect from HLA-C alleles)",
+        value: (c.rpl_reference && c.rpl_reference.hla_c_donor) || "" });
+      hlaCDonorInput.addEventListener("input", () => {
+        c.rpl_reference = c.rpl_reference || {};
+        c.rpl_reference.hla_c_donor = hlaCDonorInput.value.trim();
+        scheduleBulkPreview(i);
+      });
+      rplFieldRows.push(
+        el("div", { class: "field full" }, [el("label", {}, "HLA-C Type (Paternal)"), hlaCDonorInput]),
+      );
       const _stripPct = v => (v || "").toString().replace("%", "").trim();
       const _overallStart = _stripPct(c.rpl_reference && (c.rpl_reference.match_pct_override || c.rpl_reference.match_pct));
       const _class2Start  = _stripPct(c.rpl_reference && (c.rpl_reference.class2_pct_override || c.rpl_reference.class2_pct));

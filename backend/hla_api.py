@@ -133,8 +133,10 @@ def _auto_compute_derived_fields(case: dict) -> None:
     rtype = case.get("report_type", "")
     if rtype == "rpl_couple":
         ref = case.get("rpl_reference") or {}
-        match_override  = (ref.get("match_pct_override") or "").strip()
-        class2_override = (ref.get("class2_pct_override") or "").strip()
+        match_override      = (ref.get("match_pct_override") or "").strip()
+        class2_override     = (ref.get("class2_pct_override") or "").strip()
+        hla_c_patient_manual = (ref.get("hla_c_patient") or "").strip()
+        hla_c_donor_manual   = (ref.get("hla_c_donor") or "").strip()
         if not (ref.get("match_str") or "").strip():
             patient = case.get("patient", {})
             donors  = case.get("donors", [])
@@ -147,6 +149,10 @@ def _auto_compute_derived_fields(case: dict) -> None:
             ref["match_pct"] = match_override if match_override.endswith("%") else f"{match_override}%"
         if class2_override:
             ref["class2_pct"] = class2_override if class2_override.endswith("%") else f"{class2_override}%"
+        if hla_c_patient_manual:
+            ref["hla_c_patient"] = hla_c_patient_manual
+        if hla_c_donor_manual:
+            ref["hla_c_donor"] = hla_c_donor_manual
         case["rpl_reference"] = ref
     elif rtype == "single_rpl":
         ref = case.get("rpl_reference") or {}
