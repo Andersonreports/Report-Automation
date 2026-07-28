@@ -71,8 +71,31 @@ class PGTAReportTemplate:
     MARGIN_TOP = 90
     MARGIN_BOTTOM = 150
     DOSE_MARGIN_TOP = 100
-    DOSE_MARGIN_BOTTOM = 150
+    # No footer banner is drawn without the logo, so the frame can run further
+    # down the page - it only has to clear the GenQA logo (top edge y=102.5) and
+    # the "Page X of Y" line (drawn at y=118, 9pt tall).
+    DOSE_MARGIN_BOTTOM = 134
+
+    # SimpleDocTemplate builds its frame with reportlab's default padding, which
+    # eats into the space the story actually gets on both axes.
+    FRAME_PADDING = 6
+
+    # When an embryo page is marginally too tall for the signature block, reclaim
+    # space from padding first, then from the copy-number chart, which stays
+    # legible down to this fraction of its natural size.
+    SIG_GAP = 12
+    SIG_GAP_MIN = 4
+    SIG_TOP_GAP = 12.7
+    SIG_TOP_GAP_MIN = 4
+    CNV_IMAGE_MIN_SCALE = 0.75
+    # Aim a little under the frame: landing on exactly zero slack lets rounding
+    # differences between our measurement and the real layout force a break.
+    SIG_FIT_TOLERANCE = 2
     CONTENT_WIDTH = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT
+
+    # Shared scratch canvas - platypus needs one attached to a flowable before it
+    # can be asked how tall it is.
+    _measure_canvas = None
     
     ASSETS_DIR = "assets/pgta"
     HEADER_LOGO = os.path.join(ASSETS_DIR, "image_page1_0.png")
@@ -355,8 +378,10 @@ class PGTAReportTemplate:
             topMargin=top_margin,
             bottomMargin=bottom_margin
         )
-        
+
         self._show_logo = show_logo
+        self._frame_height = (self.PAGE_HEIGHT - top_margin - bottom_margin
+                              - 2 * self.FRAME_PADDING)
         
         story = []
         
@@ -383,9 +408,7 @@ class PGTAReportTemplate:
             if "LOW DNA" in interp or "NO DNA" in interp or "LOW DNA" in res or "NO DNA" in res:
                 continue
                 
-            story.extend(self._build_embryo_page(patient_data, embryo))
-            story.append(Spacer(1, 12))
-            story.append(self._create_signature_table())
+            story.extend(self._embryo_block_with_signature(patient_data, embryo))
             story.append(PageBreak())
         
         doc.build(story, onFirstPage=self._add_header_footer,
@@ -956,15 +979,114 @@ class PGTAReportTemplate:
         
         return table
 
-    def _create_signature_table(self):
+    def _flatten(self, flowables):
+        """KeepTogether only constrains where a page break may fall - platypus
+        lays its contents out individually, and its own wrap() reports a huge
+        sentinel height, so flatten it before measuring."""
+        for f in flowables:
+            if isinstance(f, KeepTogether):
+                yield from self._flatten(f._content)
+            else:
+                yield f
+
+    def _flowable_height(self, flowable, avail_width):
+        """Height a single flowable's wrap() reports at avail_width."""
+        if PGTAReportTemplate._measure_canvas is None:
+            PGTAReportTemplate._measure_canvas = canvas.Canvas(BytesIO())
+
+        flowable.canv = PGTAReportTemplate._measure_canvas
+        try:
+            return flowable.wrap(avail_width, self.PAGE_HEIGHT)[1]
+        except Exception:
+            return 0
+        finally:
+            try:
+                del flowable.canv
+            except Exception:
+                pass
+
+    def _block_height(self, flowables, avail_width):
+        """Height a run of flowables occupies at the top of a frame.
+
+        Mirrors reportlab's Frame._add: wrap() excludes a flowable's own
+        spaceBefore/spaceAfter, and space between two flowables collapses to the
+        larger of the pair rather than summing.
+        """
+        total = 0.0
+        prev_after = 0.0
+        at_top = True
+        for f in self._flatten(flowables):
+            if not at_top:
+                total += max(f.getSpaceBefore() - prev_after, 0)
+            total += self._flowable_height(f, avail_width)
+            prev_after = f.getSpaceAfter()
+            total += prev_after
+            at_top = False
+        return total
+
+    def _shrink_cnv_image(self, elements, needed):
+        """Scale the copy-number chart down by up to `needed` points, preserving
+        its aspect ratio. Returns the height actually reclaimed."""
+        for f in elements:
+            # The chart is the only bare Image on an embryo page; the signature
+            # images live inside the signature block's KeepTogether.
+            if not isinstance(f, Image):
+                continue
+            current = f.drawHeight
+            target = max(current * self.CNV_IMAGE_MIN_SCALE, current - needed)
+            if target >= current:
+                return 0
+            f.drawWidth *= target / current
+            f.drawHeight = target
+            return current - target
+        return 0
+
+    def _embryo_block_with_signature(self, patient_data, embryo_data):
+        """An embryo page plus its signature block, compacted so the two stay on
+        one page.
+
+        Without the logo the frame is shorter (no header/footer banner to lay the
+        content out around), and a full-height embryo page used to push the
+        signatures onto a page of their own.
+        """
+        elements = self._build_embryo_page(patient_data, embryo_data)
+        avail_width = self.CONTENT_WIDTH - 2 * self.FRAME_PADDING
+        avail = getattr(self, '_frame_height',
+                        self.PAGE_HEIGHT - self.MARGIN_TOP - self.MARGIN_BOTTOM
+                        - 2 * self.FRAME_PADDING)
+
+        gap = self.SIG_GAP
+        top_gap = self.SIG_TOP_GAP
+        over = self._block_height(
+            elements + [Spacer(1, gap), self._create_signature_table(top_gap)],
+            avail_width
+        ) - (avail - self.SIG_FIT_TOLERANCE)
+
+        if over > 0:
+            shed = min(over, gap - self.SIG_GAP_MIN)
+            gap -= shed
+            over -= shed
+        if over > 0:
+            shed = min(over, top_gap - self.SIG_TOP_GAP_MIN)
+            top_gap -= shed
+            over -= shed
+        if over > 0:
+            over -= self._shrink_cnv_image(elements, over)
+        if over > 0:
+            print(f"PGT-A: embryo {embryo_data.get('embryo_id')} page is {over:.1f}pt too "
+                  f"tall to hold the signature block; it will fall to the next page")
+
+        return elements + [Spacer(1, gap), self._create_signature_table(top_gap)]
+
+    def _create_signature_table(self, top_gap=None):
         """Create signature section with precise structural metrics from source PDF"""
         elements = []
-        
+
         elements.append(Paragraph(
-            "<b>This report has been reviewed and approved by: </b>", 
+            "<b>This report has been reviewed and approved by: </b>",
             self.styles['PGTASigApproval']
         ))
-        elements.append(Spacer(1, 12.7))
+        elements.append(Spacer(1, self.SIG_TOP_GAP if top_gap is None else top_gap))
         
         try:
             from io import BytesIO

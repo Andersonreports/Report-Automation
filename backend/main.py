@@ -543,9 +543,19 @@ async def pgta_generate(request: Request, background_tasks: BackgroundTasks):
         else:
             name_seg = f"{p_first}_{p_init}"
 
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         logo_tag = "withlogo" if show_logo else "withoutlogo"
-        base_fn = f"PGTA_{name_seg}_{ts}_{logo_tag}"
+
+        def _id_seg(value):
+            """An identifier as a filename segment: strip the trailing '.0' a
+            spreadsheet import leaves behind, then drop anything non-alphanumeric."""
+            raw = re.sub(r'\.0+$', '', str(value or '').strip())
+            return re.sub(r'[^A-Za-z0-9]', '', raw)
+
+        # <sample number>_<patient name>_PGTA_<logo tag>. The sample number leads
+        # so reports sort and search by the lab's own identifier; it is dropped
+        # from the name when it wasn't entered.
+        sample_seg = _id_seg(patient_info.get("sample_number"))
+        base_fn = "_".join(s for s in (sample_seg, name_seg, "PGTA", logo_tag) if s)
         results = {}
 
         if "pdf" in formats:
