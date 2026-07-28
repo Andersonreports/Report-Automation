@@ -198,6 +198,30 @@ function showToast(msg, type = "") {
   setTimeout(() => t.classList.remove("show"), 2800);
 }
 
+// Build a readable Error from a failed upload response. Proxies such as nginx
+// answer with a full HTML error page rather than our JSON {detail: ...}, so
+// dumping the raw body puts markup in front of the user.
+async function uploadError(r, fileInput) {
+  if (r.status === 413) {
+    const f = fileInput && fileInput.files && fileInput.files[0];
+    const mb = f ? ` (${(f.size / 1048576).toFixed(1)} MB)` : "";
+    return new Error(
+      `Too large for the server to accept${mb}. The request was rejected by the web server ` +
+      "before it reached the report generator. Ask IT to raise the upload limit" +
+      (f ? ", or re-save the workbook without embedded images/extra sheets to shrink it." : ", or process fewer cases at a time.")
+    );
+  }
+  const body = (await r.text()).trim();
+  try {
+    const detail = JSON.parse(body).detail;
+    if (detail) return new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+  } catch (_) { }
+  if (/^\s*<(!doctype|html)/i.test(body)) {
+    return new Error(`Server returned an error page (HTTP ${r.status} ${r.statusText || ""}).`.trim());
+  }
+  return new Error(body || `Request failed (HTTP ${r.status}).`);
+}
+
 function el(tag, attrs = {}, children = []) {
   const e = document.createElement(tag);
   Object.entries(attrs).forEach(([k, v]) => {
@@ -215,10 +239,7 @@ function el(tag, attrs = {}, children = []) {
 
 async function apiPost(path, body) {
   const r = await fetch(API + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  if (!r.ok) {
-    const t = await r.text();
-    try { const j = JSON.parse(t); throw new Error(j.detail || t); } catch (e) { if (e instanceof SyntaxError) throw new Error(t); throw e; }
-  }
+  if (!r.ok) throw await uploadError(r);
   return r.json();
 }
 async function apiGet(path) {
@@ -1683,11 +1704,7 @@ async function loadDraftFromPdf(file) {
   try {
     showToast("Reading PDF…");
     const r = await fetch("/hla/pdf-to-draft", { method: "POST", body: fd });
-    if (!r.ok) {
-      let msg = await r.text();
-      try { msg = JSON.parse(msg).detail || msg; } catch (_) {  }
-      throw new Error(msg);
-    }
+    if (!r.ok) throw await uploadError(r, { files: [file] });
     const result = await r.json();
     state.rtype = result.rtype || (result.case && result.case.report_type) || "single_hla";
     document.getElementById("templateSelect").value = Object.keys(TEMPLATE_TO_RTYPE).find(k => TEMPLATE_TO_RTYPE[k] === state.rtype) || "With CL";
@@ -2094,11 +2111,7 @@ async function importSabToManual(sabFileInput, sabKitSelect) {
     fd.append("file", sabFileInput.files[0]);
     fd.append("kit", sabKitId(sabKitSelect.value));
     const r = await fetch("/hla/parse-sab-excel", { method: "POST", body: fd });
-    if (!r.ok) {
-      let msg = await r.text();
-      try { msg = JSON.parse(msg).detail || msg; } catch (_) {  }
-      throw new Error(msg);
-    }
+    if (!r.ok) throw await uploadError(r, sabFileInput);
     const data = await r.json();
     let rtype = state.rtype === "sab_class2" ? "sab_class2" : "sab_class1";
     if (data.sab_class === "I" || data.sab_class === "II") {
@@ -2141,11 +2154,7 @@ async function importBulkSabExcel(sabFileInput, sabKitSelect) {
     fd.append("file", sabFileInput.files[0]);
     fd.append("kit", sabKitId(sabKitSelect.value));
     const r = await fetch("/hla/parse-sab-excel", { method: "POST", body: fd });
-    if (!r.ok) {
-      let msg = await r.text();
-      try { msg = JSON.parse(msg).detail || msg; } catch (_) {  }
-      throw new Error(msg);
-    }
+    if (!r.ok) throw await uploadError(r, sabFileInput);
     const data = await r.json();
     const detectedClass = (data.sab_class === "I" || data.sab_class === "II") ? data.sab_class : null;
     const sabClass = detectedClass || "I";
@@ -2249,11 +2258,7 @@ async function parseBulkExcel() {
   try {
     showToast(ri.files.length ? "Cross-matching Patient List with Result CSV…" : "Parsing Excel file…");
     const r = await fetch(url, { method: "POST", body: fd });
-    if (!r.ok) {
-      let msg = await r.text();
-      try { msg = JSON.parse(msg).detail || msg; } catch (_) {  }
-      throw new Error(msg);
-    }
+    if (!r.ok) throw await uploadError(r, fi);
     const data = await r.json();
     state.bulkCases = data.cases || [];
     state.bulkSelected = new Set(state.bulkCases.map((_, i) => i));

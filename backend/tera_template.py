@@ -91,6 +91,14 @@ W, H = 612.0, 792.0
 HDR_X, HDR_Y, HDR_W, HDR_H = 72.0, H - 72.0, 468.0, 72.0
 FTR_X, FTR_Y, FTR_W, FTR_H = 72.75, 8.0,      481.9, 34.0
 
+# Baseline of the "Page n of 3" line, in points from the bottom of the page, used
+# for every page and both logo variants. 70.0 reproduces the approved reference
+# report (measured off that PDF: glyph bottom at 68.0, i.e. baseline 70.0) and is
+# the same FTR_Y + FTR_H + 28 the with-logo pages already used - it was the
+# without-logo branch at 36.0, and the per-result-type page-1 overrides, that
+# deviated. Clears the footer banner, whose top edge sits at FTR_Y + FTR_H = 42.0.
+PAGE_NUM_Y = 70.0
+
 TBL_X          = 45.84
 TBL_TOP_RL     = H - 143.78
 TBL_COL_WIDTHS = [111.26, 7.08, 200.61, 91.22, 9.01, 114.10]
@@ -338,11 +346,12 @@ class TERAReportGenerator:
         c.restoreState()
 
     def _page_number(self, c, n: int, total: int = 3):
+        # One position for every page and both logo variants - see PAGE_NUM_Y.
+        # The old per-variant values (36.0 without logo, 70.0 with, and the
+        # per-result-type "page1_num_y" overrides of 85.0/88.0) are superseded,
+        # so RESULT_CFG["page1_num_y"] is deliberately no longer read.
         text = f"Page {n} of {total}"
-        if n == 1 and self.with_logo:
-            y = self.cfg.get("page1_num_y", FTR_Y + FTR_H + 28)
-        else:
-            y = (FTR_Y + FTR_H + 28) if self.with_logo else 36.0
+        y = PAGE_NUM_Y
         c.saveState()
         c.setFont(F_SIG, 9)
         c.setFillColor(GRAY_SIG)
@@ -642,7 +651,8 @@ class TERAReportGenerator:
 
     def _patient_rows(self):
         d     = self.d
-        name  = self._fix_relation_case(self._s(d.get("Patient Name", "")).title())
+        name  = self._fix_relation_case(
+            self._upper_bracketed(self._s(d.get("Patient Name", "")).title()))
         pin   = self._s(d.get("Sample ID", "")) or "Not Provided"
         sid   = self._s(d.get("Lab No.", ""))
         age_r = self._s(d.get("Age", ""))
@@ -694,6 +704,19 @@ class TERAReportGenerator:
     @staticmethod
     def _fix_relation_case(name: str) -> str:
         return re.sub(r'\b([WSD])/O\b', lambda m: m.group(1).lower() + '/o', name)
+
+    @staticmethod
+    def _upper_bracketed(text: str) -> str:
+        """Force anything inside (...) or [...] to full caps.
+
+        Patient names carry a centre/reference code in brackets (e.g.
+        "Mrs. Sravani (EIC-8096)"). Plain .title() lowercases it to "(Eic-8096)",
+        so the bracketed span is re-uppercased after title-casing. Mirrors the
+        parenthesised-short-form rule in hla_template._title_case.
+        """
+        if not text:
+            return text
+        return re.sub(r'[\(\[][^\)\]]*[\)\]]', lambda m: m.group().upper(), text)
 
     @staticmethod
     def _int(val):

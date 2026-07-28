@@ -1601,7 +1601,12 @@ def _build_ngs_transplant(case: dict, S: dict) -> list:
     while elems and isinstance(elems[-1], Spacer):
         elems.pop()
 
-    elems.append(KeepTogether(_methodology_block(case, S, merge=True)))
+    # IMGT/Coverage/Methodology always starts a new page. Previously this was a bare
+    # KeepTogether, so the block stayed on page 1 whenever it happened to fit and only
+    # moved to page 2 once remarks for both patient and donor crowded it out - the page
+    # it landed on depended on how much the user typed.
+    elems.append(PageBreakIfNotEmpty())
+    elems.extend(_methodology_block(case, S, merge=True))
     sig_items = _signature_block(signatories, S)
     if sig_items:
         elems.append(KeepTogether(sig_items))
