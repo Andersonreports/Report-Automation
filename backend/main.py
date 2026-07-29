@@ -640,6 +640,31 @@ async def _parse_pgta_excel_core(contents: bytes):
         s = re.sub(r'\([^)]*\)', '', s)
         return re.sub(r'[^A-Z0-9]', '', s)
 
+    def norm_pin(s):
+        # Uppercase + strip non-alphanumerics ONLY. Unlike norm() it does not
+        # drop leading initials or parenthesised text, so composite Patient
+        # Nos like "260739312-RPT" survive intact for comparison.
+        return re.sub(r'[^A-Z0-9]', '', str(s or '').upper())
+
+    def pin_matches(a, b):
+        # Both already norm_pin'd. Exact, or substring either way so a repeat
+        # sample's suffixed PIN ("260739312-RPT") still matches its patient.
+        if not a or not b:
+            return False
+        return a == b or (len(a) >= 4 and a in b) or (len(b) >= 4 and b in a)
+
+    def sample_name_ids(sname):
+        # Identifiers a Sample name can carry: the dash-delimited prefixes of
+        # the part before "_". "AG-1234-E1_S9" -> {"AG","AG1234","AG1234E1"}.
+        # A PIN must EQUAL one of these, so "1234" cannot grab "AG12345-E1".
+        ids, acc = set(), ''
+        for part in str(sname or '').split('_')[0].split('-'):
+            acc += part
+            n = norm_pin(acc)
+            if n:
+                ids.add(n)
+        return ids
+
     def first_name_token(full_name):
         s = str(full_name or '').upper().strip()
         for pfx in ('MRS.', 'MR.', 'SMT.', 'DR.', 'MS.', 'MISS.', 'PROF.'):
@@ -662,9 +687,11 @@ async def _parse_pgta_excel_core(contents: bytes):
             prefix_n = norm(prefix)
             name_n = matched_patient.get("_name_n", "")
             first_tok = matched_patient.get("_first_tok", "")
+            pid_n = matched_patient.get("_pid_n", "")
             if rest and prefix_n and (
                 (name_n and (prefix_n == name_n or name_n.startswith(prefix_n))) or
-                (first_tok and prefix_n == first_tok)
+                (first_tok and prefix_n == first_tok) or
+                (pid_n and (prefix_n == pid_n or pid_n.startswith(prefix_n)))
             ):
                 return rest
         return base
@@ -722,7 +749,7 @@ async def _parse_pgta_excel_core(contents: bytes):
                 "indication":          clean_val(row, ['Indication', 'indication', 'Clinical Indication']),
                 "embryos":             []
             }
-            p["_pid_n"] = norm(pid)
+            p["_pid_n"] = norm_pin(pid)
             p["_name_n"] = norm(name)
             p["_first_tok"] = first_name_token(name)
             patients.append(p)
@@ -734,22 +761,25 @@ async def _parse_pgta_excel_core(contents: bytes):
                 row, ['Sample name', 'Sample Name', 'sample_name', 'Sample ID'])
             if not sname or sname in matched_samples:
                 continue
-            ns = norm(sname)
-            sample_base = sname.split('_')[0]
-            sample_first_tok = re.sub(
-                r'[^A-Z0-9]', '', sample_base.split('-')[0].upper().strip())
-
-            # Tier 1: Sample ID/PIN is a substring of the normalized sample name (most reliable)
-            matched = next(
-                (p for p in patients if p["_pid_n"] and p["_pid_n"] in ns), None)
-            # Tier 2: normalized sample name starts with the normalized patient name
-            if matched is None:
+            # Every patient carries a unique Patient No / PIN, so that is the
+            # ONLY key used here. Patient names are never matched on: similar
+            # names silently assigned one patient's embryos to another, and a
+            # wrong embryo on a signed report is worse than an unmatched row.
+            # The row's PIN comes from a dedicated PIN column when the sheet
+            # has one (authoritative), else from the Sample name's leading
+            # segment ("<PIN>-E1"), compared against the dash-delimited
+            # prefixes so the PIN must equal one of them, not merely occur
+            # inside the name.
+            row_pin = norm_pin(clean_val(
+                row, ['PIN', 'PIN No', 'PIN No.', 'PIN Number',
+                      'Patient No', 'Patient No.', 'Patient ID', 'Patient_ID']))
+            sample_ids = sample_name_ids(sname)
+            if row_pin:
                 matched = next(
-                    (p for p in patients if p["_name_n"] and ns.startswith(p["_name_n"])), None)
-            # Tier 3: first-name-token exact match (guarded by min length to avoid false positives)
-            if matched is None:
+                    (p for p in patients if p["_pid_n"] and pin_matches(p["_pid_n"], row_pin)), None)
+            else:
                 matched = next(
-                    (p for p in patients if len(p["_first_tok"]) >= 4 and p["_first_tok"] == sample_first_tok), None)
+                    (p for p in patients if p["_pid_n"] and p["_pid_n"] in sample_ids), None)
 
             emb = {
                 "embryo_id":           short_embryo_id(sname, matched),
@@ -764,11 +794,12 @@ async def _parse_pgta_excel_core(contents: bytes):
                 "inconclusive_comment": ""
             }
 
+            # No PIN match means no report — the old "if there's only one
+            # patient, give them the row" fallback is gone, since it attached
+            # results to a patient whose Patient No never appeared in them.
             if matched:
                 matched_samples.add(sname)
                 matched["embryos"].append(emb)
-            elif len(patients) == 1:
-                patients[0]["embryos"].append(emb)
 
     for p in patients:
         p.pop("_pid_n", None)

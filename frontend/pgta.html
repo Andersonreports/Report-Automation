@@ -2490,6 +2490,11 @@
       border-left: 4px solid #ef4444;
     }
 
+    .toast.warning {
+      background: #92400e;
+      border-left: 4px solid #f59e0b;
+    }
+
     .toast.info {
       background: #1e40af;
       border-left: 4px solid #3b82f6;
@@ -3011,9 +3016,9 @@
 
             <div class="bulk-top-sep"></div>
             <div class="bulk-top-file">
-              <div class="drop-zone-compact" id="resultDropZone" onclick="document.getElementById('bulkResultFileInput').click()" title="Optional: a separate Result Excel/CSV to cross-match by patient name/PIN — only patients with a matched result are shown. You can also add CNV chart images here to auto-match them.">
+              <div class="drop-zone-compact" id="resultDropZone" onclick="document.getElementById('bulkResultFileInput').click()" title="Optional: a separate Result Excel/CSV to cross-match on Patient No / PIN — only patients with a matched result are shown, and patient names are never used to match. You can also add CNV chart images here to auto-match them.">
                 <i class="fas fa-dna" style="color:var(--primary);font-size:14px;flex-shrink:0;"></i>
-                <span id="resultDropZoneLabel">Click to browse or drag Result Excel/CSV (optional — cross-matches by Patient No)</span>
+                <span id="resultDropZoneLabel">Click to browse or drag Result Excel/CSV (optional — cross-matches on Patient No / PIN only)</span>
               </div>
               <input type="file" id="bulkResultFileInput" style="display:none;" accept=".xlsx,.xls,.csv,.png,.jpg,.jpeg" multiple>
             </div>
@@ -3038,6 +3043,10 @@
 
           
           <div id="bulkPatientSection" style="flex:1;display:flex;flex-direction:column;min-height:0;">
+
+
+            <div id="bulkMatchWarning" style="display:none;flex-shrink:0;margin:0 0 8px;padding:8px 10px;border:1px solid #f0c36d;background:#fff8e6;color:#7a5a00;border-radius:6px;font-size:11px;max-height:130px;overflow:auto;"></div>
+
 
             
             <div class="bulk-3col">
@@ -4788,13 +4797,16 @@
         if (images.length > 0) mapped = await _autoMapCnvImagesLocal(images);
 
         renderBulkPatients();
+        _renderMatchSkips();
         document.getElementById("bulkPatientSection").classList.remove("hidden");
+        const skipped = _lastMatchSkips.length;
         if (lbl) {
           let msg = `<strong>${esc(excelFile.name)}</strong> &mdash; ${state.bulkPatients.length} patients`;
+          if (skipped > 0) msg += ` <small style="color:#b45309;font-weight:bold;">(${skipped} unmatched)</small>`;
           if (mapped > 0) msg += ` <small style="color:var(--success);font-weight:bold;">(+${mapped} CNVs)</small>`;
           lbl.innerHTML = msg + ` &nbsp;<small style="color:var(--text-muted);text-decoration:underline;">(click to change)</small>`;
         }
-        showToast(`Loaded ${state.bulkPatients.length} patient(s)` + (mapped ? ` + ${mapped} CNV chart(s)` : ""), "success");
+        showToast(`Loaded ${state.bulkPatients.length} patient(s)` + (skipped ? ` — ${skipped} skipped (no PIN match)` : "") + (mapped ? ` + ${mapped} CNV chart(s)` : ""), skipped ? "warning" : "success");
       } catch (err) {
         if (lbl) lbl.innerHTML = `<span style="color:#c00;">Error: ${esc(err.message)}</span> &nbsp;<small style="text-decoration:underline;">(click to retry)</small>`;
         showToast("Processing failed: " + err.message, "error");
@@ -4911,25 +4923,58 @@
 
 
 
-    function _sampleMatchesPatient(normS, sFT, normP, normSid, ftok) {
-
-      if (normSid && normSid.length >= 3 && normS.includes(normSid)) return true;
-
-      if (normP && sFT === normP) return true;
-
-      if (ftok && ftok.length >= 4 && sFT === ftok) return true;
-
-
-      if (normP && normP.length >= 4 && normS.startsWith(normP)) {
-        const rest = normS.slice(normP.length);
-        if (rest === "" || /^\d/.test(rest) || rest.length <= 3) return true;
+    // The identifiers a Sample name can carry: the dash-delimited prefixes of
+    // the part before "_". "AG-1234-E1_S9" -> ["AG", "AG1234", "AG1234E1"].
+    // A PIN counts as present only when it EQUALS one of these (whatever
+    // follows is the embryo suffix) — never when it merely appears somewhere
+    // inside the name, which is how "1234" used to grab "AG12345-E1".
+    function _sampleNameIds(sOrig) {
+      const ids = [];
+      let acc = "";
+      for (const part of String(sOrig || "").split("_")[0].split("-")) {
+        acc += part;
+        const n = _normPin(acc);
+        if (n) ids.push(n);
       }
-      return false;
+      return ids;
+    }
+
+    // True when a Result row belongs to this patient. Matching is on the
+    // Patient No / PIN ONLY — patient names are never used. Names collided
+    // across patients (shared first names, spousal-initial suffixes, one name
+    // being a prefix of another) and silently assigned another patient's
+    // embryos, and a wrong embryo on a signed report is far worse than a
+    // patient that fails to match and gets reported as skipped.
+    //
+    // The PIN is read from a dedicated PIN column on the Result sheet when it
+    // has one — that column is authoritative, so a row whose PIN disagrees is
+    // rejected outright rather than falling through to anything looser. When
+    // the sheet has no PIN column the identifier is taken from the Sample
+    // name's leading segment ("<PIN>-E1"), which is still the Patient No.
+    function _rowPinMatches(pin, sRow, sOrig) {
+      const normSid = _normPin(pin);
+      if (!normSid) return false;
+      const rowPin = _rowPin(sRow);
+      if (rowPin) return _pinMatches(pin, rowPin);
+      return _sampleNameIds(sOrig).includes(normSid);
     }
 
 
-    function _stripPatientPrefix(base, normP, normSid, ftok, normPShort) {
+    function _stripPatientPrefix(base, pin, normP, ftok, normPShort) {
       if (!base.includes("-")) return base;
+
+      // Patient No pass, longest dash-delimited prefix first, so a dashed
+      // Patient No ("AG-1234" in "AG-1234-E1") comes off whole instead of one
+      // segment at a time leaving "1234-E1" as the embryo ID.
+      const normSid = _normPin(pin);
+      if (normSid) {
+        const parts = base.split("-");
+        for (let i = parts.length - 1; i >= 1; i--) {
+          const rest = parts.slice(i).join("-");
+          if (rest && _normPin(parts.slice(0, i).join("-")) === normSid) return rest;
+        }
+      }
+
       const dashIdx = base.indexOf("-");
       const prefix = base.slice(0, dashIdx);
       const rest = base.slice(dashIdx + 1);
@@ -4939,8 +4984,7 @@
       const matchesName = normP && (prefixN === normP || normP.startsWith(prefixN) || prefixN.startsWith(normP));
       const matchesShort = normPShort && normPShort !== normP && (prefixN === normPShort || normPShort.startsWith(prefixN) || prefixN.startsWith(normPShort));
       const matchesTok  = ftok && prefixN === ftok;
-      const matchesPin  = normSid && (prefixN === normSid || normSid.startsWith(prefixN) || prefixN.startsWith(normSid));
-      return (matchesName || matchesShort || matchesTok || matchesPin) ? rest : base;
+      return (matchesName || matchesShort || matchesTok) ? rest : base;
     }
 
     function _parseResult(rStr) {
@@ -5027,35 +5071,29 @@
     }
 
 
+    // Patients dropped by the last import because nothing matched their PIN.
+    // Surfaced in the UI so a missing/mistyped Patient No is visible instead
+    // of silently shrinking the batch.
+    let _lastMatchSkips = [];
+
+    function _matchSkipReason(pin) {
+      return _normPin(pin)
+        ? `no Result row carries Patient No / PIN "${String(pin).trim()}"`
+        : "no Patient No / PIN on the patient row";
+    }
+
     function _matchEmbryosForPatient(pName, pin, summaryRows, matched) {
+      // Name normalizations are for _stripPatientPrefix (display only) — the
+      // match itself is PIN-only, see _rowPinMatches.
       const normP = _normName(pName);
       const normPShort = _normNameShort(normP);
-      const normSid = _normName(pin || "");
       const ftok = _firstToken(pName);
       const embryos = [];
+      if (!_normPin(pin)) return embryos;
 
       for (const sRow of summaryRows) {
         const sOrig = _cleanV(sRow["Sample name"]); if (!sOrig || matched.has(sOrig)) continue;
-        const normS = _normName(sOrig);
-        const sFT = sOrig.split("_")[0].split("-")[0].toUpperCase().replace(/[^A-Z0-9]/g,"");
-
-        // Prefer the Result sheet's PIN column when it exists: if BOTH the
-        // patient and this row carry a PIN, that is the authoritative key —
-        // match strictly on it (no name fallback) so two patients with similar
-        // names but different PINs can never be confused. When either side has
-        // no PIN, fall back to the name / sample-name matching (boundary-aware
-        // so a shorter name like "RAM" never grabs "RAMESH-E1"). Try the full
-        // name first and only fall back to the suffix-shortened form if that
-        // fails, so real surnames ending in a "suffix" letter still match.
-        const rowPin = _rowPin(sRow);
-        let isMatch;
-        if (pin && rowPin) {
-          isMatch = _pinMatches(pin, rowPin);
-        } else {
-          isMatch = _sampleMatchesPatient(normS, sFT, normP, normSid, ftok)
-            || (normPShort !== normP && _sampleMatchesPatient(normS, sFT, normPShort, normSid, ftok));
-        }
-        if (!isMatch) continue;
+        if (!_rowPinMatches(pin, sRow, sOrig)) continue;
         matched.add(sOrig);
 
         const base = sOrig.split("_")[0];
@@ -5063,7 +5101,7 @@
         // embryo ID is displayed. The prefix is stripped only when it matches
         // this patient's name/first-token/PIN - otherwise the dash is part of
         // the embryo tag itself (e.g. "KS1-1") and is kept verbatim.
-        const embryoId = _stripPatientPrefix(base, normP, normSid, ftok, normPShort);
+        const embryoId = _stripPatientPrefix(base, pin, normP, ftok, normPShort);
         embryos.push(_buildEmbryoFromSummaryRow(sRow, embryoId, sOrig));
       }
       return embryos;
@@ -5077,6 +5115,7 @@
       const today = new Date().toLocaleDateString("en-GB").replace(/\//g, "-");
       const matched = new Set();
       const patients = [];
+      _lastMatchSkips = [];
 
       for (const pRow of detailsRows) {
         const pName = _cleanV(pRow["Patient Name"]); if (!pName) continue;
@@ -5086,7 +5125,7 @@
         // happens the same day as the biopsy), so fall back to Biopsy Date --
         // but honor a dedicated column when the sheet actually has one.
         const cDate = _fmtDate(_getV(pRow, ["Sample Collection Date","Date of Sample Collection","Collection Date","Date Collected"])) || bDate;
-        const pin = _getV(pRow, ["Sample ID","PIN","Patient ID"]);
+        const pin = _getV(pRow, ["Sample ID","PIN","PIN No","PIN No.","Patient ID","Patient No","Patient No."]);
 
         const info = {
           patient_name: pName,
@@ -5105,6 +5144,7 @@
           embryos: _matchEmbryosForPatient(pName, pin, summaryRows, matched)
         };
         if (info.embryos.length) patients.push(info);
+        else _lastMatchSkips.push({ name: pName, reason: _matchSkipReason(pin) });
       }
       return patients;
     }
@@ -5192,15 +5232,16 @@
       return _summaryRawToRows(raw);
     }
 
-    // Cross-matches a Patient List against a separate Result file by patient
-    // name/PIN (mirroring the HLA "2 input fields" cross-match feature) and
-    // returns ONLY the patients that have at least one matched embryo result —
-    // patients with no result in the Result file are dropped, exactly like the
-    // HLA cross-match display-only-matched-patients behavior.
+    // Cross-matches a Patient List against a separate Result file on Patient
+    // No / PIN (mirroring the HLA "2 input fields" cross-match feature) and
+    // returns ONLY the patients that have at least one matched embryo result.
+    // Patients with no matching result are dropped from the list (as in the
+    // HLA cross-match) but recorded in _lastMatchSkips so they are reported.
     function _crossMatchPatientListWithResult(patientRows, summaryRows) {
       const today = new Date().toLocaleDateString("en-GB").replace(/\//g, "-");
       const matched = new Set();
       const patients = [];
+      _lastMatchSkips = [];
 
       for (const p of patientRows) {
         const info = {
@@ -5220,6 +5261,7 @@
           embryos: _matchEmbryosForPatient(p.patient_name, p.pin, summaryRows, matched)
         };
         if (info.embryos.length) patients.push(info);
+        else _lastMatchSkips.push({ name: p.patient_name, reason: _matchSkipReason(p.pin) });
       }
       return patients;
     }
@@ -5237,7 +5279,7 @@
         if (!summaryRows.length) throw new Error("No result rows found in the Result file.");
 
         const patients = _crossMatchPatientListWithResult(patientRows, summaryRows);
-        if (!patients.length) throw new Error("No patients could be matched to a result — check that names/Patient No line up between the two files.");
+        if (!patients.length) throw new Error("No patients could be matched to a result. Matching is on Patient No / PIN only — check that the Patient List has a Patient No column and that the Result file carries the same Patient No (a PIN column, or a \"<PIN>-E1\" Sample name).");
 
         state.bulkPatients = patients;
         _trackBulkAutosaveKey(patientFile.name);
@@ -5247,16 +5289,17 @@
         if (images && images.length > 0) mapped = await _autoMapCnvImagesLocal(images);
 
         renderBulkPatients();
+        _renderMatchSkips();
         document.getElementById("bulkPatientSection").classList.remove("hidden");
 
-        const skipped = patientRows.length - patients.length;
+        const skipped = _lastMatchSkips.length;
         if (lbl) {
           let msg = `<strong>${esc(patientFile.name)}</strong> &mdash; ${patients.length} matched patient(s)`;
-          if (skipped > 0) msg += ` <small style="color:var(--text-muted);">(${skipped} without a result skipped)</small>`;
+          if (skipped > 0) msg += ` <small style="color:#b45309;font-weight:bold;">(${skipped} without a PIN match skipped)</small>`;
           if (mapped > 0) msg += ` <small style="color:var(--success);font-weight:bold;">(+${mapped} CNVs)</small>`;
           lbl.innerHTML = msg + ` &nbsp;<small style="color:var(--text-muted);text-decoration:underline;">(click to change)</small>`;
         }
-        showToast(`Cross-matched ${patients.length} patient(s) with results` + (skipped ? ` — ${skipped} skipped (no result)` : "") + (mapped ? ` + ${mapped} CNV chart(s)` : ""), "success");
+        showToast(`Cross-matched ${patients.length} patient(s) on Patient No / PIN` + (skipped ? ` — ${skipped} skipped (no PIN match)` : "") + (mapped ? ` + ${mapped} CNV chart(s)` : ""), skipped ? "warning" : "success");
       } catch (err) {
         if (lbl) lbl.innerHTML = `<span style="color:#c00;">Error: ${esc(err.message)}</span> &nbsp;<small style="text-decoration:underline;">(click to retry)</small>`;
         showToast("Cross-match failed: " + err.message, "error");
@@ -5481,6 +5524,25 @@
     }
 
     let bulkSelectedIndex = -1;
+
+    // Shows which patients got no report because nothing in the Result file
+    // carried their Patient No / PIN. Without this the batch just comes out
+    // smaller than the patient list with no explanation.
+    function _renderMatchSkips() {
+      const box = document.getElementById("bulkMatchWarning");
+      if (!box) return;
+      if (!_lastMatchSkips.length) { box.style.display = "none"; box.innerHTML = ""; return; }
+      box.innerHTML =
+        `<div style="font-weight:700;margin-bottom:4px;">`
+        + `<i class="fas fa-exclamation-triangle"></i> `
+        + `${_lastMatchSkips.length} patient(s) skipped &mdash; no result matched on Patient No / PIN</div>`
+        + `<ul style="margin:0 0 0 18px;padding:0;">`
+        + _lastMatchSkips.map(s => `<li><strong>${esc(s.name)}</strong> &mdash; ${esc(s.reason)}</li>`).join("")
+        + `</ul>`
+        + `<div style="margin-top:5px;opacity:0.85;">Embryos are matched on Patient No / PIN only &mdash; never on patient name. `
+        + `To include these, give the Result file their Patient No (a PIN / Patient No column, or a <strong>&lt;PIN&gt;-E1</strong> Sample name).</div>`;
+      box.style.display = "block";
+    }
 
     function renderBulkPatients() {
       const section = document.getElementById("bulkPatientSection");
