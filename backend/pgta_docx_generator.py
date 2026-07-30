@@ -475,14 +475,7 @@ class PGTADocxGenerator:
         raw_mt = self._clean(embryo_data.get('mtcopy', ''))
         mt = raw_mt if interp_text.upper() == "EUPLOID" and raw_mt and raw_mt.upper() not in ('NA', 'N/A', '') else "NA"
 
-        cell_color   = self._classify_color_hex(raw_result)
-        interp_upper_for_auto = interp_text.upper()
-        if 'ANEUPLOID' in interp_upper_for_auto or 'CHAOTIC' in interp_upper_for_auto:
-            cell_color = "#FF0000"
-        elif 'MOSAIC' in interp_upper_for_auto:
-            cell_color = "#0000FF"
-        elif 'INCONCLUSIVE' in interp_upper_for_auto:
-            cell_color = "#000000"
+        cell_color = self._autosomes_color_hex(auto, interp_text, res)
         sex_up = sex.upper().strip()
         if "MOSAIC" in sex_up:
             sex_color = "#0000FF"
@@ -621,6 +614,13 @@ class PGTADocxGenerator:
             self._set_paragraph_font(p1, font_size=11)
             p2 = cell.add_paragraph(title); p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
             self._set_paragraph_font(p2, font_size=11)
+
+    _ROLE_HEX = {'red': "#FF0000", 'blue': "#0000FF", 'black': "#000000"}
+
+    def _autosomes_color_hex(self, autosomes_text, interp_text='', result_text=''):
+        """Autosomes colour, from the one rule shared with the PDF template."""
+        role = clf.autosomes_color_role(autosomes_text, interp_text, result_text)
+        return self._ROLE_HEX.get(role, "#000000")
 
     def _classify_color_hex(self, text):
         """Red for Aneuploid/Segmental, Blue for Mosaic, Black for Euploid/Inconclusive"""

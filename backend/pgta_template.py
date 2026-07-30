@@ -795,27 +795,7 @@ class PGTAReportTemplate:
             interp_text = "Euploid"
         interp_color = self._get_interp_only_color(interp_text)
 
-        auto_color = colors.black
-        auto_upper = autosomes_text.upper()
-        
-        if "MULTIPLE CHROMOSOMAL ABNORMALITIES" in res_text.upper():
-            auto_color = colors.red
-        elif 'NORMAL' in auto_upper or 'EUPLOID' in auto_upper or not autosomes_text.strip():
-            auto_color = colors.black
-        elif '%' in autosomes_text:
-            auto_color = colors.blue
-        elif any(x in auto_upper for x in ['DEL(', 'DUP(', '-', '+', 'STATUS L', 'STATUS G', 'STATUS SL', 'STATUS SG', ' SL', ' SG', ' L,', ' G,', ' L ', ' G ']) or auto_upper.endswith(' L') or auto_upper.endswith(' G'):
-            auto_color = colors.red
-        elif 'CNV STATUS' in auto_upper:
-            auto_color = colors.red
-
-        interp_upper_for_auto = interp_text.upper()
-        if 'ANEUPLOID' in interp_upper_for_auto or 'CHAOTIC' in interp_upper_for_auto:
-            auto_color = colors.red
-        elif 'MOSAIC' in interp_upper_for_auto:
-            auto_color = colors.blue
-        elif 'INCONCLUSIVE' in interp_upper_for_auto:
-            auto_color = colors.black
+        auto_color = self._autosomes_color(autosomes_text, interp_text, res_text)
 
         sex_up = sex_text.upper().strip()
         sex_color = colors.black
@@ -1191,6 +1171,13 @@ class PGTAReportTemplate:
         if "MOSAIC" in i:
             return colors.blue
         return colors.black
+
+    _ROLE_COLORS = {'red': colors.red, 'blue': colors.blue, 'black': colors.black}
+
+    def _autosomes_color(self, autosomes_text, interp_text='', result_text=''):
+        """Autosomes colour, from the one rule shared with the DOCX generator."""
+        role = clf.autosomes_color_role(autosomes_text, interp_text, result_text)
+        return self._ROLE_COLORS.get(role, colors.black)
 
     def _get_autosome_color(self, autosome_text):
         """Special color logic for autosomes field"""

@@ -5112,12 +5112,21 @@
             st = etype === "del" ? (isSeg ? "SML" : "ML") : etype === "dup" ? (isSeg ? "SMG" : "MG") : "M";
           }
           cMap[chrom] = st;
-        } else if (/^\+/.test(part)) {
-          const ch = part.replace(/\+/,"").replace(/\(.*\)/,"").replace(/[^0-9XY]/gi,"").trim();
-          if (ch) cMap[ch] = "G";
-        } else if (/^-\d/.test(part)) {
-          const ch = part.replace(/-/,"").replace(/\(.*\)/,"").replace(/[^0-9XY]/gi,"").trim();
-          if (ch) cMap[ch] = "L";
+        } else if (/^\+/.test(part) || /^-\d/.test(part)) {
+          // Whole-chromosome gain/loss. A "~NN%" fraction makes it mosaic
+          // ("+15(~30%)" -> MG with Mosaic (%) 30, "-20(~51%)" -> ML with 51);
+          // without one it is a plain G / L.
+          const isGain = /^\+/.test(part);
+          const ch = part.replace(/^[+-]/,"").replace(/\(.*\)/,"").replace(/[^0-9XY]/gi,"").trim();
+          if (ch) {
+            const mm = part.match(/~?\s*(\d+)\s*%/);
+            if (mm) {
+              mMap[ch] = mm[1];
+              cMap[ch] = isGain ? "MG" : "ML";
+            } else {
+              cMap[ch] = isGain ? "G" : "L";
+            }
+          }
         }
       }
       return { cMap, mMap };
@@ -5135,6 +5144,42 @@
         .map(r => { const o = {}; headers.forEach((h, i) => { if (h) o[h] = r[i] ?? ""; }); return o; });
     }
 
+
+    // Splits a karyotype into its sex-chromosome findings and the autosomal
+    // rest: "+X(~46%),+2,+16(~69%)" -> { sex: ["+X(~46%)"], auto: "+2,+16(~69%)" }.
+    // Commas inside "(...)" are not separators, so "(~30.50Mb,~35%)" stays whole.
+    function _splitKaryotype(karyo) {
+      const txt = _cleanV(karyo);
+      if (!txt || /^(N\/?A|EUPLOID|NORMAL)$/i.test(txt.trim())) return { sex: [], auto: "", plain: txt.trim() };
+      const sex = [], auto = [];
+      for (const raw of txt.split(/,(?![^(]*\))/)) {
+        const p = raw.trim();
+        if (!p) continue;
+        (/^(?:mosaic\s+)?[+-]?\s*[XY]\b/i.test(p) ? sex : auto).push(p);
+      }
+      return { sex, auto: auto.join(","), plain: "" };
+    }
+
+    // Sex Chromosomes value from the karyotype's sex findings, in the same
+    // wording the lab uses in its own SEX column:
+    //   no finding                        -> "Normal"  (or "NA" if sex is N/A)
+    //   sex undetermined (GENDER "N/A")   -> "Abnormal"
+    //   a finding with no mosaic fraction -> "Abnormal"  (e.g. "XO,-X")
+    //   otherwise -> "Mosaic Gain|Loss (NN%)" from the dominant (highest) one
+    function _sexFromKaryotype(sexParts, genderVal) {
+      const g = _cleanV(genderVal).trim().toUpperCase();
+      const undetermined = !g || /^N\/?A\b/.test(g);
+      if (!sexParts.length) return undetermined ? "NA" : "Normal";
+      if (undetermined) return "Abnormal";
+      let best = null;
+      for (const p of sexParts) {
+        const m = p.match(/~?\s*(\d+(?:\.\d+)?)\s*%/);
+        if (!m) return "Abnormal";
+        const pct = parseFloat(m[1]);
+        if (!best || pct > best.pct) best = { pct, gain: p.includes("+") };
+      }
+      return `Mosaic ${best.gain ? "Gain" : "Loss"} (${_stripDec(String(best.pct))}%)`;
+    }
 
     function _buildEmbryoFromSummaryRow(sRow, embryoId, sOrig) {
       const conclusion = _cleanV(sRow["Conclusion"]).toUpperCase();
@@ -5162,16 +5207,36 @@
         rs = "Multiple chromosomal abnormalities"; interp = "Aneuploid";
       }
 
+      // Older Analysis sheets (e.g. RUN-48) carry no AUTOSOMES / SEX columns —
+      // the findings are only in "Karyotype MWF", which is exactly what the
+      // newer sheets' AUTOSOMES column is filled from. Without this fallback
+      // every abnormal embryo in such a sheet imported as "Autosomes: Normal",
+      // "Sex Chromosomes: Normal" and an all-N CNV row, because the Result
+      // column holds the code form ("SML-3,22") that carries no per-chromosome
+      // detail. The Result code is still used when there is no karyotype.
+      const karyo = _getV(sRow, ["Karyotype MWF", "Karyotype", "Karyotype MWF ", "KARYOTYPE MWF"]);
+      const { sex: karyoSex, auto: karyoAuto, plain: karyoPlain } = _splitKaryotype(karyo);
+
       const chrStatuses = {}; for (let i = 1; i <= 22; i++) chrStatuses[String(i)] = "N";
       const mosaicPcts = {};
-      const { cMap, mMap } = _parseResult(result);
+      // Statuses come from the karyotype when it lists findings — it uses the
+      // del()/dup()/±N(~NN%) notation the parser understands, unlike the code form.
+      const { cMap, mMap } = _parseResult(karyoAuto || result);
       Object.assign(chrStatuses, cMap); Object.assign(mosaicPcts, mMap);
+
+      const autoCol = _getV(sRow, ["AUTOSOMES", "Autosomes", "Autosome"]);
+      const sexCol = _getV(sRow, ["SEX", "Sex", "Sex Chromosomes", "Sex_Chromosomes"]);
+      // "Euploid" / "Normal" -> Normal, "N/A" -> NA, and a karyotype whose only
+      // findings are on X/Y (e.g. "+X(~55%),-Y(~41%)") leaves the autosomes
+      // normal — which is what the lab writes in that case.
+      const autoFallback = karyoAuto
+        || (/^N\/?A$/i.test(karyoPlain) ? "NA" : (karyoPlain || karyo) ? "Normal" : "");
 
       return {
         embryo_id: embryoId, sample_name: sOrig,
         result_summary: rs, result_description: summaryToDescription(rs),
-        autosomes: _getV(sRow, ["AUTOSOMES", "Autosomes", "Autosome"]),
-        sex_chromosomes: _getV(sRow, ["SEX", "Sex", "Sex Chromosomes", "Sex_Chromosomes"]),
+        autosomes: autoCol || autoFallback,
+        sex_chromosomes: sexCol || (karyo ? _sexFromKaryotype(karyoSex, _getV(sRow, ["GENDER", "Gender"])) : ""),
         interpretation: interp,
         mtcopy: interp === "Euploid" ? (_cleanV(sRow["MTcopy"]) || "NA") : "NA",
         chromosome_statuses: chrStatuses, mosaic_percentages: mosaicPcts
