@@ -306,6 +306,24 @@ def derive_autosomes(raw_result, chromosome_statuses, existing_autosomes=""):
     return ", ".join(parts) if parts else "Normal"
 
 
+def sex_chromosomes_color_role(sex_text):
+    """
+    'black' | 'red' | 'blue' for the Sex Chromosomes value:
+      - blank / Normal / No result / NA / N/A -> black (NA is not itself an
+        abnormal finding, same treatment as Autosomes/Interpretation)
+      - Mosaic ... -> blue
+      - anything else (an actual abnormal finding) -> red
+    Shared by the PDF template, the DOCX generator, and the editor's JS
+    getSexChrColor() so the three cannot drift.
+    """
+    s = str(sex_text or '').upper().strip()
+    if 'MOSAIC' in s:
+        return 'blue'
+    if not s or s in ('NA', 'N/A', 'NORMAL', 'NO RESULT'):
+        return 'black'
+    return 'red'
+
+
 def sanitize_sex_chromosomes(sex_text, raw_result="", classification=None):
     s = str(sex_text or "").strip()
     su = s.upper()

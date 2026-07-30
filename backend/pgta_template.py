@@ -797,14 +797,7 @@ class PGTAReportTemplate:
 
         auto_color = self._autosomes_color(autosomes_text, interp_text, res_text)
 
-        sex_up = sex_text.upper().strip()
-        sex_color = colors.black
-        if "MOSAIC" in sex_up:
-            sex_color = colors.blue
-        elif sex_up in ("NA", "N/A"):
-            sex_color = colors.red
-        elif sex_up and sex_up not in ("NORMAL", "NO RESULT"):
-            sex_color = colors.red
+        sex_color = self._ROLE_COLORS.get(clf.sex_chromosomes_color_role(sex_text), colors.black)
 
         raw_mt = self._clean(embryo_data.get('mtcopy', ''), 'NA')
         mtcopy = raw_mt if interp_text.upper() == "EUPLOID" else "NA"

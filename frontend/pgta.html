@@ -3650,8 +3650,9 @@
     function getSexChrColor(val) {
       const v = (val || "").toUpperCase().trim();
       if (v.includes("MOSAIC")) return "#2563eb";
-      if (v === "NA" || v === "N/A") return "#dc2626";
-      if (!v || v === "NORMAL" || v === "NO RESULT") return "#000";
+      // NA/N-A is not itself an abnormal finding -- black, same as the
+      // Interpretation and Autosomes fields already treat it.
+      if (!v || v === "NA" || v === "N/A" || v === "NORMAL" || v === "NO RESULT") return "#000";
       return "#dc2626";
     }
 

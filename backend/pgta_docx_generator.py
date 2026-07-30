@@ -476,15 +476,7 @@ class PGTADocxGenerator:
         mt = raw_mt if interp_text.upper() == "EUPLOID" and raw_mt and raw_mt.upper() not in ('NA', 'N/A', '') else "NA"
 
         cell_color = self._autosomes_color_hex(auto, interp_text, res)
-        sex_up = sex.upper().strip()
-        if "MOSAIC" in sex_up:
-            sex_color = "#0000FF"
-        elif sex_up in ("NA", "N/A"):
-            sex_color = "#FF0000"
-        elif sex_up and sex_up not in ("NORMAL", "NO RESULT"):
-            sex_color = "#FF0000"
-        else:
-            sex_color = "#000000"
+        sex_color = self._ROLE_HEX.get(clf.sex_chromosomes_color_role(sex), "#000000")
         interp_color = self._get_interp_only_color_hex(interp_text)
         details = [
             ("Result:", res, "#000000"),
