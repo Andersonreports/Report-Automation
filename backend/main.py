@@ -665,6 +665,20 @@ async def _parse_pgta_excel_core(contents: bytes):
                 ids.add(n)
         return ids
 
+    def sample_name_segments(sname):
+        # The individual dash-delimited segments, so a PIN sitting further
+        # along the name ("AG-12345-E1") still matches -- whole segment only.
+        return {n for n in (norm_pin(p) for p in
+                            str(sname or '').split('_')[0].split('-')) if n}
+
+    def name_short(n):
+        # Some Details sheets append a lone trailing initial (a spouse's first
+        # letter) that the generated Sample name drops. Used as a lower tier
+        # only -- applied blindly it truncates real surnames.
+        if len(n) > 3 and not n[-2:-1].isdigit() and n[-1] in 'CDRSGKMNPTVW' and len(n[:-1]) >= 3:
+            return n[:-1]
+        return n
+
     def first_name_token(full_name):
         s = str(full_name or '').upper().strip()
         for pfx in ('MRS.', 'MR.', 'SMT.', 'DR.', 'MS.', 'MISS.', 'PROF.'):
@@ -751,6 +765,7 @@ async def _parse_pgta_excel_core(contents: bytes):
             }
             p["_pid_n"] = norm_pin(pid)
             p["_name_n"] = norm(name)
+            p["_name_short"] = name_short(norm(name))
             p["_first_tok"] = first_name_token(name)
             patients.append(p)
 
@@ -761,25 +776,57 @@ async def _parse_pgta_excel_core(contents: bytes):
                 row, ['Sample name', 'Sample Name', 'sample_name', 'Sample ID'])
             if not sname or sname in matched_samples:
                 continue
-            # Every patient carries a unique Patient No / PIN, so that is the
-            # ONLY key used here. Patient names are never matched on: similar
-            # names silently assigned one patient's embryos to another, and a
-            # wrong embryo on a signed report is worse than an unmatched row.
-            # The row's PIN comes from a dedicated PIN column when the sheet
-            # has one (authoritative), else from the Sample name's leading
-            # segment ("<PIN>-E1"), compared against the dash-delimited
-            # prefixes so the PIN must equal one of them, not merely occur
-            # inside the name.
+            # Tiers a row can be tied to a patient by, strongest first (same
+            # rules as the PGT-A frontend). Most lab Result sheets carry no PIN
+            # at all and name samples after the patient, so the name tiers are
+            # the everyday path -- but the row is resolved to the single
+            # HIGHEST-scoring patient and a tie is refused, so a row can no
+            # longer land on whichever similarly-named patient came first.
             row_pin = norm_pin(clean_val(
                 row, ['PIN', 'PIN No', 'PIN No.', 'PIN Number',
                       'Patient No', 'Patient No.', 'Patient ID', 'Patient_ID']))
             sample_ids = sample_name_ids(sname)
-            if row_pin:
-                matched = next(
-                    (p for p in patients if p["_pid_n"] and pin_matches(p["_pid_n"], row_pin)), None)
-            else:
-                matched = next(
-                    (p for p in patients if p["_pid_n"] and p["_pid_n"] in sample_ids), None)
+            sample_segs = sample_name_segments(sname)
+            norm_s = norm(sname)
+            s_ft = norm_pin(sname.split('_')[0].split('-')[0])
+
+            def match_score(p):
+                pin_n, name_n = p["_pid_n"], p["_name_n"]
+                short_n, ftok = p["_name_short"], p["_first_tok"]
+                # A PIN column on the Result sheet is authoritative: when both
+                # sides have a PIN they must agree, and no name tier may
+                # rescue a disagreement.
+                if row_pin and pin_n:
+                    return 100 if pin_matches(pin_n, row_pin) else 0
+                if pin_n and pin_n in sample_ids:
+                    return 90
+                if len(pin_n) >= 3 and pin_n in sample_segs:
+                    return 85
+                if name_n and s_ft == name_n:
+                    return 80
+                if short_n and short_n != name_n and s_ft == short_n:
+                    return 70
+                if len(s_ft) >= 5 and len(name_n) > len(s_ft) and name_n.startswith(s_ft):
+                    return 60
+                if len(name_n) >= 4 and norm_s.startswith(name_n):
+                    rest = norm_s[len(name_n):]
+                    if rest == '' or rest[0].isdigit() or len(rest) <= 3:
+                        return 55
+                if len(ftok) >= 4 and s_ft == ftok:
+                    return 50
+                return 0
+
+            matched, best, tied = None, 0, False
+            for p in patients:
+                score = match_score(p)
+                if not score:
+                    continue
+                if score > best:
+                    matched, best, tied = p, score, False
+                elif score == best:
+                    tied = True
+            if tied:
+                matched = None
 
             emb = {
                 "embryo_id":           short_embryo_id(sname, matched),
@@ -794,9 +841,9 @@ async def _parse_pgta_excel_core(contents: bytes):
                 "inconclusive_comment": ""
             }
 
-            # No PIN match means no report — the old "if there's only one
-            # patient, give them the row" fallback is gone, since it attached
-            # results to a patient whose Patient No never appeared in them.
+            # No match (or an ambiguous one) means no report — the old "if
+            # there's only one patient, give them the row" fallback stays gone,
+            # since it attached results to a patient nothing pointed at.
             if matched:
                 matched_samples.add(sname)
                 matched["embryos"].append(emb)
@@ -804,6 +851,7 @@ async def _parse_pgta_excel_core(contents: bytes):
     for p in patients:
         p.pop("_pid_n", None)
         p.pop("_name_n", None)
+        p.pop("_name_short", None)
         p.pop("_first_tok", None)
 
     return {"patients": patients, "sheet_names": sheets}

@@ -3016,9 +3016,9 @@
 
             <div class="bulk-top-sep"></div>
             <div class="bulk-top-file">
-              <div class="drop-zone-compact" id="resultDropZone" onclick="document.getElementById('bulkResultFileInput').click()" title="Optional: a separate Result Excel/CSV to cross-match on Patient No / PIN — only patients with a matched result are shown, and patient names are never used to match. You can also add CNV chart images here to auto-match them.">
+              <div class="drop-zone-compact" id="resultDropZone" onclick="document.getElementById('bulkResultFileInput').click()" title="Optional: a separate Result Excel/CSV to cross-match on Patient No / PIN, or on the patient name in the Sample name when no PIN is present — only patients with a matched result are shown. You can also add CNV chart images here to auto-match them.">
                 <i class="fas fa-dna" style="color:var(--primary);font-size:14px;flex-shrink:0;"></i>
-                <span id="resultDropZoneLabel">Click to browse or drag Result Excel/CSV (optional — cross-matches on Patient No / PIN only)</span>
+                <span id="resultDropZoneLabel">Click to browse or drag Result Excel/CSV (optional — cross-matches on Patient No / PIN or name)</span>
               </div>
               <input type="file" id="bulkResultFileInput" style="display:none;" accept=".xlsx,.xls,.csv,.png,.jpg,.jpeg" multiple>
             </div>
@@ -4787,8 +4787,18 @@
       if (lbl) lbl.innerHTML = `<span class="spinner" style="border-color:#1F497D;border-top-color:#4F81BD;width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:6px;border-width:2px;border-style:solid;border-radius:50%;animation:spin 0.7s linear infinite;"></span>Processing <strong>${esc(excelFile.name)}</strong> + ${images.length} images…`;
       
       try {
+        _lastMatchSkips = []; _lastRowSkips = [];
         const patients = await parseExcelClientSide(excelFile);
-        if (!patients.length) throw new Error("No patient rows found in Excel file.");
+        if (!patients.length) {
+          // Distinguish "the sheet has no patients" from "the sheet has
+          // patients but nothing matched them" — the two need different fixes,
+          // and reporting the second as the first sent people hunting for a
+          // missing Details sheet that was there all along.
+          if (_lastMatchSkips.length) throw new Error(
+            `${_lastMatchSkips.length} patient row(s) read, but no result row could be matched to any of them. ` +
+            `Check that the Result sheet's Sample names start with the patient name or Patient No (see the list below).`);
+          throw new Error("No patient rows found in Excel file.");
+        }
         state.bulkPatients = patients;
         _trackBulkAutosaveKey(excelFile.name);
 
@@ -4806,9 +4816,13 @@
           if (mapped > 0) msg += ` <small style="color:var(--success);font-weight:bold;">(+${mapped} CNVs)</small>`;
           lbl.innerHTML = msg + ` &nbsp;<small style="color:var(--text-muted);text-decoration:underline;">(click to change)</small>`;
         }
-        showToast(`Loaded ${state.bulkPatients.length} patient(s)` + (skipped ? ` — ${skipped} skipped (no PIN match)` : "") + (mapped ? ` + ${mapped} CNV chart(s)` : ""), skipped ? "warning" : "success");
+        showToast(`Loaded ${state.bulkPatients.length} patient(s)` + (skipped ? ` — ${skipped} unmatched` : "") + (mapped ? ` + ${mapped} CNV chart(s)` : ""), skipped ? "warning" : "success");
       } catch (err) {
         if (lbl) lbl.innerHTML = `<span style="color:#c00;">Error: ${esc(err.message)}</span> &nbsp;<small style="text-decoration:underline;">(click to retry)</small>`;
+        // Show what failed to match, so a nothing-matched import is diagnosable
+        // instead of just a red line in the drop zone.
+        _renderMatchSkips();
+        if (_lastMatchSkips.length) document.getElementById("bulkPatientSection").classList.remove("hidden");
         showToast("Processing failed: " + err.message, "error");
       }
     }
@@ -4939,24 +4953,118 @@
       return ids;
     }
 
-    // True when a Result row belongs to this patient. Matching is on the
-    // Patient No / PIN ONLY — patient names are never used. Names collided
-    // across patients (shared first names, spousal-initial suffixes, one name
-    // being a prefix of another) and silently assigned another patient's
-    // embryos, and a wrong embryo on a signed report is far worse than a
-    // patient that fails to match and gets reported as skipped.
+    // How a Result row may be tied to a patient, strongest tier first. Most
+    // lab Result sheets carry NO PIN at all and name their samples after the
+    // patient ("ANJALIDEVI-AD1_L00_R1") while the Details sheet's Sample ID is
+    // a lab accession ("AND25420006214"), so the name tiers are the everyday
+    // path, not a fallback — dropping them left whole runs unmatched.
     //
-    // The PIN is read from a dedicated PIN column on the Result sheet when it
-    // has one — that column is authoritative, so a row whose PIN disagrees is
-    // rejected outright rather than falling through to anything looser. When
-    // the sheet has no PIN column the identifier is taken from the Sample
-    // name's leading segment ("<PIN>-E1"), which is still the Patient No.
-    function _rowPinMatches(pin, sRow, sOrig) {
-      const normSid = _normPin(pin);
-      if (!normSid) return false;
-      const rowPin = _rowPin(sRow);
-      if (rowPin) return _pinMatches(pin, rowPin);
-      return _sampleNameIds(sOrig).includes(normSid);
+    // The danger the tiers exist to contain is a row landing on the WRONG
+    // patient (shared first names, spousal-initial suffixes, one name being a
+    // prefix of another). That is handled by resolving each row to the single
+    // highest-scoring patient and refusing ties, rather than by giving the row
+    // to whichever patient the sheet happened to list first.
+    const _MATCH_PIN_COLUMN  = 100; // a dedicated PIN column agrees
+    const _MATCH_PIN_IN_NAME = 90;  // patient PIN is a whole prefix of the Sample name
+    const _MATCH_PIN_SEGMENT = 85;  // patient PIN is a whole dash-segment of it
+    const _MATCH_NAME_EXACT  = 80;  // "<FULLNAME>-E1"
+    const _MATCH_NAME_SHORT  = 70;  // full name minus a trailing spouse initial
+    const _MATCH_NAME_PREFIX = 60;  // "ANJALIDEVI-AD1" for "ANJALI DEVI P A S"
+    const _MATCH_NAME_START  = 55;  // whole name at the head of the Sample name
+    const _MATCH_FIRST_TOKEN = 50;  // first name token only — weakest
+
+    // Match keys for one patient, computed once and reused for every row.
+    function _patientMatchKeys(pName, pin) {
+      const normP = _normName(pName);
+      return { pin, pinN: _normPin(pin), normP, normPShort: _normNameShort(normP), ftok: _firstToken(pName) };
+    }
+
+    // Match keys for one Result row. sFT is the Sample name's leading segment
+    // ("ANJALIDEVI" of "ANJALIDEVI-AD1_L00_R1") — either the patient name or
+    // the Patient No, depending on the lab.
+    function _rowMatchKeys(sRow, sOrig) {
+      return {
+        rowPin: _rowPin(sRow),
+        ids: _sampleNameIds(sOrig),
+        segs: String(sOrig).split("_")[0].split("-").map(_normPin).filter(Boolean),
+        normS: _normName(sOrig),
+        sFT: _normPin(String(sOrig).split("_")[0].split("-")[0]),
+      };
+    }
+
+    // 0 when this row cannot belong to this patient, else the tier score.
+    function _matchScore(k, r) {
+      // A PIN column on the Result sheet is authoritative: when both sides
+      // carry a PIN they must agree, and no name tier may rescue a
+      // disagreement — that is what keeps two similarly-named patients from
+      // swapping embryos on a sheet that already says who is who.
+      if (r.rowPin && k.pinN) return _pinMatches(k.pin, r.rowPin) ? _MATCH_PIN_COLUMN : 0;
+
+      // PIN carried by the Sample name itself ("<PIN>-E1"). It must EQUAL one
+      // of the dash-delimited prefixes, never merely occur inside the name,
+      // so "1234" cannot grab "AG12345-E1".
+      if (k.pinN && r.ids.includes(k.pinN)) return _MATCH_PIN_IN_NAME;
+
+      // PIN sitting further along the name ("AG-12345-E1" for PIN "12345").
+      // Whole segment only, for the same reason as above.
+      if (k.pinN.length >= 3 && r.segs.includes(k.pinN)) return _MATCH_PIN_SEGMENT;
+
+      if (k.normP && r.sFT === k.normP) return _MATCH_NAME_EXACT;
+      if (k.normPShort && k.normPShort !== k.normP && r.sFT === k.normPShort) return _MATCH_NAME_SHORT;
+      // The sample carries a shortened form of a longer name, e.g. trailing
+      // initials dropped: "ANJALIDEVI-AD1" for "ANJALI DEVI P A S".
+      if (r.sFT.length >= 5 && k.normP.length > r.sFT.length && k.normP.startsWith(r.sFT)) return _MATCH_NAME_PREFIX;
+      // Boundary-aware prefix so a shorter name never swallows a longer one.
+      if (k.normP.length >= 4 && r.normS.startsWith(k.normP)) {
+        const rest = r.normS.slice(k.normP.length);
+        if (rest === "" || /^\d/.test(rest) || rest.length <= 3) return _MATCH_NAME_START;
+      }
+      if (k.ftok.length >= 4 && r.sFT === k.ftok) return _MATCH_FIRST_TOKEN;
+      return 0;
+    }
+
+    // Resolves ONE Result row to at most one patient: the single
+    // highest-scoring candidate. A tie at the top tier is refused outright and
+    // reported, because handing the row to whichever patient came first is
+    // exactly how one patient's embryos ended up on another's signed report.
+    function _resolveRowToPatient(cands, sRow, sOrig) {
+      const r = _rowMatchKeys(sRow, sOrig);
+      let best = null, bestScore = 0, tiedWith = null;
+      for (const c of cands) {
+        const score = _matchScore(c._keys, r);
+        if (!score) continue;
+        if (score > bestScore) { best = c; bestScore = score; tiedWith = null; }
+        else if (score === bestScore) tiedWith = c;
+      }
+      if (!best) return { patient: null, reason: "no patient on the list matches this Sample name" };
+      if (tiedWith) return {
+        patient: null,
+        reason: `ambiguous — matches "${best.patient_name}" and "${tiedWith.patient_name}" equally well; add a Patient No / PIN to tell them apart`,
+      };
+      return { patient: best };
+    }
+
+    // Assigns every Result row to its patient. Row-centric on purpose: a row
+    // must be compared against ALL patients before it is given to one.
+    function _assignEmbryosToPatients(patients, summaryRows) {
+      const seen = new Set();
+      _lastRowSkips = [];
+      for (const sRow of summaryRows) {
+        const sOrig = _cleanV(sRow["Sample name"]);
+        if (!sOrig || seen.has(sOrig)) continue;
+        const { patient, reason } = _resolveRowToPatient(patients, sRow, sOrig);
+        if (!patient) { _lastRowSkips.push({ sample: sOrig, reason }); continue; }
+        seen.add(sOrig);
+
+        const k = patient._keys;
+        const base = sOrig.split("_")[0];
+        // "PATIENT-V1" -> "V1": strip the patient-name/PIN prefix so only the
+        // embryo ID is displayed. Stripped only when the prefix matches this
+        // patient's name/first-token/PIN — otherwise the dash is part of the
+        // embryo tag itself (e.g. "KS1-1") and is kept verbatim.
+        const embryoId = _stripPatientPrefix(base, k.pin, k.normP, k.ftok, k.normPShort);
+        patient.embryos.push(_buildEmbryoFromSummaryRow(sRow, embryoId, sOrig));
+      }
     }
 
 
@@ -5076,35 +5184,13 @@
     // of silently shrinking the batch.
     let _lastMatchSkips = [];
 
+    // Result rows that matched no patient (or matched two equally well).
+    let _lastRowSkips = [];
+
     function _matchSkipReason(pin) {
       return _normPin(pin)
-        ? `no Result row carries Patient No / PIN "${String(pin).trim()}"`
-        : "no Patient No / PIN on the patient row";
-    }
-
-    function _matchEmbryosForPatient(pName, pin, summaryRows, matched) {
-      // Name normalizations are for _stripPatientPrefix (display only) — the
-      // match itself is PIN-only, see _rowPinMatches.
-      const normP = _normName(pName);
-      const normPShort = _normNameShort(normP);
-      const ftok = _firstToken(pName);
-      const embryos = [];
-      if (!_normPin(pin)) return embryos;
-
-      for (const sRow of summaryRows) {
-        const sOrig = _cleanV(sRow["Sample name"]); if (!sOrig || matched.has(sOrig)) continue;
-        if (!_rowPinMatches(pin, sRow, sOrig)) continue;
-        matched.add(sOrig);
-
-        const base = sOrig.split("_")[0];
-        // "PATIENT-V1" -> "V1": strip the patient-name/PIN prefix so only the
-        // embryo ID is displayed. The prefix is stripped only when it matches
-        // this patient's name/first-token/PIN - otherwise the dash is part of
-        // the embryo tag itself (e.g. "KS1-1") and is kept verbatim.
-        const embryoId = _stripPatientPrefix(base, pin, normP, ftok, normPShort);
-        embryos.push(_buildEmbryoFromSummaryRow(sRow, embryoId, sOrig));
-      }
-      return embryos;
+        ? `no Result row matches this patient's name or Patient No / PIN "${String(pin).trim()}"`
+        : "no Result row matches this patient's name";
     }
 
     function _parseAnalysisExcel(wb, detailsIdx, summaryIdx) {
@@ -5113,8 +5199,7 @@
       const summaryRows = _summaryRawToRows(summaryRaw);
 
       const today = new Date().toLocaleDateString("en-GB").replace(/\//g, "-");
-      const matched = new Set();
-      const patients = [];
+      const candidates = [];
       _lastMatchSkips = [];
 
       for (const pRow of detailsRows) {
@@ -5141,10 +5226,18 @@
           biopsy_performed_by: _getV(pRow, ["EMBRYOLOGIST NAME","Biologist"]),
           report_date: today,
           indication: _getV(pRow, ["Indication","Clinical Indication"]),
-          embryos: _matchEmbryosForPatient(pName, pin, summaryRows, matched)
+          embryos: []
         };
+        info._keys = _patientMatchKeys(pName, pin);
+        candidates.push(info);
+      }
+
+      _assignEmbryosToPatients(candidates, summaryRows);
+      const patients = [];
+      for (const info of candidates) {
+        delete info._keys;
         if (info.embryos.length) patients.push(info);
-        else _lastMatchSkips.push({ name: pName, reason: _matchSkipReason(pin) });
+        else _lastMatchSkips.push({ name: info.patient_name, reason: _matchSkipReason(info.pin) });
       }
       return patients;
     }
@@ -5239,8 +5332,7 @@
     // HLA cross-match) but recorded in _lastMatchSkips so they are reported.
     function _crossMatchPatientListWithResult(patientRows, summaryRows) {
       const today = new Date().toLocaleDateString("en-GB").replace(/\//g, "-");
-      const matched = new Set();
-      const patients = [];
+      const candidates = [];
       _lastMatchSkips = [];
 
       for (const p of patientRows) {
@@ -5258,10 +5350,18 @@
           biopsy_performed_by: p.biopsy_performed_by,
           report_date: today,
           indication: p.indication,
-          embryos: _matchEmbryosForPatient(p.patient_name, p.pin, summaryRows, matched)
+          embryos: []
         };
+        info._keys = _patientMatchKeys(p.patient_name, p.pin);
+        candidates.push(info);
+      }
+
+      _assignEmbryosToPatients(candidates, summaryRows);
+      const patients = [];
+      for (const info of candidates) {
+        delete info._keys;
         if (info.embryos.length) patients.push(info);
-        else _lastMatchSkips.push({ name: p.patient_name, reason: _matchSkipReason(p.pin) });
+        else _lastMatchSkips.push({ name: info.patient_name, reason: _matchSkipReason(info.pin) });
       }
       return patients;
     }
@@ -5272,6 +5372,7 @@
       if (lbl) lbl.innerHTML = `<span class="spinner" style="border-color:#1F497D;border-top-color:#4F81BD;width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:6px;border-width:2px;border-style:solid;border-radius:50%;animation:spin 0.7s linear infinite;"></span>Cross-matching <strong>${esc(patientFile.name)}</strong> with <strong>${esc(resultFile.name)}</strong>…`;
 
       try {
+        _lastMatchSkips = []; _lastRowSkips = [];
         const [patientWb, resultWb] = await Promise.all([_readWorkbook(patientFile), _readWorkbook(resultFile)]);
         const patientRows = _parsePatientListRows(patientWb);
         if (!patientRows.length) throw new Error("No patient rows found in the Patient List file.");
@@ -5279,7 +5380,7 @@
         if (!summaryRows.length) throw new Error("No result rows found in the Result file.");
 
         const patients = _crossMatchPatientListWithResult(patientRows, summaryRows);
-        if (!patients.length) throw new Error("No patients could be matched to a result. Matching is on Patient No / PIN only — check that the Patient List has a Patient No column and that the Result file carries the same Patient No (a PIN column, or a \"<PIN>-E1\" Sample name).");
+        if (!patients.length) throw new Error(`${patientRows.length} patient row(s) read, but none could be matched to a result. Rows match on Patient No / PIN when both files carry one, otherwise on the patient name in the Sample name ("<PATIENT NAME>-E1") — check that one of those lines up (see the list below).`);
 
         state.bulkPatients = patients;
         _trackBulkAutosaveKey(patientFile.name);
@@ -5295,13 +5396,15 @@
         const skipped = _lastMatchSkips.length;
         if (lbl) {
           let msg = `<strong>${esc(patientFile.name)}</strong> &mdash; ${patients.length} matched patient(s)`;
-          if (skipped > 0) msg += ` <small style="color:#b45309;font-weight:bold;">(${skipped} without a PIN match skipped)</small>`;
+          if (skipped > 0) msg += ` <small style="color:#b45309;font-weight:bold;">(${skipped} unmatched, skipped)</small>`;
           if (mapped > 0) msg += ` <small style="color:var(--success);font-weight:bold;">(+${mapped} CNVs)</small>`;
           lbl.innerHTML = msg + ` &nbsp;<small style="color:var(--text-muted);text-decoration:underline;">(click to change)</small>`;
         }
-        showToast(`Cross-matched ${patients.length} patient(s) on Patient No / PIN` + (skipped ? ` — ${skipped} skipped (no PIN match)` : "") + (mapped ? ` + ${mapped} CNV chart(s)` : ""), skipped ? "warning" : "success");
+        showToast(`Cross-matched ${patients.length} patient(s)` + (skipped ? ` — ${skipped} skipped (no matching result)` : "") + (mapped ? ` + ${mapped} CNV chart(s)` : ""), skipped ? "warning" : "success");
       } catch (err) {
         if (lbl) lbl.innerHTML = `<span style="color:#c00;">Error: ${esc(err.message)}</span> &nbsp;<small style="text-decoration:underline;">(click to retry)</small>`;
+        _renderMatchSkips();
+        if (_lastMatchSkips.length) document.getElementById("bulkPatientSection").classList.remove("hidden");
         showToast("Cross-match failed: " + err.message, "error");
       }
     }
@@ -5525,22 +5628,35 @@
 
     let bulkSelectedIndex = -1;
 
-    // Shows which patients got no report because nothing in the Result file
-    // carried their Patient No / PIN. Without this the batch just comes out
-    // smaller than the patient list with no explanation.
+    // Shows which patients got no report, and which Result rows found no
+    // patient. Without this the batch just comes out smaller than the patient
+    // list with no explanation.
     function _renderMatchSkips() {
       const box = document.getElementById("bulkMatchWarning");
       if (!box) return;
-      if (!_lastMatchSkips.length) { box.style.display = "none"; box.innerHTML = ""; return; }
-      box.innerHTML =
-        `<div style="font-weight:700;margin-bottom:4px;">`
-        + `<i class="fas fa-exclamation-triangle"></i> `
-        + `${_lastMatchSkips.length} patient(s) skipped &mdash; no result matched on Patient No / PIN</div>`
-        + `<ul style="margin:0 0 0 18px;padding:0;">`
-        + _lastMatchSkips.map(s => `<li><strong>${esc(s.name)}</strong> &mdash; ${esc(s.reason)}</li>`).join("")
-        + `</ul>`
-        + `<div style="margin-top:5px;opacity:0.85;">Embryos are matched on Patient No / PIN only &mdash; never on patient name. `
-        + `To include these, give the Result file their Patient No (a PIN / Patient No column, or a <strong>&lt;PIN&gt;-E1</strong> Sample name).</div>`;
+      if (!_lastMatchSkips.length && !_lastRowSkips.length) { box.style.display = "none"; box.innerHTML = ""; return; }
+
+      let html = "";
+      if (_lastMatchSkips.length) {
+        html += `<div style="font-weight:700;margin-bottom:4px;">`
+          + `<i class="fas fa-exclamation-triangle"></i> `
+          + `${_lastMatchSkips.length} patient(s) skipped &mdash; no matching result row</div>`
+          + `<ul style="margin:0 0 0 18px;padding:0;">`
+          + _lastMatchSkips.map(s => `<li><strong>${esc(s.name)}</strong> &mdash; ${esc(s.reason)}</li>`).join("")
+          + `</ul>`;
+      }
+      if (_lastRowSkips.length) {
+        html += `<div style="font-weight:700;margin:${_lastMatchSkips.length ? "6px" : "0"} 0 4px;">`
+          + `<i class="fas fa-exclamation-triangle"></i> `
+          + `${_lastRowSkips.length} result row(s) not used</div>`
+          + `<ul style="margin:0 0 0 18px;padding:0;">`
+          + _lastRowSkips.map(s => `<li><strong>${esc(s.sample)}</strong> &mdash; ${esc(s.reason)}</li>`).join("")
+          + `</ul>`;
+      }
+      html += `<div style="margin-top:5px;opacity:0.85;">Rows are matched to patients on Patient No / PIN when both sides carry one, `
+        + `otherwise on the patient name in the Sample name (<strong>&lt;PATIENT NAME&gt;-E1</strong>). `
+        + `A row that fits two patients equally well is never guessed &mdash; give those patients a Patient No / PIN to tell them apart.</div>`;
+      box.innerHTML = html;
       box.style.display = "block";
     }
 
