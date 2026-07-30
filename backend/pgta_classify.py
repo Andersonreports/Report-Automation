@@ -243,11 +243,20 @@ def derive_autosomes(raw_result, chromosome_statuses, existing_autosomes=""):
     cls = classify_embryo(raw_result)["classification"]
 
     existing = (existing_autosomes or "").strip()
-    raw_codes_pattern = re.compile(
-        r'\b(euploid|aneuploid|mosaic|normal|multiple chromosomal|low level|high level|complex|no result)\b',
-        re.IGNORECASE
-    )
-    has_custom_existing = bool(existing) and not raw_codes_pattern.search(existing)
+    # Only the frontend's own untouched-placeholder text -- "Normal", the
+    # default it fills into every new/blank Autosomes field (pgta.html) -- is
+    # treated as "nothing supplied yet" and eligible for auto-derivation from
+    # the Result text. Everything else the user actually typed is honored
+    # VERBATIM, exactly as Result Summary/Description already are.
+    #
+    # This used to be a substring word-list (euploid|aneuploid|mosaic|normal|
+    # "multiple chromosomal"|...), which matched INSIDE genuine typed text and
+    # silently discarded it: typing "Multiple Chromosomal Abnormalities" --
+    # some labs' own AUTOSOMES column reads exactly that when there are too
+    # many findings to list -- matched "multiple chromosomal" and was thrown
+    # away, falling back to "Normal" whenever the Result text held no
+    # explicit per-chromosome codes to re-derive from instead.
+    has_custom_existing = existing.upper() not in ("", "NORMAL", "-", "NA", "N/A")
     if has_custom_existing:
         cleaned_existing = re.sub(r'\b(XX|XY)\b', '', existing, flags=re.IGNORECASE).strip(', ')
         has_custom_existing = bool(cleaned_existing)
