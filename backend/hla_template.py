@@ -1601,15 +1601,35 @@ def _build_ngs_transplant(case: dict, S: dict) -> list:
     while elems and isinstance(elems[-1], Spacer):
         elems.pop()
 
-    # IMGT/Coverage/Methodology always starts a new page. Previously this was a bare
-    # KeepTogether, so the block stayed on page 1 whenever it happened to fit and only
-    # moved to page 2 once remarks for both patient and donor crowded it out - the page
-    # it landed on depended on how much the user typed.
-    elems.append(PageBreakIfNotEmpty())
-    elems.extend(_methodology_block(case, S, merge=True))
     sig_items = _signature_block(signatories, S)
-    if sig_items:
-        elems.append(KeepTogether(sig_items))
+
+    # Where the IMGT/Coverage/Methodology + signature block goes.
+    #
+    # With 0-1 donors the person blocks are deliberately spaced out to fill the
+    # first page, and the block gets a page of its own -- the layout approved
+    # against the reference report, so it keeps its forced break.
+    #
+    # With 2+ donors that same forced break wasted a page: one patient + two
+    # donors gave page 1 = patient + donor 1, page 2 = donor 2 with half the
+    # page empty, page 3 = IMGT + signatures alone. So here the block is a
+    # single KeepTogether instead, which lands on the current page when it fits
+    # in the space left below the last donor and only starts a new page when it
+    # genuinely does not fit.
+    #
+    # The methodology flowables must be taken RAW (merge=True) and the
+    # signature items unwrapped: a KeepTogether nested inside another one
+    # reports a huge sentinel height from wrap(), which makes the outer
+    # fit-check conclude the content is far too big and push it to a fresh page
+    # even when it would have fit -- i.e. it would silently behave like the
+    # forced break it replaces.
+    if len(donors) >= 2:
+        block = [Spacer(1, 3 * mm)] + list(_methodology_block(case, S, merge=True)) + list(sig_items)
+        elems.append(KeepTogether(block))
+    else:
+        elems.append(PageBreakIfNotEmpty())
+        elems.extend(_methodology_block(case, S, merge=True))
+        if sig_items:
+            elems.append(KeepTogether(sig_items))
 
     return elems
 
