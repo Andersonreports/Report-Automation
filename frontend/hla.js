@@ -69,6 +69,11 @@ const DEFAULT_SIG_COUNTS = {
 
 const SAB_KIT_NAMES = ["Immucor", "One Lambda"];
 
+const NGS_KITS = {
+  gendx:   { label: "GENDx",   imgt_release: "3.62",   methodology: "Typing by NGS Surfseq using GENDx Kit" },
+  immucor: { label: "IMMUCOR", imgt_release: "3.56.0", methodology: "Typing by NGS illumina MiniSeq using MIA FORA NGS Kits from IMMUCOR." },
+};
+
 function sabKitId(name) {
   const s = String(name || "").trim().toLowerCase();
   if (s.includes("lambda") || s.includes("kit 2") || s.includes("kit2")) return "kit2";
@@ -193,6 +198,30 @@ function showToast(msg, type = "") {
   setTimeout(() => t.classList.remove("show"), 2800);
 }
 
+// Build a readable Error from a failed upload response. Proxies such as nginx
+// answer with a full HTML error page rather than our JSON {detail: ...}, so
+// dumping the raw body puts markup in front of the user.
+async function uploadError(r, fileInput) {
+  if (r.status === 413) {
+    const f = fileInput && fileInput.files && fileInput.files[0];
+    const mb = f ? ` (${(f.size / 1048576).toFixed(1)} MB)` : "";
+    return new Error(
+      `Too large for the server to accept${mb}. The request was rejected by the web server ` +
+      "before it reached the report generator. Ask IT to raise the upload limit" +
+      (f ? ", or re-save the workbook without embedded images/extra sheets to shrink it." : ", or process fewer cases at a time.")
+    );
+  }
+  const body = (await r.text()).trim();
+  try {
+    const detail = JSON.parse(body).detail;
+    if (detail) return new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+  } catch (_) { }
+  if (/^\s*<(!doctype|html)/i.test(body)) {
+    return new Error(`Server returned an error page (HTTP ${r.status} ${r.statusText || ""}).`.trim());
+  }
+  return new Error(body || `Request failed (HTTP ${r.status}).`);
+}
+
 function el(tag, attrs = {}, children = []) {
   const e = document.createElement(tag);
   Object.entries(attrs).forEach(([k, v]) => {
@@ -210,10 +239,7 @@ function el(tag, attrs = {}, children = []) {
 
 async function apiPost(path, body) {
   const r = await fetch(API + path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  if (!r.ok) {
-    const t = await r.text();
-    try { const j = JSON.parse(t); throw new Error(j.detail || t); } catch (e) { if (e instanceof SyntaxError) throw new Error(t); throw e; }
-  }
+  if (!r.ok) throw await uploadError(r);
   return r.json();
 }
 async function apiGet(path) {
@@ -782,13 +808,32 @@ function renderManualForm() {
     col.appendChild(interpCard);
   }
 
-  if (rtype === "single_rpl") {
+  if (rtype === "single_rpl" || rtype === "rpl_couple") {
     const rplRefCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-dna" }), " RPL Reference"])]);
+    const hlaCLabel = rtype === "rpl_couple" ? "HLA-C Type (Maternal)" : "HLA-C Type (Maternal/Paternal)";
     const hlaCInput = el("input", { type: "text", placeholder: "e.g. C1, C2 (leave blank to auto-detect from HLA-C alleles)", oninput: scheduleManualPreview });
     manualSpecialFields.rpl_hla_c = hlaCInput;
-    rplRefCard.appendChild(el("div", { class: "field-grid" }, [
-      el("div", { class: "field full" }, [el("label", {}, "HLA-C Type (Maternal/Paternal)"), hlaCInput]),
-    ]));
+    const rplFieldRows = [
+      el("div", { class: "field full" }, [el("label", {}, hlaCLabel), hlaCInput]),
+    ];
+    if (rtype === "rpl_couple") {
+      const hlaCDonorInput = el("input", { type: "text", placeholder: "e.g. C1, C2 (leave blank to auto-detect from HLA-C alleles)", oninput: scheduleManualPreview });
+      manualSpecialFields.rpl_hla_c_donor = hlaCDonorInput;
+      rplFieldRows.push(
+        el("div", { class: "field full" }, [el("label", {}, "HLA-C Type (Paternal)"), hlaCDonorInput]),
+      );
+      const overallPctInput = el("input", { type: "text", placeholder: "Auto-calculated from Match field",
+        oninput: () => { overallPctInput.dataset.userEdited = "1"; scheduleManualPreview(); } });
+      const class2PctInput = el("input", { type: "text", placeholder: "Auto-calculated from DRB1/DQB1 overlap",
+        oninput: () => { class2PctInput.dataset.userEdited = "1"; scheduleManualPreview(); } });
+      manualSpecialFields.rpl_match_pct = overallPctInput;
+      manualSpecialFields.rpl_class2_pct = class2PctInput;
+      rplFieldRows.push(
+        el("div", { class: "field" }, [el("label", {}, "Overall Match % (Optional Override)"), overallPctInput]),
+        el("div", { class: "field" }, [el("label", {}, "Class-II Match % (Optional Override)"), class2PctInput]),
+      );
+    }
+    rplRefCard.appendChild(el("div", { class: "field-grid" }, rplFieldRows));
     col.appendChild(rplRefCard);
   }
 
@@ -1218,7 +1263,15 @@ function buildSabSection(col, rtype) {
     scheduleManualPreview();
   };
   praInput.addEventListener("input", refreshPra);
-  classSelect.addEventListener("change", refreshPra);
+  classSelect.addEventListener("change", () => {
+    const newRtype = classSelect.value === "II" ? "sab_class2" : "sab_class1";
+    if (state.rtype !== newRtype) {
+      state.rtype = newRtype;
+      const templateSelect = document.getElementById("templateSelect");
+      if (templateSelect) templateSelect.value = RTYPE_TO_TEMPLATE_NAME[newRtype] || templateSelect.value;
+    }
+    refreshPra();
+  });
 
   
   const alleleCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-vial" }), " Allele Data (one per line: Allele,MFI)"])]);
@@ -1447,8 +1500,15 @@ function collectManualCase() {
 
   const c = { report_type: rtype, nabl, with_logo: state.withLogo, signature_stamp: stamp, patient, donors, rpl_reference: {} };
 
-  if (rtype === "single_rpl" && manualSpecialFields.rpl_hla_c) {
+  if ((rtype === "single_rpl" || rtype === "rpl_couple") && manualSpecialFields.rpl_hla_c) {
     c.rpl_reference = { hla_c_patient: manualSpecialFields.rpl_hla_c.value.trim() };
+  }
+  if (rtype === "rpl_couple" && manualSpecialFields.rpl_hla_c_donor) {
+    c.rpl_reference.hla_c_donor = manualSpecialFields.rpl_hla_c_donor.value.trim();
+  }
+  if (rtype === "rpl_couple" && manualSpecialFields.rpl_match_pct) {
+    c.rpl_reference.match_pct_override = manualSpecialFields.rpl_match_pct.value.trim();
+    c.rpl_reference.class2_pct_override = manualSpecialFields.rpl_class2_pct.value.trim();
   }
   if (rtype === "single_locus") {
     
@@ -1498,9 +1558,20 @@ async function refreshManualPreview() {
   try {
     const c = collectManualCase();
     const isSab = c.report_type === "sab_class1" || c.report_type === "sab_class2";
-    
-    
-    
+
+    if (c.report_type === "rpl_couple" && c.donors && c.donors[0] &&
+        manualSpecialFields.rpl_match_pct && manualSpecialFields.rpl_class2_pct) {
+      const overallInput = manualSpecialFields.rpl_match_pct;
+      const class2Input = manualSpecialFields.rpl_class2_pct;
+      if (overallInput.dataset.userEdited !== "1" || class2Input.dataset.userEdited !== "1") {
+        try {
+          const computed = await apiPost("/hla/compute-rpl-reference", { patient: c.patient, donor: c.donors[0] });
+          if (overallInput.dataset.userEdited !== "1") overallInput.value = (computed.match_pct || "").replace("%", "");
+          if (class2Input.dataset.userEdited !== "1") class2Input.value = (computed.class2_pct || "").replace("%", "");
+        } catch (e) { /* leave fields as-is if computation fails */ }
+      }
+    }
+
     const hasPreviewableContent = isSab
       ? ((c.patient && c.patient.name) || (c.sab_alleles && c.sab_alleles.length))
       : (c.patient && c.patient.name);
@@ -1582,25 +1653,27 @@ function showInputModal(title, defaultValue) {
   });
 }
 
-function showPickerModal(title, items) {
+function _pickDraftFile() {
   return new Promise(resolve => {
-    const backdrop = el("div", { class: "hla-modal-backdrop" });
-    const list = el("div", { class: "hla-modal-list" });
-    items.forEach(name => {
-      const btn = el("button", { class: "hla-modal-item" }, name);
-      btn.addEventListener("click", () => { document.body.removeChild(backdrop); resolve(name); });
-      list.appendChild(btn);
+    const input = el("input", { type: "file", accept: ".json", class: "hidden" });
+    document.body.appendChild(input);
+    input.addEventListener("change", () => {
+      resolve(input.files[0] || null);
+      document.body.removeChild(input);
     });
-    const cancelBtn = el("button", { style: "background:transparent;color:var(--text-muted);border-color:var(--input-border);padding:7px 18px;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;border:1.5px solid;" }, "Cancel");
-    cancelBtn.addEventListener("click", () => { document.body.removeChild(backdrop); resolve(null); });
-    const modal = el("div", { class: "hla-modal" }, [
-      el("h4", {}, title),
-      list,
-      el("div", { class: "hla-modal-actions" }, [cancelBtn]),
-    ]);
-    backdrop.appendChild(modal);
-    document.body.appendChild(backdrop);
-    backdrop.addEventListener("click", e => { if (e.target === backdrop) { document.body.removeChild(backdrop); resolve(null); } });
+    input.click();
+  });
+}
+
+function _readJsonFile(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      try { resolve(JSON.parse(e.target.result)); }
+      catch (ex) { reject(ex); }
+    };
+    reader.onerror = () => reject(new Error("Could not read file"));
+    reader.readAsText(file);
   });
 }
 
@@ -1620,10 +1693,9 @@ async function saveDraft(scope) {
   const name = await showInputModal("Save Draft", defaultName);
   if (!name) return;
   const data = scope === "manual" ? { rtype: state.rtype, case: collectManualCase() } : { cases: state.bulkCases };
-  try {
-    await apiPost("/hla/drafts/save", { name, data });
-    showToast("Draft saved: " + name, "success");
-  } catch (e) { showToast("Error saving draft", "error"); }
+  const filename = `HLA_${_sanitizeFilename(name)}_${_todayStamp()}.json`;
+  _downloadJson(data, filename);
+  showToast("Draft saved to your Downloads folder: " + filename, "success");
 }
 
 async function loadDraftFromPdf(file) {
@@ -1632,13 +1704,13 @@ async function loadDraftFromPdf(file) {
   try {
     showToast("Reading PDF…");
     const r = await fetch("/hla/pdf-to-draft", { method: "POST", body: fd });
-    if (!r.ok) {
-      let msg = await r.text();
-      try { msg = JSON.parse(msg).detail || msg; } catch (_) {  }
-      throw new Error(msg);
-    }
+    if (!r.ok) throw await uploadError(r, { files: [file] });
     const result = await r.json();
-    showToast(`Saved as draft "${result.draft_name}" — open it via Load Draft.`, "success");
+    state.rtype = result.rtype || (result.case && result.case.report_type) || "single_hla";
+    document.getElementById("templateSelect").value = Object.keys(TEMPLATE_TO_RTYPE).find(k => TEMPLATE_TO_RTYPE[k] === state.rtype) || "With CL";
+    renderManualForm();
+    setTimeout(() => populateManualForm(result.case), 50);
+    showToast("Loaded from PDF: " + ((result.case.patient || {}).name || file.name), "success");
   } catch (e) {
     showToast("Could not read this PDF: " + e.message, "error");
   }
@@ -1646,11 +1718,9 @@ async function loadDraftFromPdf(file) {
 
 async function loadDraft(scope) {
   try {
-    const list = await apiGet("/hla/drafts");
-    if (!list.drafts || !list.drafts.length) { showToast("No drafts found.", "error"); return; }
-    const name = await showPickerModal("Select a Draft to Load", list.drafts);
-    if (!name) return;
-    const data = await apiGet("/hla/drafts/" + encodeURIComponent(name));
+    const file = await _pickDraftFile();
+    if (!file) return;
+    const data = await _readJsonFile(file);
     if (scope === "manual" && data.case) {
       state.rtype = data.rtype || "single_hla";
       document.getElementById("templateSelect").value = Object.keys(TEMPLATE_TO_RTYPE).find(k => TEMPLATE_TO_RTYPE[k] === state.rtype) || "With CL";
@@ -1659,9 +1729,12 @@ async function loadDraft(scope) {
     } else if (scope === "bulk" && data.cases) {
       state.bulkCases = data.cases;
       renderBulkList();
+    } else {
+      showToast("This draft file doesn't match the expected format for this tab.", "error");
+      return;
     }
-    showToast("Draft loaded: " + name, "success");
-  } catch (e) { showToast("Error loading draft", "error"); }
+    showToast("Draft loaded: " + file.name, "success");
+  } catch (e) { showToast("Error loading draft: " + e.message, "error"); }
 }
 
 function populateManualForm(c) {
@@ -1822,8 +1895,19 @@ function populateManualForm(c) {
     });
   }
 
-  if (rtype === "single_rpl" && manualSpecialFields.rpl_hla_c) {
+  if ((rtype === "single_rpl" || rtype === "rpl_couple") && manualSpecialFields.rpl_hla_c) {
     manualSpecialFields.rpl_hla_c.value = (c.rpl_reference && c.rpl_reference.hla_c_patient) || "";
+  }
+  if (rtype === "rpl_couple" && manualSpecialFields.rpl_hla_c_donor) {
+    manualSpecialFields.rpl_hla_c_donor.value = (c.rpl_reference && c.rpl_reference.hla_c_donor) || "";
+  }
+  if (rtype === "rpl_couple" && manualSpecialFields.rpl_match_pct) {
+    const _ovMatch = (c.rpl_reference && c.rpl_reference.match_pct_override) || "";
+    const _ovClass2 = (c.rpl_reference && c.rpl_reference.class2_pct_override) || "";
+    manualSpecialFields.rpl_match_pct.value = _ovMatch;
+    manualSpecialFields.rpl_class2_pct.value = _ovClass2;
+    if (_ovMatch) manualSpecialFields.rpl_match_pct.dataset.userEdited = "1";
+    if (_ovClass2) manualSpecialFields.rpl_class2_pct.dataset.userEdited = "1";
   }
   if (rtype === "single_locus") {
     if (manualSpecialFields.sl_locus) manualSpecialFields.sl_locus.value = c.locus || "";
@@ -2027,16 +2111,15 @@ async function importSabToManual(sabFileInput, sabKitSelect) {
     fd.append("file", sabFileInput.files[0]);
     fd.append("kit", sabKitId(sabKitSelect.value));
     const r = await fetch("/hla/parse-sab-excel", { method: "POST", body: fd });
-    if (!r.ok) {
-      let msg = await r.text();
-      try { msg = JSON.parse(msg).detail || msg; } catch (_) {  }
-      throw new Error(msg);
-    }
+    if (!r.ok) throw await uploadError(r, sabFileInput);
     const data = await r.json();
-    const sabClass = data.sab_class || "I";
-    const rtype = sabClass === "II" ? "sab_class2" : "sab_class1";
+    let rtype = state.rtype === "sab_class2" ? "sab_class2" : "sab_class1";
+    if (data.sab_class === "I" || data.sab_class === "II") {
+      rtype = data.sab_class === "II" ? "sab_class2" : "sab_class1";
+    } else {
+      showToast("Could not detect SAB Class from this file — keeping the currently selected class. Set the SAB Class dropdown manually if it's wrong.", "info");
+    }
 
-    // Save patient data before potentially re-rendering the form
     capturePatientForRestore();
     const hadPatient = !!(state.savedPatient && (state.savedPatient.name || state.savedPatient.pin));
 
@@ -2049,7 +2132,6 @@ async function importSabToManual(sabFileInput, sabKitSelect) {
     }
 
     if (manualSpecialFields.sab) {
-      // If patient was already selected, preserve their details; only import SAB result data
       applySabImportData(manualSpecialFields.sab, data, !hadPatient);
     }
     statusEl.textContent = "Imported: " + fileName;
@@ -2072,13 +2154,10 @@ async function importBulkSabExcel(sabFileInput, sabKitSelect) {
     fd.append("file", sabFileInput.files[0]);
     fd.append("kit", sabKitId(sabKitSelect.value));
     const r = await fetch("/hla/parse-sab-excel", { method: "POST", body: fd });
-    if (!r.ok) {
-      let msg = await r.text();
-      try { msg = JSON.parse(msg).detail || msg; } catch (_) {  }
-      throw new Error(msg);
-    }
+    if (!r.ok) throw await uploadError(r, sabFileInput);
     const data = await r.json();
-    const sabClass = data.sab_class || "I";
+    const detectedClass = (data.sab_class === "I" || data.sab_class === "II") ? data.sab_class : null;
+    const sabClass = detectedClass || "I";
     const fields = data.patient || {};
     const patient = emptyPerson({
       name: fields.patient_name || "", gender_age: fields.gender_age || "",
@@ -2105,7 +2184,6 @@ async function importBulkSabExcel(sabFileInput, sabKitSelect) {
     };
 
     if (state.bulkCases.length > 0) {
-      // Try to match an existing patient by PIN or sample number
       const sabPin = ((data.patient || {}).pin || "").trim();
       const sabSample = ((data.patient || {}).sample_number || "").trim();
       let matchIdx = -1;
@@ -2119,25 +2197,30 @@ async function importBulkSabExcel(sabFileInput, sabKitSelect) {
       }
       if (matchIdx >= 0) {
         const existing = state.bulkCases[matchIdx];
-        existing.report_type = newCase.report_type;
+        if (detectedClass) {
+          existing.report_type = newCase.report_type;
+          existing.sab_class = newCase.sab_class;
+        }
         existing.sab_alleles = newCase.sab_alleles;
         existing.sab_chart_bytes = newCase.sab_chart_bytes;
-        existing.sab_class = newCase.sab_class;
         if (patient.remarks) existing.patient.remarks = patient.remarks;
         if (patient.comments) existing.patient.comments = patient.comments;
         renderBulkList();
         selectBulkCase(matchIdx);
         statusEl.textContent = "Merged into patient: " + fileName;
-        showToast("SAB data merged into existing patient.", "success");
+        showToast(detectedClass
+          ? "SAB data merged into existing patient."
+          : "SAB data merged — couldn't detect Class from this file, so the patient's existing SAB Class was kept.", "success");
       } else {
-        // No match — add as a new case rather than wiping the list
         const newIdx = state.bulkCases.length;
         state.bulkCases.push(newCase);
         state.bulkSelected.add(newIdx);
         renderBulkList();
         selectBulkCase(newIdx);
         statusEl.textContent = "Imported: " + fileName;
-        showToast("SAB case added to bulk list.", "success");
+        showToast(detectedClass
+          ? "SAB case added to bulk list."
+          : "SAB case added as Class I — couldn't detect Class from this file. Check the SAB Class dropdown.", "success");
       }
     } else {
       state.bulkCases = [newCase];
@@ -2175,11 +2258,7 @@ async function parseBulkExcel() {
   try {
     showToast(ri.files.length ? "Cross-matching Patient List with Result CSV…" : "Parsing Excel file…");
     const r = await fetch(url, { method: "POST", body: fd });
-    if (!r.ok) {
-      let msg = await r.text();
-      try { msg = JSON.parse(msg).detail || msg; } catch (_) {  }
-      throw new Error(msg);
-    }
+    if (!r.ok) throw await uploadError(r, fi);
     const data = await r.json();
     state.bulkCases = data.cases || [];
     state.bulkSelected = new Set(state.bulkCases.map((_, i) => i));
@@ -2949,8 +3028,9 @@ function renderBulkEditor(i) {
     editCol.appendChild(addDonorRow);
   }
 
-  if (c.report_type === "single_rpl") {
+  if (c.report_type === "single_rpl" || c.report_type === "rpl_couple") {
     const rplRefCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-dna" }), " RPL Reference"])]);
+    const hlaCLabel = c.report_type === "rpl_couple" ? "HLA-C Type (Maternal)" : "HLA-C Type (Maternal/Paternal)";
     const hlaCInput = el("input", { type: "text",
       placeholder: "e.g. C1, C2 (leave blank to auto-detect from HLA-C alleles)",
       value: (c.rpl_reference && c.rpl_reference.hla_c_patient) || "" });
@@ -2959,9 +3039,46 @@ function renderBulkEditor(i) {
       c.rpl_reference.hla_c_patient = hlaCInput.value.trim();
       scheduleBulkPreview(i);
     });
-    rplRefCard.appendChild(el("div", { class: "field-grid" }, [
-      el("div", { class: "field full" }, [el("label", {}, "HLA-C Type (Maternal/Paternal)"), hlaCInput]),
-    ]));
+    const rplFieldRows = [
+      el("div", { class: "field full" }, [el("label", {}, hlaCLabel), hlaCInput]),
+    ];
+    if (c.report_type === "rpl_couple") {
+      const hlaCDonorInput = el("input", { type: "text",
+        placeholder: "e.g. C1, C2 (leave blank to auto-detect from HLA-C alleles)",
+        value: (c.rpl_reference && c.rpl_reference.hla_c_donor) || "" });
+      hlaCDonorInput.addEventListener("input", () => {
+        c.rpl_reference = c.rpl_reference || {};
+        c.rpl_reference.hla_c_donor = hlaCDonorInput.value.trim();
+        scheduleBulkPreview(i);
+      });
+      rplFieldRows.push(
+        el("div", { class: "field full" }, [el("label", {}, "HLA-C Type (Paternal)"), hlaCDonorInput]),
+      );
+      const _stripPct = v => (v || "").toString().replace("%", "").trim();
+      const _overallStart = _stripPct(c.rpl_reference && (c.rpl_reference.match_pct_override || c.rpl_reference.match_pct));
+      const _class2Start  = _stripPct(c.rpl_reference && (c.rpl_reference.class2_pct_override || c.rpl_reference.class2_pct));
+      const overallPctInput = el("input", { type: "text",
+        placeholder: "Auto-calculated from Match field",
+        value: _overallStart });
+      overallPctInput.addEventListener("input", () => {
+        c.rpl_reference = c.rpl_reference || {};
+        c.rpl_reference.match_pct_override = overallPctInput.value.trim();
+        scheduleBulkPreview(i);
+      });
+      const class2PctInput = el("input", { type: "text",
+        placeholder: "Auto-calculated from DRB1/DQB1 overlap",
+        value: _class2Start });
+      class2PctInput.addEventListener("input", () => {
+        c.rpl_reference = c.rpl_reference || {};
+        c.rpl_reference.class2_pct_override = class2PctInput.value.trim();
+        scheduleBulkPreview(i);
+      });
+      rplFieldRows.push(
+        el("div", { class: "field" }, [el("label", {}, "Overall Match % (Optional Override)"), overallPctInput]),
+        el("div", { class: "field" }, [el("label", {}, "Class-II Match % (Optional Override)"), class2PctInput]),
+      );
+    }
+    rplRefCard.appendChild(el("div", { class: "field-grid" }, rplFieldRows));
     editCol.appendChild(rplRefCard);
   }
 
@@ -2987,6 +3104,10 @@ function renderBulkEditor(i) {
   }
 
   if (["single_hla", "transplant_donor", "ngs_photo", "loci11", "rpl_couple", "single_rpl"].includes(c.report_type)) {
+    const imgtInput = el("input", { type: "text", placeholder: "e.g. 3.56.0" });
+    imgtInput.value = c.imgt_release || "";
+    imgtInput.addEventListener("input", () => { c.imgt_release = imgtInput.value; scheduleBulkPreview(i); });
+
     const methCard = el("div", { class: "card" }, [el("h3", {}, "Methodology")]);
     const methTA = el("textarea", {
       placeholder: "Leave blank to use default (MiniSeq or SurfSeq based on NABL setting)",
@@ -2998,6 +3119,37 @@ function renderBulkEditor(i) {
       el("label", {}, "METHODOLOGY (OPTIONAL OVERRIDE)"),
       methTA,
     ]));
+
+    const kitCard = el("div", { class: "card" }, [el("h3", {}, "Kit")]);
+    const kitSel = el("select", {}, [
+      el("option", { value: "" }, "Select kit to auto-fill IMGT Release + Methodology"),
+      ...Object.entries(NGS_KITS).map(([key, k]) => el("option", { value: key }, k.label)),
+    ]);
+    kitSel.value = c.kit || "";
+    kitSel.addEventListener("change", () => {
+      c.kit = kitSel.value;
+      const preset = NGS_KITS[kitSel.value];
+      if (preset) {
+        c.imgt_release = preset.imgt_release;
+        c.methodology = preset.methodology;
+        imgtInput.value = preset.imgt_release;
+        methTA.value = preset.methodology;
+      }
+      scheduleBulkPreview(i);
+    });
+    kitCard.appendChild(el("div", { class: "field full" }, [
+      el("label", {}, "KIT"),
+      kitSel,
+    ]));
+    editCol.appendChild(kitCard);
+
+    const imgtCard = el("div", { class: "card" }, [el("h3", {}, "IMGT/HLA Release")]);
+    imgtCard.appendChild(el("div", { class: "field full" }, [
+      el("label", {}, "IMGT/HLA RELEASE"),
+      imgtInput,
+    ]));
+    editCol.appendChild(imgtCard);
+
     editCol.appendChild(methCard);
 
     const statusCard = el("div", { class: "card" }, [el("h3", {}, "Typing Status")]);

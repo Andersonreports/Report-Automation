@@ -2490,6 +2490,11 @@
       border-left: 4px solid #ef4444;
     }
 
+    .toast.warning {
+      background: #92400e;
+      border-left: 4px solid #f59e0b;
+    }
+
     .toast.info {
       background: #1e40af;
       border-left: 4px solid #3b82f6;
@@ -3004,11 +3009,20 @@
             <div class="bulk-top-file">
               <div class="drop-zone-compact" id="dropZone" onclick="document.getElementById('bulkFileInput').click()">
                 <i class="fas fa-file-excel" style="color:var(--primary);font-size:14px;flex-shrink:0;"></i>
-                <span id="dropZoneLabel">Click to browse or drag &amp; drop local Excel/CSV</span>
+                <span id="dropZoneLabel">Click to browse or drag &amp; drop Patient List / Excel/CSV (+ CNV charts to auto-match)</span>
               </div>
-              <input type="file" id="bulkFileInput" style="display:none;" accept=".xlsx,.xls,.csv" multiple>
+              <input type="file" id="bulkFileInput" style="display:none;" accept=".xlsx,.xls,.csv,.png,.jpg,.jpeg" multiple>
             </div>
-            
+
+            <div class="bulk-top-sep"></div>
+            <div class="bulk-top-file">
+              <div class="drop-zone-compact" id="resultDropZone" onclick="document.getElementById('bulkResultFileInput').click()" title="Optional: a separate Result Excel/CSV to cross-match on Patient No / PIN, or on the patient name in the Sample name when no PIN is present — only patients with a matched result are shown. You can also add CNV chart images here to auto-match them.">
+                <i class="fas fa-dna" style="color:var(--primary);font-size:14px;flex-shrink:0;"></i>
+                <span id="resultDropZoneLabel">Click to browse or drag Result Excel/CSV (optional — cross-matches on Patient No / PIN or name)</span>
+              </div>
+              <input type="file" id="bulkResultFileInput" style="display:none;" accept=".xlsx,.xls,.csv,.png,.jpg,.jpeg" multiple>
+            </div>
+
             <div class="bulk-top-sep"></div>
             <div style="flex-shrink:0;display:flex;align-items:center;gap:6px;">
               <button id="cnvAutoFetchBtn" class="btn-cnv-auto-fetch" onclick="triggerLocalCnvPicker()" title="Select CNV chart images from the same folder (auto-matched to embryos)">
@@ -3029,6 +3043,10 @@
 
           
           <div id="bulkPatientSection" style="flex:1;display:flex;flex-direction:column;min-height:0;">
+
+
+            <div id="bulkMatchWarning" style="display:none;flex-shrink:0;margin:0 0 8px;padding:8px 10px;border:1px solid #f0c36d;background:#fff8e6;color:#7a5a00;border-radius:6px;font-size:11px;max-height:130px;overflow:auto;"></div>
+
 
             
             <div class="bulk-3col">
@@ -3386,8 +3404,12 @@
 
   </div>
 
-  
+
   <div class="toast" id="toast"></div>
+
+
+  <datalist id="result-summary-dl"></datalist>
+  <datalist id="result-desc-dl"></datalist>
 
   <script src="xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -3424,8 +3446,8 @@
       "The embryo contains normal chromosome complement",
       "The embryo contains abnormal chromosome complement",
       "The embryo contains mosaic chromosome complement",
-      "Inconclusive",
-      "Low DNA concentration"
+      "The embryo contains Multiple Mosaic Chromosome complement",
+      "Inconclusive"
     ];
     const RESULT_SUMMARY_OPTIONS = [
       "Normal chromosome complement",
@@ -3433,11 +3455,12 @@
       "Multiple chromosomal abnormalities",
       "Mosaic chromosome complement",
       "Inconclusive",
-      "Low DNA concentration"
+      "Low DNA concentration",
+      "No DNA detected"
     ];
     const INTERP_OPTIONS = ["Euploid", "Aneuploid", "(-)", "Chaotic embryo", "NA", "Low level mosaic", "High level mosaic", "Complex mosaic", "Inconclusive", "Low DNA concentration"];
     const SEX_OPTIONS = ["Normal", "Abnormal", "Mosaic"];
-    const SEX_DATALIST_OPTIONS = ["Normal", "Abnormal", "Mosaic", "-X", "+X", "-Y", "+Y", "Mosaic -X", "Mosaic +X", "Mosaic -Y", "Mosaic +Y"];
+    const SEX_DATALIST_OPTIONS = ["Normal", "NA", "Abnormal", "Mosaic", "-X", "+X", "-Y", "+Y", "Mosaic -X", "Mosaic +X", "Mosaic -Y", "Mosaic +Y"];
     const CHR_STATUSES = ["N", "G", "L", "SG", "SL", "M", "MG", "ML", "SMG", "SML", "SL/SG", "SG/SL", "SML/SMG", "SMG/SML"];
 
     
@@ -3553,13 +3576,14 @@
       <td>${idx + 1}</td>
       <td><input type="text" value="${esc(row.embryo_id)}" oninput="updateSummaryId(${idx},this.value)" style="width:80px;"></td>
       <td>
-        <select onchange="updateSummaryResult(${idx},this.value)" style="color:${resultColor};font-weight:600;">
-          ${RESULT_SUMMARY_OPTIONS.map(v => `<option style="color:${getResultColor(v)};"${matchedResult === v ? " selected" : ""}>${esc(v)}</option>`).join("")}
-        </select>
+        <input type="text" list="result-summary-dl" value="${esc(matchedResult)}" style="color:${resultColor};font-weight:600;min-width:150px;"
+          onfocus="datalistShowAll(this)" onblur="datalistRestore(this)"
+          oninput="this.style.color=getResultColor(this.value);updateSummaryResult(${idx},this.value)"
+          placeholder="Select or type result...">
       </td>
-      <td><input type="text" value="${esc(row.mtcopy || 'NA')}" oninput="updateSummaryMtcopy(${idx},this.value)" style="width:70px;" placeholder="NA"></td>
+      <td><input type="text" id="summary-mtcopy-${idx}" value="${esc(row.mtcopy || 'NA')}" oninput="updateSummaryMtcopy(${idx},this.value)" style="width:70px;" placeholder="NA"></td>
       <td>
-        <select onchange="updateSummaryInterp(${idx},this.value)" style="color:${getInterpColor(prettyInterp)};font-weight:600;">
+        <select id="summary-interp-${idx}" onchange="updateSummaryInterp(${idx},this.value)" style="color:${getInterpColor(prettyInterp)};font-weight:600;">
           ${INTERP_OPTIONS.map(v => `<option style="color:${getInterpColor(v)};"${(row.interpretation || "NA") === v ? " selected" : ""}>${esc(v)}</option>`).join("")}
         </select>
       </td>
@@ -3592,6 +3616,24 @@
       return "#dc2626";
     }
 
+
+
+    function getDescColor(v) {
+      return /multiple mosaic/i.test(v || "") ? "#2563eb" : "#000";
+    }
+
+
+
+    function summaryToDescription(rs) {
+      const s = (rs || "").trim();
+      if (s === "Mosaic chromosome complement") return "The embryo contains mosaic chromosome complement";
+      if (s === "Inconclusive" || s === "Low DNA concentration" || s === "No DNA detected") return "Inconclusive";
+      if (s === "Normal chromosome complement") return "The embryo contains normal chromosome complement";
+      if (s === "Multiple chromosomal abnormalities" || s === "Abnormal chromosome complement")
+        return "The embryo contains abnormal chromosome complement";
+      return "The embryo contains normal chromosome complement";
+    }
+
     function getPrettyInterpretation(row) {
       return row.interpretation || "NA";
     }
@@ -3607,8 +3649,10 @@
 
     function getSexChrColor(val) {
       const v = (val || "").toUpperCase().trim();
-      if (!v || v === "NORMAL") return "#000";
       if (v.includes("MOSAIC")) return "#2563eb";
+      // NA/N-A is not itself an abnormal finding -- black, same as the
+      // Interpretation and Autosomes fields already treat it.
+      if (!v || v === "NA" || v === "N/A" || v === "NORMAL" || v === "NO RESULT") return "#000";
       return "#dc2626";
     }
 
@@ -3617,6 +3661,20 @@
       el.value = "";
     }
     function sexDatalistBlur(el) {
+      if (!el.value.trim() && el.dataset.prevVal) el.value = el.dataset.prevVal;
+      delete el.dataset.prevVal;
+    }
+
+    // A <datalist> filters its suggestions by the input's current text, so once
+    // a value is selected only look-alike options remain (e.g. selecting
+    // "...normal..." leaves just "...normal..." and "...abnormal..."). Clearing
+    // the field on focus makes the browser show the FULL option list again; the
+    // previous value is restored on blur if the user didn't pick/type anything.
+    function datalistShowAll(el) {
+      el.dataset.prevVal = el.value;
+      el.value = "";
+    }
+    function datalistRestore(el) {
       if (!el.value.trim() && el.dataset.prevVal) el.value = el.dataset.prevVal;
       delete el.dataset.prevVal;
     }
@@ -3631,9 +3689,18 @@
     }
     function updateSummaryResult(idx, val) {
       state.summaryRows[idx].result_summary = val;
-      if (state.embryoForms[idx]) state.embryoForms[idx].result_summary = val;
+      const ef = state.embryoForms[idx];
+      if (ef) {
+        ef.result_summary = val;
+
+        if (!ef.result_description || RESULT_OPTIONS.includes(ef.result_description)) {
+          ef.result_description = summaryToDescription(val);
+          const rdInput = document.getElementById(`embryo-result-desc-${idx}`);
+          if (rdInput) { rdInput.value = ef.result_description; rdInput.style.color = getDescColor(ef.result_description); }
+        }
+      }
+      updateEmbryoBadge(idx, val);
       autoSetInterpretation(idx);
-      renderSummaryTable();
       schedulePreview();
     }
     function updateSummaryInterp(idx, val) {
@@ -3676,6 +3743,8 @@
       ef.interpretation  = newInterp;
       const sel = document.getElementById(`embryo-interp-${idx}`);
       if (sel) sel.value = newInterp;
+      const summarySel = document.getElementById(`summary-interp-${idx}`);
+      if (summarySel) { summarySel.value = newInterp; summarySel.style.color = getInterpColor(newInterp); }
       autoSetMtcopy(idx);
     }
 
@@ -3686,6 +3755,8 @@
       if (interp !== "EUPLOID") {
         sr.mtcopy = "NA";
         if (state.embryoForms[idx]) state.embryoForms[idx].mtcopy = "NA";
+        const mt = document.getElementById(`summary-mtcopy-${idx}`);
+        if (mt) mt.value = "NA";
       }
     }
 
@@ -3728,7 +3799,6 @@
     }
 
     function renderEmbryoBodyHTML(idx, ef) {
-      const resOpts = RESULT_OPTIONS.map(o => `<option value="${esc(o)}"${ef.result_description === o ? " selected" : ""}>${esc(o)}</option>`).join("");
       const sexDatalist = SEX_DATALIST_OPTIONS.map(o => `<option value="${esc(o)}">`).join("");
       const cnvName = state.cnvImages[idx] ? state.cnvImages[idx].name : "No file selected";
       const cnvThumb = state.cnvImages[idx] ? `<img class="cnv-preview-img" src="${state.cnvImages[idx].url}" alt="CNV">` : "";
@@ -3743,8 +3813,11 @@
       </div>
     </div>
     <div class="embryo-row">
-      <div class="embryo-field full"><label>Result Description</label>
-        <select id="embryo-result-desc-${idx}" onchange="onEmbryoChange(${idx},'result_description',this.value)">${resOpts}</select>
+      <div class="embryo-field full"><label>Result Description (Page 4)</label>
+        <input type="text" id="embryo-result-desc-${idx}" list="result-desc-dl" value="${esc(ef.result_description || "")}" style="color:${getDescColor(ef.result_description)};font-weight:600;"
+          onfocus="datalistShowAll(this)" onblur="datalistRestore(this)"
+          oninput="this.style.color=getDescColor(this.value);onEmbryoChange(${idx},'result_description',this.value)"
+          placeholder="Select or type description...">
       </div>
     </div>
     <div class="embryo-row">
@@ -3913,6 +3986,7 @@
           result_summary: sr.result_summary || ef.result_summary, result_description: ef.result_description,
           interpretation: sr.interpretation || ef.interpretation, mtcopy: sr.mtcopy !== undefined ? sr.mtcopy : ef.mtcopy,
           autosomes: ef.autosomes, sex_chromosomes: ef.sex_chromosomes, cnv_image_path: ef.cnv_image_path || "",
+          cnv_image_b64: ef.cnv_image_b64 || "",
           chromosome_statuses: ef.chromosome_statuses, mosaic_percentages: ef.mosaic_percentages,
           inconclusive_comment: ef.inconclusive_comment || ""
         };
@@ -4151,38 +4225,18 @@
         _savedAt: new Date().toISOString(), _patientName: getPatientData().patient_name || ""
       };
       
-      let savedLocally = false;
-      try {
-        const key = `pgta_draft_${Date.now()}_${patientName}`;
-        localStorage.setItem(key, JSON.stringify(draftData));
-        savedLocally = true;
-
-        const allKeys = Object.keys(localStorage).filter(k => k.startsWith("pgta_draft_")).sort();
-        while (allKeys.length > 30) { localStorage.removeItem(allKeys.shift()); }
-      } catch(e) {
-        console.warn("Manual draft localStorage save failed:", e);
-        showToast("Couldn't save draft in browser storage — downloading file instead (" + (e.message || e) + ")", "error");
-      }
-
-      fetch(`${BASE}/save-draft/pgta_manual`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(draftData)
-      }).catch(e => console.warn("Server manual draft save failed:", e));
-
-      const filename = `pgta_draft_${patientName}_${todayStr()}_${Date.now()}.json`;
+      const filename = `PGTA_Draft_${patientName}_${todayStr()}_${Date.now()}.json`;
       const blob = new Blob([JSON.stringify(draftData, null, 2)], { type: "application/json" });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a"); a.href = url; a.download = filename; a.click();
       URL.revokeObjectURL(url);
-      if (savedLocally) {
-        _setDraftStatus(`Saved ${new Date().toLocaleTimeString()}`);
-        showToast(`Draft saved: ${filename}`, "success");
-      }
+      _setDraftStatus(`Saved ${new Date().toLocaleTimeString()}`);
+      showToast(`Draft saved: ${filename}`, "success");
     }
 
     function loadDraft() {
       _draftModalMode = "manual";
-      showDraftPickerModal();
+      loadDraftFromFile();
     }
     function clearForm() {
       if (!confirm("Clear all form data?")) return;
@@ -4245,7 +4299,6 @@
       const patientsToSave = checkedIndices.length > 0
         ? checkedIndices.map(i => state.bulkPatients[i])
         : state.bulkPatients;
-      const ts = Date.now();
       const draftData = {
         patients: JSON.parse(JSON.stringify(patientsToSave)),
         _type: "pgta_bulk_draft",
@@ -4253,117 +4306,20 @@
         _patientName: patientsToSave[0]?.patient_name || "",
         _count: patientsToSave.length
       };
-      
-      try {
-        const key = `pgta_bulk_draft_${ts}`;
-        localStorage.setItem(key, JSON.stringify(draftData));
-        const allKeys = Object.keys(localStorage).filter(k => k.startsWith("pgta_bulk_draft_")).sort();
-        while (allKeys.length > 30) { localStorage.removeItem(allKeys.shift()); }
-      } catch(e) {
-        showToast("Storage full — cannot save draft", "error"); return;
-      }
-      
-      fetch(`${BASE}/save-draft/pgta_bulk`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(draftData)
-      }).catch(e => console.warn("Server bulk draft save failed:", e));
-      showToast(`Draft saved: ${patientsToSave.length} patient(s)`, "success");
+
+      const filename = patientsToSave.length === 1
+        ? `PGTA_Draft_${(patientsToSave[0].patient_name || "draft").replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_]/g, "")}_${todayStr()}_${Date.now()}.json`
+        : `PGTA_BulkDraft_${patientsToSave.length}patients_${todayStr()}_${Date.now()}.json`;
+      const blob = new Blob([JSON.stringify(draftData, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = filename; a.click();
+      URL.revokeObjectURL(url);
+      showToast(`Draft saved: ${filename}`, "success");
     }
 
     function loadBulkDraft() {
       _draftModalMode = "bulk";
-      showDraftPickerModal();
-    }
-
-    function _legacyLoadBulkDraft() {
-      const input = document.createElement("input");
-      input.type = "file"; input.accept = ".json";
-      input.onchange = (e) => {
-        const file = e.target.files[0]; if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          try {
-            const d = JSON.parse(ev.target.result);
-            if (!d.patients || !Array.isArray(d.patients)) throw new Error("Not a valid bulk draft file");
-            state.bulkPatients = d.patients;
-            renderBulkPatients();
-            document.getElementById("bulkPatientSection").classList.remove("hidden");
-            const lbl2 = document.getElementById("dropZoneLabel");
-            if (lbl2) lbl2.innerHTML = `Draft loaded: <strong>${d.patients.length} patient(s)</strong> &nbsp;<small style="color:var(--text-muted);text-decoration:underline;">(click here to upload new Excel)</small>`;
-            showToast(`Bulk draft loaded: ${file.name}`, "success");
-          } catch (err) { showToast("Load failed: " + err.message, "error"); }
-        };
-        reader.readAsText(file);
-      };
-      input.click();
-    }
-
-    
-    
-    
-    function showDraftPickerModal() {
-      const isManual = _draftModalMode === "manual";
-      document.getElementById("draftModalTitle").textContent = isManual ? "Load Single Entry Draft" : "Load Bulk Draft";
-
-
-      const keys = Object.keys(localStorage)
-        .filter(k => k.startsWith("pgta_draft_") || k.startsWith("pgta_bulk_draft_"))
-        .sort()
-        .reverse();
-
-      const list = document.getElementById("draftPickerList");
-      if (keys.length === 0) {
-        list.innerHTML = `<div style="text-align:center;padding:30px 20px;color:#64748b;font-size:13px;">
-          No saved drafts found in this browser.<br>
-          <small style="font-size:11px;">Use <b>Save Draft</b> first, or click <b>Load from File</b> to open a downloaded .json draft.</small>
-        </div>`;
-      } else {
-        list.innerHTML = keys.map(key => {
-          let d;
-          try { d = JSON.parse(localStorage.getItem(key)); } catch(e) { return ""; }
-          const isBulkDraft = !!(d.patients && Array.isArray(d.patients));
-          const typeTag = isBulkDraft
-            ? `<span style="background:#dbeafe;color:#1e40af;font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;margin-right:6px;">BULK</span>`
-            : `<span style="background:#dcfce7;color:#166534;font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;margin-right:6px;">SINGLE</span>`;
-          const name = d._patientName || (d.patients && d.patients[0] && d.patients[0].patient_name) || "Unknown patient";
-          const savedAt = d._savedAt ? new Date(d._savedAt).toLocaleString() : "Unknown date";
-          const extra = d.patients ? ` &mdash; ${d.patients.length} patient${d.patients.length !== 1 ? "s" : ""}` : "";
-          return `<div style="display:flex;align-items:center;gap:8px;padding:10px 8px;border-radius:8px;margin-bottom:4px;border:1px solid transparent;cursor:pointer;"
-                       onmouseover="this.style.background='#f1f5f9';this.style.borderColor='#cbd5e1'" onmouseout="this.style.background='';this.style.borderColor='transparent'"
-                       onclick="applyDraft('${key}')">
-            <div style="flex:1;min-width:0;">
-              <div style="font-weight:600;font-size:12px;color:#1e293b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${typeTag}${esc(name)}${extra}</div>
-              <div style="font-size:10px;color:#94a3b8;margin-top:2px;">${savedAt}</div>
-            </div>
-            <button onclick="event.stopPropagation();deleteDraft('${key}')"
-                    style="background:none;border:1px solid #fca5a5;color:#ef4444;cursor:pointer;font-size:11px;padding:3px 8px;border-radius:6px;white-space:nowrap;flex-shrink:0;"
-                    onmouseover="this.style.background='#fef2f2'" onmouseout="this.style.background=''">Delete</button>
-            <button onclick="event.stopPropagation();applyDraft('${key}')"
-                    style="background:#1F497D;color:#fff;border:none;cursor:pointer;font-size:11px;padding:4px 12px;border-radius:6px;white-space:nowrap;flex-shrink:0;">Load</button>
-          </div>`;
-        }).join("");
-      }
-      document.getElementById("draftPickerModal").style.display = "flex";
-    }
-
-    function closeDraftModal() {
-      document.getElementById("draftPickerModal").style.display = "none";
-    }
-
-    function deleteDraft(key) {
-      if (!confirm("Delete this draft?")) return;
-      localStorage.removeItem(key);
-      showDraftPickerModal(); 
-    }
-
-    function applyDraft(key) {
-      try {
-        const d = JSON.parse(localStorage.getItem(key));
-        _applyDraftSmart(d);
-        closeDraftModal();
-      } catch(err) {
-        showToast("Failed to load draft: " + err.message, "error");
-      }
+      loadDraftFromFile();
     }
 
     function _applyDraftSmart(d) {
@@ -4400,6 +4356,7 @@
           autosomes: ef.autosomes || "Normal",
           sex_chromosomes: ef.sex_chromosomes || "Normal",
           cnv_image_path: ef.cnv_image_path || "",
+          cnv_image_b64: ef.cnv_image_b64 || "",
           chromosome_statuses: ef.chromosome_statuses || {},
           mosaic_percentages: ef.mosaic_percentages || {},
           inconclusive_comment: ef.inconclusive_comment || ""
@@ -4426,10 +4383,19 @@
         autosomes: e.autosomes || "Normal",
         sex_chromosomes: e.sex_chromosomes || "Normal",
         cnv_image_path: e.cnv_image_path || "",
+        cnv_image_b64: e.cnv_image_b64 || "",
         chromosome_statuses: e.chromosome_statuses || {},
         mosaic_percentages: e.mosaic_percentages || {},
         inconclusive_comment: e.inconclusive_comment || ""
       }));
+      // Bulk mode stores CNV charts as embedded base64 (cnv_image_b64), while
+      // Single Entry's thumbnail/upload widget keys off state.cnvImages[idx].url
+      // (normally a server-uploaded path). Bridge the two so an image mapped in
+      // Bulk still shows up after converting into a manual draft.
+      const cnvImages = {};
+      embryos.forEach((e, idx) => {
+        if (e.cnv_image_b64) cnvImages[idx] = { url: e.cnv_image_b64, name: e.cnv_image_name || "CNV image" };
+      });
       return {
         patientData: {
           patient_name: p.patient_name || "", spouse_name: p.spouse_name || "",
@@ -4440,7 +4406,7 @@
           biopsy_performed_by: p.biopsy_performed_by || "", report_date: p.report_date || "",
           indication: p.indication || "", results_summary_comment: p.results_summary_comment || ""
         },
-        summaryRows, embryoForms, embryoCount: embryoForms.length || 1, cnvImages: {}
+        summaryRows, embryoForms, embryoCount: embryoForms.length || 1, cnvImages
       };
     }
 
@@ -4480,16 +4446,6 @@
           try {
             const d = JSON.parse(ev.target.result);
             _applyDraftSmart(d);
-
-            const draftIsBulk = !!(d.patients && Array.isArray(d.patients));
-            const prefix = draftIsBulk ? "pgta_bulk_draft_" : "pgta_draft_";
-            try {
-              localStorage.setItem(`${prefix}${Date.now()}`, JSON.stringify({
-                ...d, _savedAt: d._savedAt || new Date().toISOString(),
-                _patientName: d._patientName || d.patientData?.patient_name || (d.patients && d.patients[0]?.patient_name) || ""
-              }));
-            } catch(e) {}
-            closeDraftModal();
           } catch(err) { showToast("Load failed: " + err.message, "error"); }
         };
         reader.readAsText(file);
@@ -4755,17 +4711,68 @@
       }
     });
 
-    
-    
-    
+
+
+
     const dropZone = document.getElementById("dropZone");
     const bulkInput = document.getElementById("bulkFileInput");
-    bulkInput.addEventListener("change", () => { if (bulkInput.files.length > 0) { handleBulkFiles(bulkInput.files); bulkInput.value = ""; } });
-    dropZone.addEventListener("drop", e => { e.preventDefault(); dropZone.classList.remove("drag-over"); if (e.dataTransfer.files.length > 0) handleBulkFiles(e.dataTransfer.files); });
+    const resultDropZone = document.getElementById("resultDropZone");
+    const bulkResultInput = document.getElementById("bulkResultFileInput");
+
+    bulkInput.addEventListener("change", () => { if (bulkInput.files.length > 0) _onBulkOrResultFileChosen(); });
+    dropZone.addEventListener("drop", e => {
+      e.preventDefault(); dropZone.classList.remove("drag-over");
+      if (e.dataTransfer.files.length === 0) return;
+      const dt = new DataTransfer();
+      Array.from(e.dataTransfer.files).forEach(f => dt.items.add(f));
+      bulkInput.files = dt.files;
+      _onBulkOrResultFileChosen();
+    });
+
+    resultDropZone.addEventListener("dragover", e => { e.preventDefault(); resultDropZone.classList.add("drag-over"); });
+    resultDropZone.addEventListener("dragleave", () => resultDropZone.classList.remove("drag-over"));
+    resultDropZone.addEventListener("drop", e => {
+      e.preventDefault(); resultDropZone.classList.remove("drag-over");
+      if (e.dataTransfer.files.length === 0) return;
+      const dt = new DataTransfer();
+      Array.from(e.dataTransfer.files).forEach(f => dt.items.add(f));
+      bulkResultInput.files = dt.files;
+      _onBulkOrResultFileChosen();
+    });
+    bulkResultInput.addEventListener("change", () => _onBulkOrResultFileChosen());
+
+    const _isSheet = f => /\.(xlsx|xls|csv)$/i.test(f.name);
+    const _isImg = f => /\.(png|jpe?g)$/i.test(f.name);
+
+    function _onBulkOrResultFileChosen() {
+      const resultLbl = document.getElementById("resultDropZoneLabel");
+      const all = [...Array.from(bulkInput.files), ...Array.from(bulkResultInput.files)];
+      // Chart images may be dropped into EITHER zone — gather them from both so
+      // they get auto-matched regardless of where they landed.
+      const images = all.filter(_isImg);
+      const mainSheet = Array.from(bulkInput.files).find(_isSheet);
+      const resultSheet = Array.from(bulkResultInput.files).find(_isSheet);
+
+      if (resultLbl) {
+        const rShown = resultSheet ? resultSheet.name : (images.length ? `${images.length} chart image(s)` : "");
+        if (rShown) resultLbl.innerHTML = `<strong>${esc(rShown)}</strong> &nbsp;<small style="color:var(--text-muted);text-decoration:underline;">(click to change)</small>`;
+      }
+
+      if (mainSheet && resultSheet) {
+        // Both a Patient List and a separate Result file are staged — cross-match
+        // them, then auto-map any chart images that came along.
+        handleBulkFilesWithResult(mainSheet, resultSheet, images);
+      } else if (mainSheet) {
+        handleBulkFiles([mainSheet, ...images]);
+      } else if (images.length && state.bulkPatients && state.bulkPatients.length) {
+        // Only images were added after patients were already loaded — map them.
+        autoFetchLocalCnvImages(images);
+      }
+    }
 
     async function handleBulkFiles(files) {
       if (files.length === 0) return;
-      
+
       const lbl = document.getElementById("dropZoneLabel");
       const excelFiles = Array.from(files).filter(f => /\.(xlsx|xls|csv)$/i.test(f.name));
 
@@ -4773,7 +4780,7 @@
         showToast("No Excel or CSV file found in selection", "error");
         return;
       }
-      
+
       const excelFile = excelFiles[0];
       const otherFiles = Array.from(files).filter(f => f !== excelFile);
       const images = otherFiles.filter(f => /\.(png|jpe?g)$/i.test(f.name));
@@ -4781,8 +4788,18 @@
       if (lbl) lbl.innerHTML = `<span class="spinner" style="border-color:#1F497D;border-top-color:#4F81BD;width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:6px;border-width:2px;border-style:solid;border-radius:50%;animation:spin 0.7s linear infinite;"></span>Processing <strong>${esc(excelFile.name)}</strong> + ${images.length} images…`;
       
       try {
+        _lastMatchSkips = []; _lastRowSkips = [];
         const patients = await parseExcelClientSide(excelFile);
-        if (!patients.length) throw new Error("No patient rows found in Excel file.");
+        if (!patients.length) {
+          // Distinguish "the sheet has no patients" from "the sheet has
+          // patients but nothing matched them" — the two need different fixes,
+          // and reporting the second as the first sent people hunting for a
+          // missing Details sheet that was there all along.
+          if (_lastMatchSkips.length) throw new Error(
+            `${_lastMatchSkips.length} patient row(s) read, but no result row could be matched to any of them. ` +
+            `Check that the Result sheet's Sample names start with the patient name or Patient No (see the list below).`);
+          throw new Error("No patient rows found in Excel file.");
+        }
         state.bulkPatients = patients;
         _trackBulkAutosaveKey(excelFile.name);
 
@@ -4791,15 +4808,22 @@
         if (images.length > 0) mapped = await _autoMapCnvImagesLocal(images);
 
         renderBulkPatients();
+        _renderMatchSkips();
         document.getElementById("bulkPatientSection").classList.remove("hidden");
+        const skipped = _lastMatchSkips.length;
         if (lbl) {
           let msg = `<strong>${esc(excelFile.name)}</strong> &mdash; ${state.bulkPatients.length} patients`;
+          if (skipped > 0) msg += ` <small style="color:#b45309;font-weight:bold;">(${skipped} unmatched)</small>`;
           if (mapped > 0) msg += ` <small style="color:var(--success);font-weight:bold;">(+${mapped} CNVs)</small>`;
           lbl.innerHTML = msg + ` &nbsp;<small style="color:var(--text-muted);text-decoration:underline;">(click to change)</small>`;
         }
-        showToast(`Loaded ${state.bulkPatients.length} patient(s)` + (mapped ? ` + ${mapped} CNV chart(s)` : ""), "success");
+        showToast(`Loaded ${state.bulkPatients.length} patient(s)` + (skipped ? ` — ${skipped} unmatched` : "") + (mapped ? ` + ${mapped} CNV chart(s)` : ""), skipped ? "warning" : "success");
       } catch (err) {
         if (lbl) lbl.innerHTML = `<span style="color:#c00;">Error: ${esc(err.message)}</span> &nbsp;<small style="text-decoration:underline;">(click to retry)</small>`;
+        // Show what failed to match, so a nothing-matched import is diagnosable
+        // instead of just a red line in the drop zone.
+        _renderMatchSkips();
+        if (_lastMatchSkips.length) document.getElementById("bulkPatientSection").classList.remove("hidden");
         showToast("Processing failed: " + err.message, "error");
       }
     }
@@ -4833,23 +4857,29 @@
       return ["nan","none","nat","null","undefined"].includes(s.toLowerCase()) ? "" : s;
     }
     function _getV(row, keys, def = "") {
+      // Strip a leading UTF-8 BOM (﻿) so headers from BOM-prefixed CSVs
+      // (e.g. the Access History export) still match by name.
+      const norm = k => String(k).replace(/^﻿/, "").toLowerCase().trim();
       const lower = {};
-      Object.keys(row).forEach(k => { lower[k.toLowerCase().trim()] = row[k]; });
+      Object.keys(row).forEach(k => { lower[norm(k)] = row[k]; });
       for (const k of keys) {
-        const v = lower[k.toLowerCase().trim()];
+        const v = lower[norm(k)];
         if (v !== undefined && v !== null) { const s = _cleanV(v); if (s) return s; }
       }
       return def;
     }
     function _fmtDate(v) {
-      const s = _cleanV(v).split(" ")[0]; if (!s) return "";
+      const full = _cleanV(v); if (!full) return "";
+      // Only the first token is a real date+time split (e.g. "2026-07-15 00:00:00");
+      // free-text cells like "14 & 15-07-2026" must be kept whole, not truncated to "14".
+      const s = full.split(" ")[0];
       const patterns = [
         [/^(\d{4})-(\d{2})-(\d{2})$/, m => `${m[3]}-${m[2]}-${m[1]}`],
         [/^(\d{2})\/(\d{2})\/(\d{4})$/, m => `${m[1]}-${m[2]}-${m[3]}`],
         [/^(\d{2})-(\d{2})-(\d{4})$/, () => s],
       ];
       for (const [re, fn] of patterns) { const m = s.match(re); if (m) return fn(m); }
-      return s.replace(/\//g, "-");
+      return full.replace(/\//g, "-");
     }
     function _stripDec(v) {
       const f = parseFloat(v); return (!isNaN(f) && f === Math.floor(f)) ? String(Math.floor(f)) : v;
@@ -4860,9 +4890,18 @@
       for (const p of ["MRS.","MR.","SMT.","DR.","MS.","MISS.","PROF.","R.","S.","K.","M.","D.","P.","A.","B.","C.","G.","H.","J.","L.","N.","T.","V.","W."]) {
         if (s.startsWith(p)) { s = s.slice(p.length).trim(); break; }
       }
-      s = s.replace(/\([^)]*\)/g, "").replace(/[^A-Z0-9]/g, "");
+      return s.replace(/\([^)]*\)/g, "").replace(/[^A-Z0-9]/g, "");
+    }
+
+    // Some labs' Details sheets append a lone trailing initial (e.g. spouse's
+    // first letter) that the generated sample name then drops. Try matching
+    // against that shortened form only as a FALLBACK (never as the primary
+    // form) — used blindly it truncates real surnames that happen to end in
+    // one of these letters (e.g. "KAVERI NIKHIL PATEKAR", "JYOTI PARASHAR"),
+    // which silently dropped those patients from the rendered list entirely.
+    function _normNameShort(s) {
       const suffixes = ["C","D","R","S","G","K","M","N","P","T","V","W"];
-      if (s.length > 3 && !/\d/.test(s.slice(-2, -1)) && suffixes.includes(s.slice(-1)) && s.slice(0,-1).length >= 3) s = s.slice(0,-1);
+      if (s.length > 3 && !/\d/.test(s.slice(-2, -1)) && suffixes.includes(s.slice(-1)) && s.slice(0,-1).length >= 3) return s.slice(0,-1);
       return s;
     }
     function _firstToken(s) {
@@ -4871,6 +4910,192 @@
       for (const p of ["MRS.","MR.","SMT.","DR.","MS.","MISS.","PROF."]) { if (s.startsWith(p)) { s = s.slice(p.length).trim(); break; } }
       return (s.replace(/\([^)]*\)/g,"").split(/\s+/)[0] || s).replace(/[^A-Z0-9]/g,"");
     }
+
+    // PIN normalizer — uppercase + strip non-alphanumerics ONLY. Unlike
+    // _normName it does NOT trim trailing "suffix" letters, so identifiers like
+    // "260739312-RPT" stay intact for exact PIN comparison.
+    function _normPin(s) {
+      return String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    }
+
+    // Reads the PIN / Patient No column from a Result-summary row, if present.
+    function _rowPin(sRow) {
+      return _getV(sRow, [
+        "PIN", "PIN No", "PIN No.", "PIN NO", "PIN Number", "PIN_No",
+        "Patient No", "Patient No.", "Patient_No", "PatientNo", "Patient ID", "Patient_ID",
+      ]);
+    }
+
+    // True when the patient's PIN and a Result row's PIN refer to the same
+    // person: exact match, or substring either way for composite IDs (len>=4 to
+    // avoid trivial collisions).
+    function _pinMatches(patientPin, rowPinRaw) {
+      const a = _normPin(patientPin), b = _normPin(rowPinRaw);
+      if (!a || !b) return false;
+      if (a === b) return true;
+      return (a.length >= 4 && b.includes(a)) || (b.length >= 4 && a.includes(b));
+    }
+
+
+
+    // The identifiers a Sample name can carry: the dash-delimited prefixes of
+    // the part before "_". "AG-1234-E1_S9" -> ["AG", "AG1234", "AG1234E1"].
+    // A PIN counts as present only when it EQUALS one of these (whatever
+    // follows is the embryo suffix) — never when it merely appears somewhere
+    // inside the name, which is how "1234" used to grab "AG12345-E1".
+    function _sampleNameIds(sOrig) {
+      const ids = [];
+      let acc = "";
+      for (const part of String(sOrig || "").split("_")[0].split("-")) {
+        acc += part;
+        const n = _normPin(acc);
+        if (n) ids.push(n);
+      }
+      return ids;
+    }
+
+    // How a Result row may be tied to a patient, strongest tier first. Most
+    // lab Result sheets carry NO PIN at all and name their samples after the
+    // patient ("ANJALIDEVI-AD1_L00_R1") while the Details sheet's Sample ID is
+    // a lab accession ("AND25420006214"), so the name tiers are the everyday
+    // path, not a fallback — dropping them left whole runs unmatched.
+    //
+    // The danger the tiers exist to contain is a row landing on the WRONG
+    // patient (shared first names, spousal-initial suffixes, one name being a
+    // prefix of another). That is handled by resolving each row to the single
+    // highest-scoring patient and refusing ties, rather than by giving the row
+    // to whichever patient the sheet happened to list first.
+    const _MATCH_PIN_COLUMN  = 100; // a dedicated PIN column agrees
+    const _MATCH_PIN_IN_NAME = 90;  // patient PIN is a whole prefix of the Sample name
+    const _MATCH_PIN_SEGMENT = 85;  // patient PIN is a whole dash-segment of it
+    const _MATCH_NAME_EXACT  = 80;  // "<FULLNAME>-E1"
+    const _MATCH_NAME_SHORT  = 70;  // full name minus a trailing spouse initial
+    const _MATCH_NAME_PREFIX = 60;  // "ANJALIDEVI-AD1" for "ANJALI DEVI P A S"
+    const _MATCH_NAME_START  = 55;  // whole name at the head of the Sample name
+    const _MATCH_FIRST_TOKEN = 50;  // first name token only — weakest
+
+    // Match keys for one patient, computed once and reused for every row.
+    function _patientMatchKeys(pName, pin) {
+      const normP = _normName(pName);
+      return { pin, pinN: _normPin(pin), normP, normPShort: _normNameShort(normP), ftok: _firstToken(pName) };
+    }
+
+    // Match keys for one Result row. sFT is the Sample name's leading segment
+    // ("ANJALIDEVI" of "ANJALIDEVI-AD1_L00_R1") — either the patient name or
+    // the Patient No, depending on the lab.
+    function _rowMatchKeys(sRow, sOrig) {
+      return {
+        rowPin: _rowPin(sRow),
+        ids: _sampleNameIds(sOrig),
+        segs: String(sOrig).split("_")[0].split("-").map(_normPin).filter(Boolean),
+        normS: _normName(sOrig),
+        sFT: _normPin(String(sOrig).split("_")[0].split("-")[0]),
+      };
+    }
+
+    // 0 when this row cannot belong to this patient, else the tier score.
+    function _matchScore(k, r) {
+      // A PIN column on the Result sheet is authoritative: when both sides
+      // carry a PIN they must agree, and no name tier may rescue a
+      // disagreement — that is what keeps two similarly-named patients from
+      // swapping embryos on a sheet that already says who is who.
+      if (r.rowPin && k.pinN) return _pinMatches(k.pin, r.rowPin) ? _MATCH_PIN_COLUMN : 0;
+
+      // PIN carried by the Sample name itself ("<PIN>-E1"). It must EQUAL one
+      // of the dash-delimited prefixes, never merely occur inside the name,
+      // so "1234" cannot grab "AG12345-E1".
+      if (k.pinN && r.ids.includes(k.pinN)) return _MATCH_PIN_IN_NAME;
+
+      // PIN sitting further along the name ("AG-12345-E1" for PIN "12345").
+      // Whole segment only, for the same reason as above.
+      if (k.pinN.length >= 3 && r.segs.includes(k.pinN)) return _MATCH_PIN_SEGMENT;
+
+      if (k.normP && r.sFT === k.normP) return _MATCH_NAME_EXACT;
+      if (k.normPShort && k.normPShort !== k.normP && r.sFT === k.normPShort) return _MATCH_NAME_SHORT;
+      // The sample carries a shortened form of a longer name, e.g. trailing
+      // initials dropped: "ANJALIDEVI-AD1" for "ANJALI DEVI P A S".
+      if (r.sFT.length >= 5 && k.normP.length > r.sFT.length && k.normP.startsWith(r.sFT)) return _MATCH_NAME_PREFIX;
+      // Boundary-aware prefix so a shorter name never swallows a longer one.
+      if (k.normP.length >= 4 && r.normS.startsWith(k.normP)) {
+        const rest = r.normS.slice(k.normP.length);
+        if (rest === "" || /^\d/.test(rest) || rest.length <= 3) return _MATCH_NAME_START;
+      }
+      if (k.ftok.length >= 4 && r.sFT === k.ftok) return _MATCH_FIRST_TOKEN;
+      return 0;
+    }
+
+    // Resolves ONE Result row to at most one patient: the single
+    // highest-scoring candidate. A tie at the top tier is refused outright and
+    // reported, because handing the row to whichever patient came first is
+    // exactly how one patient's embryos ended up on another's signed report.
+    function _resolveRowToPatient(cands, sRow, sOrig) {
+      const r = _rowMatchKeys(sRow, sOrig);
+      let best = null, bestScore = 0, tiedWith = null;
+      for (const c of cands) {
+        const score = _matchScore(c._keys, r);
+        if (!score) continue;
+        if (score > bestScore) { best = c; bestScore = score; tiedWith = null; }
+        else if (score === bestScore) tiedWith = c;
+      }
+      if (!best) return { patient: null, reason: "no patient on the list matches this Sample name" };
+      if (tiedWith) return {
+        patient: null,
+        reason: `ambiguous — matches "${best.patient_name}" and "${tiedWith.patient_name}" equally well; add a Patient No / PIN to tell them apart`,
+      };
+      return { patient: best };
+    }
+
+    // Assigns every Result row to its patient. Row-centric on purpose: a row
+    // must be compared against ALL patients before it is given to one.
+    function _assignEmbryosToPatients(patients, summaryRows) {
+      const seen = new Set();
+      _lastRowSkips = [];
+      for (const sRow of summaryRows) {
+        const sOrig = _cleanV(sRow["Sample name"]);
+        if (!sOrig || seen.has(sOrig)) continue;
+        const { patient, reason } = _resolveRowToPatient(patients, sRow, sOrig);
+        if (!patient) { _lastRowSkips.push({ sample: sOrig, reason }); continue; }
+        seen.add(sOrig);
+
+        const k = patient._keys;
+        const base = sOrig.split("_")[0];
+        // "PATIENT-V1" -> "V1": strip the patient-name/PIN prefix so only the
+        // embryo ID is displayed. Stripped only when the prefix matches this
+        // patient's name/first-token/PIN — otherwise the dash is part of the
+        // embryo tag itself (e.g. "KS1-1") and is kept verbatim.
+        const embryoId = _stripPatientPrefix(base, k.pin, k.normP, k.ftok, k.normPShort);
+        patient.embryos.push(_buildEmbryoFromSummaryRow(sRow, embryoId, sOrig));
+      }
+    }
+
+
+    function _stripPatientPrefix(base, pin, normP, ftok, normPShort) {
+      if (!base.includes("-")) return base;
+
+      // Patient No pass, longest dash-delimited prefix first, so a dashed
+      // Patient No ("AG-1234" in "AG-1234-E1") comes off whole instead of one
+      // segment at a time leaving "1234-E1" as the embryo ID.
+      const normSid = _normPin(pin);
+      if (normSid) {
+        const parts = base.split("-");
+        for (let i = parts.length - 1; i >= 1; i--) {
+          const rest = parts.slice(i).join("-");
+          if (rest && _normPin(parts.slice(0, i).join("-")) === normSid) return rest;
+        }
+      }
+
+      const dashIdx = base.indexOf("-");
+      const prefix = base.slice(0, dashIdx);
+      const rest = base.slice(dashIdx + 1);
+      if (!rest) return base;
+      const prefixN = prefix.toUpperCase().replace(/[^A-Z0-9]/g, "");
+      if (!prefixN) return base;
+      const matchesName = normP && (prefixN === normP || normP.startsWith(prefixN) || prefixN.startsWith(normP));
+      const matchesShort = normPShort && normPShort !== normP && (prefixN === normPShort || normPShort.startsWith(prefixN) || prefixN.startsWith(normPShort));
+      const matchesTok  = ftok && prefixN === ftok;
+      return (matchesName || matchesShort || matchesTok) ? rest : base;
+    }
+
     function _parseResult(rStr) {
       const cMap = {}, mMap = {};
       if (!rStr || _cleanV(rStr) === "") return { cMap, mMap };
@@ -4888,49 +5113,179 @@
             st = etype === "del" ? (isSeg ? "SML" : "ML") : etype === "dup" ? (isSeg ? "SMG" : "MG") : "M";
           }
           cMap[chrom] = st;
-        } else if (/^\+/.test(part)) {
-          const ch = part.replace(/\+/,"").replace(/\(.*\)/,"").replace(/[^0-9XY]/gi,"").trim();
-          if (ch) cMap[ch] = "G";
-        } else if (/^-\d/.test(part)) {
-          const ch = part.replace(/-/,"").replace(/\(.*\)/,"").replace(/[^0-9XY]/gi,"").trim();
-          if (ch) cMap[ch] = "L";
+        } else if (/^\+/.test(part) || /^-\d/.test(part)) {
+          // Whole-chromosome gain/loss. A "~NN%" fraction makes it mosaic
+          // ("+15(~30%)" -> MG with Mosaic (%) 30, "-20(~51%)" -> ML with 51);
+          // without one it is a plain G / L.
+          const isGain = /^\+/.test(part);
+          const ch = part.replace(/^[+-]/,"").replace(/\(.*\)/,"").replace(/[^0-9XY]/gi,"").trim();
+          if (ch) {
+            const mm = part.match(/~?\s*(\d+)\s*%/);
+            if (mm) {
+              mMap[ch] = mm[1];
+              cMap[ch] = isGain ? "MG" : "ML";
+            } else {
+              cMap[ch] = isGain ? "G" : "L";
+            }
+          }
         }
       }
       return { cMap, mMap };
     }
 
-    
-    function _parseAnalysisExcel(wb, detailsIdx, summaryIdx) {
-      const detailsRows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[detailsIdx]], { defval: "" });
-      const summaryRaw  = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[summaryIdx]], { header: 1, defval: "" });
 
-      
+    function _summaryRawToRows(summaryRaw) {
       let hdrIdx = 0;
       for (let i = 0; i < summaryRaw.length; i++) {
         if (summaryRaw[i].some(v => String(v).toLowerCase().includes("sample name"))) { hdrIdx = i; break; }
       }
       const headers = summaryRaw[hdrIdx].map(h => String(h ?? "").trim());
-      const summaryRows = summaryRaw.slice(hdrIdx + 1)
+      return summaryRaw.slice(hdrIdx + 1)
         .filter(r => r.some(v => v !== "" && v !== null))
         .map(r => { const o = {}; headers.forEach((h, i) => { if (h) o[h] = r[i] ?? ""; }); return o; });
+    }
+
+
+    // Splits a karyotype into its sex-chromosome findings and the autosomal
+    // rest: "+X(~46%),+2,+16(~69%)" -> { sex: ["+X(~46%)"], auto: "+2,+16(~69%)" }.
+    // Commas inside "(...)" are not separators, so "(~30.50Mb,~35%)" stays whole.
+    function _splitKaryotype(karyo) {
+      const txt = _cleanV(karyo);
+      if (!txt || /^(N\/?A|EUPLOID|NORMAL)$/i.test(txt.trim())) return { sex: [], auto: "", plain: txt.trim() };
+      const sex = [], auto = [];
+      for (const raw of txt.split(/,(?![^(]*\))/)) {
+        const p = raw.trim();
+        if (!p) continue;
+        (/^(?:mosaic\s+)?[+-]?\s*[XY]\b/i.test(p) ? sex : auto).push(p);
+      }
+      return { sex, auto: auto.join(","), plain: "" };
+    }
+
+    // Sex Chromosomes value from the karyotype's sex findings, in the same
+    // wording the lab uses in its own SEX column:
+    //   no finding                        -> "Normal"  (or "NA" if sex is N/A)
+    //   sex undetermined (GENDER "N/A")   -> "Abnormal"
+    //   a finding with no mosaic fraction -> "Abnormal"  (e.g. "XO,-X")
+    //   otherwise -> "Mosaic Gain|Loss (NN%)" from the dominant (highest) one
+    function _sexFromKaryotype(sexParts, genderVal) {
+      const g = _cleanV(genderVal).trim().toUpperCase();
+      const undetermined = !g || /^N\/?A\b/.test(g);
+      if (!sexParts.length) return undetermined ? "NA" : "Normal";
+      if (undetermined) return "Abnormal";
+      let best = null;
+      for (const p of sexParts) {
+        const m = p.match(/~?\s*(\d+(?:\.\d+)?)\s*%/);
+        if (!m) return "Abnormal";
+        const pct = parseFloat(m[1]);
+        if (!best || pct > best.pct) best = { pct, gain: p.includes("+") };
+      }
+      return `Mosaic ${best.gain ? "Gain" : "Loss"} (${_stripDec(String(best.pct))}%)`;
+    }
+
+    function _buildEmbryoFromSummaryRow(sRow, embryoId, sOrig) {
+      const conclusion = _cleanV(sRow["Conclusion"]).toUpperCase();
+      const result = _cleanV(sRow["Result"]);
+      const ru = result.toUpperCase();
+      const qc = _cleanV(sRow["QC"]).toUpperCase();
+
+      let rs = "Normal chromosome complement", interp = "NA";
+      if (/LOW/.test(ru) && /DNA|READS/.test(ru)) {
+        rs = "Low DNA concentration";
+      } else if (qc === "FAIL" || /INCONCLUSIVE|RESEQUENCING/.test(ru)) {
+        rs = "Inconclusive";
+      } else if (/CHAOTIC/.test(conclusion) || /CHAOTIC/.test(ru)) {
+        rs = "Multiple chromosomal abnormalities"; interp = "Chaotic embryo";
+      } else if (/NO COPY NUMBER ABNORMALITY/.test(conclusion) || conclusion === "EUPLOID" || ru === "EUPLOID") {
+        rs = "Normal chromosome complement"; interp = "Euploid";
+      } else if (/MOSAIC/.test(conclusion) || /MOSAIC/.test(ru)) {
+        rs = "Mosaic chromosome complement";
+        const pcts = [...result.matchAll(/(\d+)%/g)].map(m => parseInt(m[1]));
+        const cnt  = [...result.matchAll(/\bmos\b/gi)].length;
+        if (cnt >= 3 || pcts.length >= 3) interp = "Complex mosaic";
+        else if (pcts.length) interp = Math.max(...pcts) >= 51 ? "High level mosaic" : "Low level mosaic";
+        else interp = "Low level mosaic";
+      } else if (/ABNORMAL/.test(conclusion) || conclusion === "ABNORMAL") {
+        rs = "Multiple chromosomal abnormalities"; interp = "Aneuploid";
+      }
+
+      // Older Analysis sheets (e.g. RUN-48) carry no AUTOSOMES / SEX columns —
+      // the findings are only in "Karyotype MWF", which is exactly what the
+      // newer sheets' AUTOSOMES column is filled from. Without this fallback
+      // every abnormal embryo in such a sheet imported as "Autosomes: Normal",
+      // "Sex Chromosomes: Normal" and an all-N CNV row, because the Result
+      // column holds the code form ("SML-3,22") that carries no per-chromosome
+      // detail. The Result code is still used when there is no karyotype.
+      const karyo = _getV(sRow, ["Karyotype MWF", "Karyotype", "Karyotype MWF ", "KARYOTYPE MWF"]);
+      const { sex: karyoSex, auto: karyoAuto, plain: karyoPlain } = _splitKaryotype(karyo);
+
+      const chrStatuses = {}; for (let i = 1; i <= 22; i++) chrStatuses[String(i)] = "N";
+      const mosaicPcts = {};
+      // Statuses come from the karyotype when it lists findings — it uses the
+      // del()/dup()/±N(~NN%) notation the parser understands, unlike the code form.
+      const { cMap, mMap } = _parseResult(karyoAuto || result);
+      Object.assign(chrStatuses, cMap); Object.assign(mosaicPcts, mMap);
+
+      const autoCol = _getV(sRow, ["AUTOSOMES", "Autosomes", "Autosome"]);
+      const sexCol = _getV(sRow, ["SEX", "Sex", "Sex Chromosomes", "Sex_Chromosomes"]);
+      // "Euploid" / "Normal" -> Normal, "N/A" -> NA, and a karyotype whose only
+      // findings are on X/Y (e.g. "+X(~55%),-Y(~41%)") leaves the autosomes
+      // normal — which is what the lab writes in that case.
+      const autoFallback = karyoAuto
+        || (/^N\/?A$/i.test(karyoPlain) ? "NA" : (karyoPlain || karyo) ? "Normal" : "");
+
+      return {
+        embryo_id: embryoId, sample_name: sOrig,
+        result_summary: rs, result_description: summaryToDescription(rs),
+        autosomes: autoCol || autoFallback,
+        sex_chromosomes: sexCol || (karyo ? _sexFromKaryotype(karyoSex, _getV(sRow, ["GENDER", "Gender"])) : ""),
+        interpretation: interp,
+        mtcopy: interp === "Euploid" ? (_cleanV(sRow["MTcopy"]) || "NA") : "NA",
+        chromosome_statuses: chrStatuses, mosaic_percentages: mosaicPcts
+      };
+    }
+
+
+    // Patients dropped by the last import because nothing matched their PIN.
+    // Surfaced in the UI so a missing/mistyped Patient No is visible instead
+    // of silently shrinking the batch.
+    let _lastMatchSkips = [];
+
+    // Result rows that matched no patient (or matched two equally well).
+    let _lastRowSkips = [];
+
+    function _matchSkipReason(pin) {
+      return _normPin(pin)
+        ? `no Result row matches this patient's name or Patient No / PIN "${String(pin).trim()}"`
+        : "no Result row matches this patient's name";
+    }
+
+    function _parseAnalysisExcel(wb, detailsIdx, summaryIdx) {
+      const detailsRows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[detailsIdx]], { defval: "" });
+      const summaryRaw  = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[summaryIdx]], { header: 1, defval: "" });
+      const summaryRows = _summaryRawToRows(summaryRaw);
 
       const today = new Date().toLocaleDateString("en-GB").replace(/\//g, "-");
-      const matched = new Set();
-      const patients = [];
+      const candidates = [];
+      _lastMatchSkips = [];
 
       for (const pRow of detailsRows) {
         const pName = _cleanV(pRow["Patient Name"]); if (!pName) continue;
         const bDate = _fmtDate(_getV(pRow, ["Date of Biopsy","Biopsy Date"]));
         const rDate = _fmtDate(_getV(pRow, ["Date Sample Received","Receipt Date"]));
+        // Most lab sheets have no separate collection-date column (collection
+        // happens the same day as the biopsy), so fall back to Biopsy Date --
+        // but honor a dedicated column when the sheet actually has one.
+        const cDate = _fmtDate(_getV(pRow, ["Sample Collection Date","Date of Sample Collection","Collection Date","Date Collected"])) || bDate;
+        const pin = _getV(pRow, ["Sample ID","PIN","PIN No","PIN No.","Patient ID","Patient No","Patient No."]);
 
         const info = {
           patient_name: pName,
           spouse_name: _getV(pRow, ["Spouse Name","Husband Name","Partner Name"], "w/o"),
-          pin: _getV(pRow, ["Sample ID","PIN","Patient ID"]),
+          pin: pin,
           age: _getV(pRow, ["Age","Patient Age"]),
           sample_number: _stripDec(_getV(pRow, ["Sample Number","Sample No","Sample No.","SampleNumber","Lab Number","Lab No","Accession No","Accession Number"])),
           referring_clinician: "",
-          biopsy_date: bDate, sample_collection_date: bDate,
+          biopsy_date: bDate, sample_collection_date: cDate,
           hospital_clinic: _getV(pRow, ["Hospital/Clinic Name","Hospital/Clinic","Hospital_Clinic","Hospital","Clinic","Center"]),
           specimen: _getV(pRow, ["Specimen Type","Sample Type"], "DAY 5 TROPHECTODERM BIOPSY"),
           sample_receipt_date: rDate,
@@ -4939,60 +5294,16 @@
           indication: _getV(pRow, ["Indication","Clinical Indication"]),
           embryos: []
         };
+        info._keys = _patientMatchKeys(pName, pin);
+        candidates.push(info);
+      }
 
-        const normP = _normName(pName);
-        const normSid = _normName(_getV(pRow, ["Sample ID","PIN","Patient ID"]));
-        const ftok = _firstToken(pName);
-
-        for (const sRow of summaryRows) {
-          const sOrig = _cleanV(sRow["Sample name"]); if (!sOrig || matched.has(sOrig)) continue;
-          const normS = _normName(sOrig);
-          const sFT = sOrig.split("_")[0].split("-")[0].toUpperCase().replace(/[^A-Z0-9]/g,"");
-          if (!(normSid && normS.includes(normSid)) && !(normP && normS.startsWith(normP)) && !(ftok && ftok.length >= 4 && sFT === ftok)) continue;
-          matched.add(sOrig);
-
-          const base = sOrig.split("_")[0];
-          const embryoId = base.includes("-") ? base.split("-").pop() : base;
-          const conclusion = _cleanV(sRow["Conclusion"]).toUpperCase();
-          const result = _cleanV(sRow["Result"]);
-          const ru = result.toUpperCase();
-          const qc = _cleanV(sRow["QC"]).toUpperCase();
-
-          let rs = "Normal chromosome complement", interp = "NA";
-          if (/LOW/.test(ru) && /DNA|READS/.test(ru)) {
-            rs = "Low DNA concentration";
-          } else if (qc === "FAIL" || /INCONCLUSIVE|RESEQUENCING/.test(ru)) {
-            rs = "Inconclusive";
-          } else if (/CHAOTIC/.test(conclusion) || /CHAOTIC/.test(ru)) {
-            rs = "Multiple chromosomal abnormalities"; interp = "Chaotic embryo";
-          } else if (/NO COPY NUMBER ABNORMALITY/.test(conclusion) || conclusion === "EUPLOID" || ru === "EUPLOID") {
-            rs = "Normal chromosome complement"; interp = "Euploid";
-          } else if (/MOSAIC/.test(conclusion) || /MOSAIC/.test(ru)) {
-            rs = "Mosaic chromosome complement";
-            const pcts = [...result.matchAll(/(\d+)%/g)].map(m => parseInt(m[1]));
-            const cnt  = [...result.matchAll(/\bmos\b/gi)].length;
-            if (cnt >= 3 || pcts.length >= 3) interp = "Complex mosaic";
-            else if (pcts.length) interp = Math.max(...pcts) >= 51 ? "High level mosaic" : "Low level mosaic";
-            else interp = "Low level mosaic";
-          } else if (/ABNORMAL/.test(conclusion) || conclusion === "ABNORMAL") {
-            rs = "Multiple chromosomal abnormalities"; interp = "Aneuploid";
-          }
-
-          const chrStatuses = {}; for (let i = 1; i <= 22; i++) chrStatuses[String(i)] = "N";
-          const mosaicPcts = {};
-          const { cMap, mMap } = _parseResult(result);
-          Object.assign(chrStatuses, cMap); Object.assign(mosaicPcts, mMap);
-
-          info.embryos.push({
-            embryo_id: embryoId, result_summary: rs, result_description: rs,
-            autosomes: _cleanV(sRow["AUTOSOMES"]),
-            sex_chromosomes: _cleanV(sRow["SEX"]),
-            interpretation: interp,
-            mtcopy: interp === "Euploid" ? (_cleanV(sRow["MTcopy"]) || "NA") : "NA",
-            chromosome_statuses: chrStatuses, mosaic_percentages: mosaicPcts
-          });
-        }
+      _assignEmbryosToPatients(candidates, summaryRows);
+      const patients = [];
+      for (const info of candidates) {
+        delete info._keys;
         if (info.embryos.length) patients.push(info);
+        else _lastMatchSkips.push({ name: info.patient_name, reason: _matchSkipReason(info.pin) });
       }
       return patients;
     }
@@ -5037,7 +5348,146 @@
       return Array.from(patientMap.values());
     }
 
-    
+
+    // Parses a standalone "Patient List" file — either the minimal CSV
+    // downloaded from the Access History search (Patient Name, Gender, Age,
+    // Patient No, Sample Receipt Date) or a fuller Details-style sheet with
+    // extra columns (Spouse Name, Hospital/Clinic, Indication, ...). Any
+    // column not present is simply left blank for the user to fill in.
+    function _parsePatientListRows(wb) {
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
+      return rows
+        .map(row => {
+          const name = _getV(row, ["Patient Name", "Patient_Name", "PATIENT_NAME"]);
+          if (!name) return null;
+          return {
+            patient_name: name,
+            spouse_name: _getV(row, ["Spouse Name", "Spouse_Name", "Husband Name", "Partner Name"], "w/o"),
+            pin: _getV(row, ["Patient No", "Patient_No", "PIN", "Sample ID", "Patient ID"]),
+            age: _getV(row, ["Age", "Patient Age"]),
+            gender: _getV(row, ["Gender", "Sex"]),
+            sample_number: _stripDec(_getV(row, ["Sample Number", "Sample No", "Sample No.", "SampleNumber", "Lab Number", "Lab No", "Accession No", "Accession Number"])),
+            biopsy_date: _fmtDate(_getV(row, ["Date of Biopsy", "Biopsy Date"])),
+            sample_collection_date: _fmtDate(_getV(row, ["Sample Collection Date", "Date of Sample Collection", "Collection Date", "Date Collected"])),
+            hospital_clinic: _getV(row, ["Hospital/Clinic Name", "Hospital/Clinic", "Hospital_Clinic", "Hospital", "Clinic", "Center"]),
+            specimen: _getV(row, ["Specimen Type", "Sample Type", "Specimen"], "DAY 5 TROPHECTODERM BIOPSY"),
+            sample_receipt_date: _fmtDate(_getV(row, ["Sample Receipt Date", "Sample_Receipt_Date", "Date Sample Received", "Receipt Date"])),
+            biopsy_performed_by: _getV(row, ["EMBRYOLOGIST NAME", "Biologist", "Biopsy Performed By"]),
+            indication: _getV(row, ["Indication", "Clinical Indication"]),
+          };
+        })
+        .filter(Boolean);
+    }
+
+    // Locates the per-embryo Result sheet inside a standalone Result
+    // Excel/CSV: prefers a sheet literally named "Summary" (case-insensitive,
+    // matching the FASTASEQ export layout); falls back to the first sheet so a
+    // bare "Sample name/Conclusion/Result/QC" CSV export also works.
+    function _extractSummaryRowsFromWorkbook(wb) {
+      const sheetNamesLower = wb.SheetNames.map(s => s.toLowerCase());
+      const idx = sheetNamesLower.indexOf("summary");
+      const sheet = wb.Sheets[wb.SheetNames[idx !== -1 ? idx : 0]];
+      const raw = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
+      return _summaryRawToRows(raw);
+    }
+
+    // Cross-matches a Patient List against a separate Result file on Patient
+    // No / PIN (mirroring the HLA "2 input fields" cross-match feature) and
+    // returns ONLY the patients that have at least one matched embryo result.
+    // Patients with no matching result are dropped from the list (as in the
+    // HLA cross-match) but recorded in _lastMatchSkips so they are reported.
+    function _crossMatchPatientListWithResult(patientRows, summaryRows) {
+      const today = new Date().toLocaleDateString("en-GB").replace(/\//g, "-");
+      const candidates = [];
+      _lastMatchSkips = [];
+
+      for (const p of patientRows) {
+        const info = {
+          patient_name: p.patient_name,
+          spouse_name: p.spouse_name || "w/o",
+          pin: p.pin,
+          age: p.age,
+          sample_number: p.sample_number,
+          referring_clinician: "",
+          biopsy_date: p.biopsy_date, sample_collection_date: p.sample_collection_date || p.biopsy_date,
+          hospital_clinic: p.hospital_clinic,
+          specimen: p.specimen || "DAY 5 TROPHECTODERM BIOPSY",
+          sample_receipt_date: p.sample_receipt_date,
+          biopsy_performed_by: p.biopsy_performed_by,
+          report_date: today,
+          indication: p.indication,
+          embryos: []
+        };
+        info._keys = _patientMatchKeys(p.patient_name, p.pin);
+        candidates.push(info);
+      }
+
+      _assignEmbryosToPatients(candidates, summaryRows);
+      const patients = [];
+      for (const info of candidates) {
+        delete info._keys;
+        if (info.embryos.length) patients.push(info);
+        else _lastMatchSkips.push({ name: info.patient_name, reason: _matchSkipReason(info.pin) });
+      }
+      return patients;
+    }
+
+    async function handleBulkFilesWithResult(patientFile, resultFile, images = []) {
+      const lbl = document.getElementById("dropZoneLabel");
+      const resultLbl = document.getElementById("resultDropZoneLabel");
+      if (lbl) lbl.innerHTML = `<span class="spinner" style="border-color:#1F497D;border-top-color:#4F81BD;width:14px;height:14px;display:inline-block;vertical-align:middle;margin-right:6px;border-width:2px;border-style:solid;border-radius:50%;animation:spin 0.7s linear infinite;"></span>Cross-matching <strong>${esc(patientFile.name)}</strong> with <strong>${esc(resultFile.name)}</strong>…`;
+
+      try {
+        _lastMatchSkips = []; _lastRowSkips = [];
+        const [patientWb, resultWb] = await Promise.all([_readWorkbook(patientFile), _readWorkbook(resultFile)]);
+        const patientRows = _parsePatientListRows(patientWb);
+        if (!patientRows.length) throw new Error("No patient rows found in the Patient List file.");
+        const summaryRows = _extractSummaryRowsFromWorkbook(resultWb);
+        if (!summaryRows.length) throw new Error("No result rows found in the Result file.");
+
+        const patients = _crossMatchPatientListWithResult(patientRows, summaryRows);
+        if (!patients.length) throw new Error(`${patientRows.length} patient row(s) read, but none could be matched to a result. Rows match on Patient No / PIN when both files carry one, otherwise on the patient name in the Sample name ("<PATIENT NAME>-E1") — check that one of those lines up (see the list below).`);
+
+        state.bulkPatients = patients;
+        _trackBulkAutosaveKey(patientFile.name);
+
+        // Auto-map any CNV chart images that were dropped alongside the files.
+        let mapped = 0;
+        if (images && images.length > 0) mapped = await _autoMapCnvImagesLocal(images);
+
+        renderBulkPatients();
+        _renderMatchSkips();
+        document.getElementById("bulkPatientSection").classList.remove("hidden");
+
+        const skipped = _lastMatchSkips.length;
+        if (lbl) {
+          let msg = `<strong>${esc(patientFile.name)}</strong> &mdash; ${patients.length} matched patient(s)`;
+          if (skipped > 0) msg += ` <small style="color:#b45309;font-weight:bold;">(${skipped} unmatched, skipped)</small>`;
+          if (mapped > 0) msg += ` <small style="color:var(--success);font-weight:bold;">(+${mapped} CNVs)</small>`;
+          lbl.innerHTML = msg + ` &nbsp;<small style="color:var(--text-muted);text-decoration:underline;">(click to change)</small>`;
+        }
+        showToast(`Cross-matched ${patients.length} patient(s)` + (skipped ? ` — ${skipped} skipped (no matching result)` : "") + (mapped ? ` + ${mapped} CNV chart(s)` : ""), skipped ? "warning" : "success");
+      } catch (err) {
+        if (lbl) lbl.innerHTML = `<span style="color:#c00;">Error: ${esc(err.message)}</span> &nbsp;<small style="text-decoration:underline;">(click to retry)</small>`;
+        _renderMatchSkips();
+        if (_lastMatchSkips.length) document.getElementById("bulkPatientSection").classList.remove("hidden");
+        showToast("Cross-match failed: " + err.message, "error");
+      }
+    }
+
+    function _readWorkbook(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = e => {
+          try { resolve(XLSX.read(new Uint8Array(e.target.result), { type: "array", cellDates: true })); }
+          catch (err) { reject(err); }
+        };
+        reader.onerror = () => reject(new Error("File read error"));
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+
     async function handleBulkFile(file) {
       return await handleBulkFiles([file]);
     }
@@ -5081,11 +5531,35 @@
       const usedFiles = new Set();
       let count = 0;
 
-      
-      
-      
+      // Pass 0 - desktop-app rule: match a file whose name (case-insensitive)
+      // STARTS WITH the sample name up to the first underscore
+      // (e.g. sample "PALLAVI-E1_noXY..." -> base "PALLAVI-E1"; file
+      // "PALLAVI-E1_CNV.png" matches). This mirrors parse_bulk_excel() in the
+      // desktop app and is the most authoritative match, so it runs first.
+      for (const entry of allEmbryos) {
+        if (entry.mapped) continue;
+        const sampleName = entry.emb.sample_name || "";
+        if (!sampleName) continue;
+        const base = sampleName.split("_")[0].toUpperCase();
+        if (!base) continue;
+        const f = allImgs.find(img => !usedFiles.has(img.name) && img.name.toUpperCase().startsWith(base));
+        if (f) {
+          const b64 = await readB64(f);
+          if (b64) {
+            state.bulkPatients[entry.pi].embryos[entry.ei].cnv_image_b64  = b64;
+            state.bulkPatients[entry.pi].embryos[entry.ei].cnv_image_name = f.name;
+            state.bulkPatients[entry.pi].embryos[entry.ei].cnv_image_path = "";
+            entry.mapped = true; usedFiles.add(f.name); count++;
+          }
+        }
+      }
+
+
+
+
       for (const f of noxyFiles) {
-        const stem = f.name.replace(/\.[^.]+$/, "");                      
+        if (usedFiles.has(f.name)) continue;
+        const stem = f.name.replace(/\.[^.]+$/, "");
         const prefix = stem.replace(/_noXY_nomos.*/i, "");               
         const dashIdx = prefix.indexOf("-");
         if (dashIdx === -1) continue;
@@ -5220,6 +5694,38 @@
 
     let bulkSelectedIndex = -1;
 
+    // Shows which patients got no report, and which Result rows found no
+    // patient. Without this the batch just comes out smaller than the patient
+    // list with no explanation.
+    function _renderMatchSkips() {
+      const box = document.getElementById("bulkMatchWarning");
+      if (!box) return;
+      if (!_lastMatchSkips.length && !_lastRowSkips.length) { box.style.display = "none"; box.innerHTML = ""; return; }
+
+      let html = "";
+      if (_lastMatchSkips.length) {
+        html += `<div style="font-weight:700;margin-bottom:4px;">`
+          + `<i class="fas fa-exclamation-triangle"></i> `
+          + `${_lastMatchSkips.length} patient(s) skipped &mdash; no matching result row</div>`
+          + `<ul style="margin:0 0 0 18px;padding:0;">`
+          + _lastMatchSkips.map(s => `<li><strong>${esc(s.name)}</strong> &mdash; ${esc(s.reason)}</li>`).join("")
+          + `</ul>`;
+      }
+      if (_lastRowSkips.length) {
+        html += `<div style="font-weight:700;margin:${_lastMatchSkips.length ? "6px" : "0"} 0 4px;">`
+          + `<i class="fas fa-exclamation-triangle"></i> `
+          + `${_lastRowSkips.length} result row(s) not used</div>`
+          + `<ul style="margin:0 0 0 18px;padding:0;">`
+          + _lastRowSkips.map(s => `<li><strong>${esc(s.sample)}</strong> &mdash; ${esc(s.reason)}</li>`).join("")
+          + `</ul>`;
+      }
+      html += `<div style="margin-top:5px;opacity:0.85;">Rows are matched to patients on Patient No / PIN when both sides carry one, `
+        + `otherwise on the patient name in the Sample name (<strong>&lt;PATIENT NAME&gt;-E1</strong>). `
+        + `A row that fits two patients equally well is never guessed &mdash; give those patients a Patient No / PIN to tell them apart.</div>`;
+      box.innerHTML = html;
+      box.style.display = "block";
+    }
+
     function renderBulkPatients() {
       const section = document.getElementById("bulkPatientSection");
       const list = document.getElementById("bulkPatientList");
@@ -5306,6 +5812,7 @@
     <div class="bulk-editor-field"><label>Biopsy Performed By:</label><input value="${esc(p.biopsy_performed_by || "")}" oninput="state.bulkPatients[${i}].biopsy_performed_by=this.value;scheduleBulkPreview()"></div>
     <div class="bulk-editor-field"><label>Report Date:</label><input value="${esc(p.report_date || todayStr())}" oninput="state.bulkPatients[${i}].report_date=this.value;scheduleBulkPreview()"></div>
     <div class="bulk-editor-field"><label>Indication:</label><textarea rows="3" oninput="state.bulkPatients[${i}].indication=this.value;scheduleBulkPreview()">${esc(p.indication || "")}</textarea></div>
+    <div class="bulk-editor-field"><label>Results Summary Comment:</label><textarea rows="2" oninput="state.bulkPatients[${i}].results_summary_comment=this.value;scheduleBulkPreview()">${esc(p.results_summary_comment || "")}</textarea></div>
   </div>`;
 
 
@@ -5318,9 +5825,10 @@
       <td>${ei + 1}</td>
       <td><input type="text" value="${esc(emb.embryo_id || "")}" oninput="state.bulkPatients[${i}].embryos[${ei}].embryo_id=this.value;scheduleBulkPreview()" style="width:80px;"></td>
       <td>
-        <select onchange="updateBulkSummaryResult(${i},${ei},this.value,this)" style="color:${resultColor};font-weight:600;">
-          ${RESULT_SUMMARY_OPTIONS.map(v => `<option style="color:${getResultColor(v)};"${matchedResult === v ? " selected" : ""}>${esc(v)}</option>`).join("")}
-        </select>
+        <input type="text" list="result-summary-dl" value="${esc(matchedResult)}" style="color:${resultColor};font-weight:600;min-width:150px;"
+          onfocus="datalistShowAll(this)" onblur="datalistRestore(this)"
+          oninput="this.style.color=getResultColor(this.value);updateBulkSummaryResult(${i},${ei},this.value)"
+          placeholder="Select or type result...">
       </td>
       <td><input type="text" value="${esc(emb.mtcopy || 'NA')}" oninput="state.bulkPatients[${i}].embryos[${ei}].mtcopy=this.value;scheduleBulkPreview()" style="width:70px;" placeholder="NA"></td>
       <td>
@@ -5359,11 +5867,21 @@
       <h4> Embryo: ${esc(emb.embryo_id || ("Embryo " + (ei + 1)))}</h4>
       <div class="bulk-editor-field"><label>Embryo ID:</label><input value="${esc(emb.embryo_id || "")}" oninput="state.bulkPatients[${i}].embryos[${ei}].embryo_id=this.value;scheduleBulkPreview()"></div>
       <div class="bulk-editor-field"><label>Result Summary:</label>
-        <select style="color:${getResultColor(RESULT_SUMMARY_OPTIONS.includes(emb.result_summary) ? emb.result_summary : getPrettySummary(emb.result_summary))};font-weight:600;" onchange="this.style.color=getResultColor(this.value);state.bulkPatients[${i}].embryos[${ei}].result_summary=this.value;renderBulkEditor(${i});scheduleBulkPreview()">
-          ${RESULT_SUMMARY_OPTIONS.map(v => `<option style="color:${getResultColor(v)};"${(RESULT_SUMMARY_OPTIONS.includes(emb.result_summary) ? emb.result_summary : getPrettySummary(emb.result_summary)) === v ? " selected" : ""}>${esc(v)}</option>`).join("")}
-        </select>
+        ${(() => {
+          const matchedRS = RESULT_SUMMARY_OPTIONS.includes(emb.result_summary) ? emb.result_summary : getPrettySummary(emb.result_summary);
+          return `<input type="text" list="result-summary-dl" value="${esc(matchedRS)}" style="color:${getResultColor(matchedRS)};font-weight:600;"
+          onfocus="datalistShowAll(this)" onblur="datalistRestore(this)"
+          oninput="this.style.color=getResultColor(this.value);updateBulkSummaryResult(${i},${ei},this.value)" placeholder="Select or type result summary...">`;
+        })()}
       </div>
-      <div class="bulk-editor-field"><label>Result Description:</label><input value="${esc(emb.result_description || emb.result_summary || "")}" oninput="state.bulkPatients[${i}].embryos[${ei}].result_description=this.value;scheduleBulkPreview()"></div>
+      <div class="bulk-editor-field"><label>Result Description (Page 4):</label>
+        ${(() => {
+          const rdVal = emb.result_description || "";
+          return `<input type="text" list="result-desc-dl" value="${esc(rdVal)}" style="color:${getDescColor(rdVal)};font-weight:600;"
+          onfocus="datalistShowAll(this)" onblur="datalistRestore(this)"
+          oninput="this.style.color=getDescColor(this.value);state.bulkPatients[${i}].embryos[${ei}].result_description=this.value;scheduleBulkPreview()" placeholder="Select or type description...">`;
+        })()}
+      </div>
       <div class="bulk-editor-field"><label>Autosomes:</label><input value="${esc(emb.autosomes || "Normal")}" oninput="state.bulkPatients[${i}].embryos[${ei}].autosomes=this.value;scheduleBulkPreview()"></div>
       <div class="bulk-editor-field"><label>Sex Chromosomes:</label>
         <input type="text" list="bulk-sex-dl-${i}-${ei}" value="${esc(emb.sex_chromosomes || "Normal")}" placeholder="Normal, -X, Mosaic +X..."
@@ -5401,11 +5919,14 @@
       el.scrollTop = 0;
     }
 
-    function updateBulkSummaryResult(pi, ei, value, selectEl) {
+    function updateBulkSummaryResult(pi, ei, value) {
       const emb = state.bulkPatients[pi]?.embryos?.[ei];
       if (!emb) return;
       emb.result_summary = value;
-      selectEl.style.color = getResultColor(value);
+
+      if (!emb.result_description || RESULT_OPTIONS.includes(emb.result_description)) {
+        emb.result_description = summaryToDescription(value);
+      }
       scheduleBulkPreview();
     }
 
@@ -5497,7 +6018,7 @@
           hospital_clinic: p.hospital_clinic || "", sample_collection_date: p.sample_collection_date || "",
           specimen: p.specimen || "DAY 5 TROPHECTODERM BIOPSY", sample_receipt_date: p.sample_receipt_date || "",
           biopsy_performed_by: p.biopsy_performed_by || "", report_date: p.report_date || todayStr(),
-          indication: p.indication || "", results_summary_comment: ""
+          indication: p.indication || "", results_summary_comment: p.results_summary_comment || ""
         },
         embryos: embryos,
         options: { show_logo: showLogo, show_grid: showGrid, formats: ["pdf"] },
@@ -5509,7 +6030,7 @@
           hospital_clinic: p.hospital_clinic || "", sample_collection_date: p.sample_collection_date || "",
           specimen: p.specimen || "DAY 5 TROPHECTODERM BIOPSY", sample_receipt_date: p.sample_receipt_date || "",
           biopsy_performed_by: p.biopsy_performed_by || "", report_date: p.report_date || todayStr(),
-          indication: p.indication || "", results_summary_comment: ""
+          indication: p.indication || "", results_summary_comment: p.results_summary_comment || ""
         },
         embryos_data: embryos, show_logo: showLogo, show_grid: showGrid
       };
@@ -5724,6 +6245,10 @@
     
     document.addEventListener("DOMContentLoaded", () => {
       try {
+        const rsDl = document.getElementById("result-summary-dl");
+        if (rsDl) rsDl.innerHTML = RESULT_SUMMARY_OPTIONS.map(o => `<option value="${esc(o)}">`).join("");
+        const rdDl = document.getElementById("result-desc-dl");
+        if (rdDl) rdDl.innerHTML = RESULT_OPTIONS.map(o => `<option value="${esc(o)}">`).join("");
         document.getElementById("f_report_date").value = todayStr();
         document.getElementById("f_specimen").value = "DAY 5 TROPHECTODERM BIOPSY";
         document.getElementById("f_spouse_name").value = "w/o";
@@ -5904,26 +6429,6 @@ ${d.html_diff || "<p>No differences found.</p>"}
         <input type="text" id="pfModalSearch" placeholder="Search by name or patient no..." oninput="_pfFilterModalList(this.value)" style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-size:12px;box-sizing:border-box;">
       </div>
       <div id="pfModalList" style="overflow-y:auto;flex:1;padding:10px 12px;display:flex;flex-direction:column;gap:6px;"></div>
-    </div>
-  </div>
-
-  <div id="draftPickerModal" style="display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.48);align-items:center;justify-content:center;">
-    <div style="background:#fff;border-radius:14px;width:520px;max-width:95vw;max-height:80vh;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.28);">
-      
-      <div style="padding:16px 20px;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;">
-        <div>
-          <div id="draftModalTitle" style="font-weight:700;font-size:14px;color:#1F497D;">Load Draft</div>
-          <div style="font-size:11px;color:#64748b;margin-top:2px;">Select a saved draft or load from a file</div>
-        </div>
-        <button onclick="closeDraftModal()" style="background:none;border:none;cursor:pointer;font-size:22px;color:#94a3b8;line-height:1;">&times;</button>
-      </div>
-      
-      <div id="draftPickerList" style="overflow-y:auto;flex:1;padding:10px 12px;"></div>
-      
-      <div style="padding:12px 16px;border-top:1px solid #e2e8f0;display:flex;gap:8px;flex-shrink:0;">
-        <button onclick="loadDraftFromFile()" style="flex:1;padding:8px 12px;background:#f1f5f9;border:1.5px solid #cbd5e1;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;color:#334155;transition:0.15s;" onmouseover="this.style.background='#e2e8f0'" onmouseout="this.style.background='#f1f5f9'">Load from File...</button>
-        <button onclick="closeDraftModal()" style="padding:8px 18px;background:#1F497D;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;">Cancel</button>
-      </div>
     </div>
   </div>
 

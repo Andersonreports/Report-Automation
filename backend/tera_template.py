@@ -39,15 +39,15 @@ def _reg(name, filename):
             pass
     return False
 
-_reg("GillSansMT-Bold", "GILB____.TTF")
-_reg("SegoeUI-Bold",    "SEGOEUIB.TTF")
-_reg("SegoeUI",         "SEGOEUI.TTF")
+_reg("GillSansMT-Bold", "GillSansMT-Bold.ttf")
+_reg("SegoeUI-Bold",    "SegoeUI-Bold.ttf")
+_reg("SegoeUI",         "SegoeUI.ttf")
 _reg("DengXian",        "DengXian.ttf")
 _reg("DengXian-Bold",   "DengXian_Bold.ttf")
 _reg("Arial-Bold",      "Arial-BoldMT.ttf")
 _reg("Arial",           "ArialMT.ttf")
-_reg("Calibri",         "CALIBRI.TTF")
-_reg("Calibri-Bold",    "CALIBRIB.TTF")
+_reg("Calibri",         "Calibri.ttf")
+_reg("Calibri-Bold",    "Calibri-Bold.ttf")
 _reg("SymbolMT",        "SymbolMT.ttf")
 
 def _font_ok(name):
@@ -91,7 +91,13 @@ W, H = 612.0, 792.0
 HDR_X, HDR_Y, HDR_W, HDR_H = 72.0, H - 72.0, 468.0, 72.0
 FTR_X, FTR_Y, FTR_W, FTR_H = 72.75, 8.0,      481.9, 34.0
 
-DOSE_FOOTER_RESERVE = 120.0
+# Baseline of the "Page n of 3" line, in points from the bottom of the page, used
+# for every page and both logo variants. 70.0 reproduces the approved reference
+# report (measured off that PDF: glyph bottom at 68.0, i.e. baseline 70.0) and is
+# the same FTR_Y + FTR_H + 28 the with-logo pages already used - it was the
+# without-logo branch at 36.0, and the per-result-type page-1 overrides, that
+# deviated. Clears the footer banner, whose top edge sits at FTR_Y + FTR_H = 42.0.
+PAGE_NUM_Y = 70.0
 
 TBL_X          = 45.84
 TBL_TOP_RL     = H - 143.78
@@ -109,14 +115,15 @@ RESULT_CFG = {
         "hdg_recom_y":   H - 553.3,
         "recom_line_y":  H - 562.5,
         "has_biopsy2":   False,
-        "blast_x": 171.7, "blast_y": H - 613.0,
-        "cleave_x":170.4, "cleave_y": H - 670.6,
+        "blast_x": 171.7, "blast_y": H - 598.0,
+        "cleave_x":170.4, "cleave_y": H - 655.6,
         "reco_suffix": "post first progesterone intake",
         "recom_max_w": 280,
         "icon_y": H - 694.5,
         "bold_phrase": "receptive endometrium",
         "displaced":   False,
         "asset": "RECEPTIVE",
+        "page1_num_y": 85.0,
     },
     "pre": {
         "chart_x": 334.70, "chart_y": H - 493.80, "chart_w": 218,    "chart_h": 127.3,
@@ -125,14 +132,15 @@ RESULT_CFG = {
         "hdg_recom_y":   H - 550.1,
         "recom_line_y":  H - 559.3,
         "has_biopsy2":   False,
-        "blast_x": 171.7, "blast_y": H - 609.7,
-        "cleave_x":170.4, "cleave_y": H - 667.3,
+        "blast_x": 171.7, "blast_y": H - 594.7,
+        "cleave_x":170.4, "cleave_y": H - 652.3,
         "reco_suffix": "post first progesterone intake",
         "recom_max_w": 280,
         "icon_y": H - 691.3,
         "bold_phrase": "pre-receptive endometrium",
         "displaced":   True,
         "asset": "PRE_RECEPTIVE",
+        "page1_num_y": 88.0,
     },
     "post": {
         "chart_x": 336.00, "chart_y": H - 494.05, "chart_w": 216.85, "chart_h": 127.55,
@@ -338,8 +346,12 @@ class TERAReportGenerator:
         c.restoreState()
 
     def _page_number(self, c, n: int, total: int = 3):
+        # One position for every page and both logo variants - see PAGE_NUM_Y.
+        # The old per-variant values (36.0 without logo, 70.0 with, and the
+        # per-result-type "page1_num_y" overrides of 85.0/88.0) are superseded,
+        # so RESULT_CFG["page1_num_y"] is deliberately no longer read.
         text = f"Page {n} of {total}"
-        y = (FTR_Y + FTR_H + 28) if self.with_logo else (DOSE_FOOTER_RESERVE + 8)
+        y = PAGE_NUM_Y
         c.saveState()
         c.setFont(F_SIG, 9)
         c.setFillColor(GRAY_SIG)
@@ -428,6 +440,11 @@ class TERAReportGenerator:
                fill=True, stroke=False)
 
         bh_int = self._int(self.d.get("Biopsy time in hrs.1", ""))
+        if bh_int is None:
+            p4_dt  = self._parse_dt(self.d.get("P4 /hCG injection  date time", ""))
+            bio_dt = self._parse_dt(self.d.get("Biopsy time in hrs", ""))
+            if p4_dt is not None and bio_dt is not None:
+                bh_int = self._int((bio_dt - p4_dt).total_seconds() / 3600)
         bh_lbl = f"P+{bh_int} hrs" if bh_int is not None else "the biopsy time"
 
         suffix = (" and therefore represents a displaced window of implantation."
@@ -634,7 +651,8 @@ class TERAReportGenerator:
 
     def _patient_rows(self):
         d     = self.d
-        name  = self._s(d.get("Patient Name", "")).title()
+        name  = self._fix_relation_case(
+            self._upper_bracketed(self._s(d.get("Patient Name", "")).title()))
         pin   = self._s(d.get("Sample ID", "")) or "Not Provided"
         sid   = self._s(d.get("Lab No.", ""))
         age_r = self._s(d.get("Age", ""))
@@ -659,7 +677,7 @@ class TERAReportGenerator:
 
         return [
             ("Patient Name",          name,  "PIN",                  pin),
-            ("Date of Birth/ Age",    age,   "Sample Number",        sid),
+            ("Date of Birth/Age",     age,   "Sample Number",        sid),
             ("Referring Clinician",   doc,   "Cycle type",           cyc),
             ("Hospital/Clinic",       hosp,  "First progesterone intake date", p4d),
             ("Specimen",              bno,   "Biopsy date",          biod),
@@ -684,6 +702,23 @@ class TERAReportGenerator:
         return "" if s in ("nan", "NaT", "None", "NaN") else s
 
     @staticmethod
+    def _fix_relation_case(name: str) -> str:
+        return re.sub(r'\b([WSD])/O\b', lambda m: m.group(1).lower() + '/o', name)
+
+    @staticmethod
+    def _upper_bracketed(text: str) -> str:
+        """Force anything inside (...) or [...] to full caps.
+
+        Patient names carry a centre/reference code in brackets (e.g.
+        "Mrs. Sravani (EIC-8096)"). Plain .title() lowercases it to "(Eic-8096)",
+        so the bracketed span is re-uppercased after title-casing. Mirrors the
+        parenthesised-short-form rule in hla_template._title_case.
+        """
+        if not text:
+            return text
+        return re.sub(r'[\(\[][^\)\]]*[\)\]]', lambda m: m.group().upper(), text)
+
+    @staticmethod
     def _int(val):
         if val is None:
             return None
@@ -698,31 +733,35 @@ class TERAReportGenerator:
             return None
 
     @staticmethod
-    def _dt(val, date_only=False) -> str:
+    def _parse_dt(val):
         if val is None:
-            return ""
+            return None
         try:
             from pandas import Timestamp, NaT as PD_NAT
             if isinstance(val, Timestamp):
-                if val is PD_NAT:
-                    return ""
-                if date_only or (val.hour == 0 and val.minute == 0):
-                    return val.strftime("%d-%m-%Y")
-                return val.strftime("%d-%m-%Y %H:%M Hrs")
+                return None if val is PD_NAT else val.to_pydatetime()
         except Exception:
             pass
         s = str(val).strip()
         if s in ("", "nan", "NaT", "None", "NaN"):
-            return ""
-        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%d-%m-%Y %H:%M", "%Y-%m-%d"):
+            return None
+        for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%d-%m-%Y %H:%M", "%Y-%m-%d",
+                    "%d/%m/%Y %H:%M:%S", "%d/%m/%Y %H:%M", "%d/%m/%Y"):
             try:
-                dt = datetime.strptime(s, fmt)
-                if date_only or (dt.hour == 0 and dt.minute == 0):
-                    return dt.strftime("%d-%m-%Y")
-                return dt.strftime("%d-%m-%Y %H:%M Hrs")
+                return datetime.strptime(s, fmt)
             except ValueError:
                 continue
-        return s
+        return None
+
+    @classmethod
+    def _dt(cls, val, date_only=False) -> str:
+        dt = cls._parse_dt(val)
+        if dt is None:
+            s = "" if val is None else str(val).strip()
+            return "" if s in ("", "nan", "NaT", "None", "NaN") else s
+        if date_only or (dt.hour == 0 and dt.minute == 0):
+            return dt.strftime("%d-%m-%Y")
+        return dt.strftime("%d-%m-%Y %H:%M Hrs")
 
     @staticmethod
     def _parse_tr(raw: str):

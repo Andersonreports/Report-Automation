@@ -148,6 +148,32 @@ def _make(cls):
 
 
 
+def _split_findings(s):
+    """
+    Split a Result string into one token per finding, on commas/semicolons/"and"
+    that are OUTSIDE parentheses. A plain re.split on "," tore
+    "dup(9)(p22.33p21.1)(~30.50Mb,~32%)" in half, which separated the mosaic
+    percentage from its dup() and silently downgraded SMG to SG.
+    """
+    parts, depth, cur = [], 0, ''
+    for ch in str(s or ''):
+        if ch == '(':
+            depth += 1
+        elif ch == ')':
+            depth = max(0, depth - 1)
+        if ch in ',;' and depth == 0:
+            parts.append(cur)
+            cur = ''
+        else:
+            cur += ch
+    parts.append(cur)
+
+    tokens = []
+    for p in parts:
+        tokens.extend(re.split(r'\band\b', p, flags=re.IGNORECASE))
+    return tokens
+
+
 def derive_chromosome_statuses(raw_result):
     statuses = {str(i): 'N' for i in range(1, 23)}
 
@@ -163,11 +189,13 @@ def derive_chromosome_statuses(raw_result):
     if su in ("EUPLOID", "NORMAL", "NORMAL CHROMOSOME COMPLEMENT"):
         return statuses
 
-    tokens = re.split(r'[,;]|\band\b', s, flags=re.IGNORECASE)
-
-    for token in tokens:
+    for token in _split_findings(s):
         tok = token.strip()
-        is_mos = bool(re.search(r'\bmosaic\b', tok, re.IGNORECASE))
+        # A percentage marks the finding as mosaic just as the word does:
+        # "+15(~30%)" is MG, "dup(9)(p22.33p21.1)(~30.50Mb,~32%)" is SMG. Only
+        # a "~NN%" fraction counts -- "(~69.35Mb)" is a size, not a level.
+        is_mos = bool(re.search(r'\bmosaic\b', tok, re.IGNORECASE)) or \
+            bool(re.search(r'~?\s*\d+(?:\.\d+)?\s*%', tok))
         is_seg = bool(re.search(r'\bsegmental\b', tok, re.IGNORECASE))
 
         for m in re.finditer(r'([+-])\s*(1[0-9]|2[0-2]|[1-9])\b', tok):
@@ -215,11 +243,20 @@ def derive_autosomes(raw_result, chromosome_statuses, existing_autosomes=""):
     cls = classify_embryo(raw_result)["classification"]
 
     existing = (existing_autosomes or "").strip()
-    raw_codes_pattern = re.compile(
-        r'\b(euploid|aneuploid|mosaic|normal|multiple chromosomal|low level|high level|complex|no result)\b',
-        re.IGNORECASE
-    )
-    has_custom_existing = bool(existing) and not raw_codes_pattern.search(existing)
+    # Only the frontend's own untouched-placeholder text -- "Normal", the
+    # default it fills into every new/blank Autosomes field (pgta.html) -- is
+    # treated as "nothing supplied yet" and eligible for auto-derivation from
+    # the Result text. Everything else the user actually typed is honored
+    # VERBATIM, exactly as Result Summary/Description already are.
+    #
+    # This used to be a substring word-list (euploid|aneuploid|mosaic|normal|
+    # "multiple chromosomal"|...), which matched INSIDE genuine typed text and
+    # silently discarded it: typing "Multiple Chromosomal Abnormalities" --
+    # some labs' own AUTOSOMES column reads exactly that when there are too
+    # many findings to list -- matched "multiple chromosomal" and was thrown
+    # away, falling back to "Normal" whenever the Result text held no
+    # explicit per-chromosome codes to re-derive from instead.
+    has_custom_existing = existing.upper() not in ("", "NORMAL", "-", "NA", "N/A")
     if has_custom_existing:
         cleaned_existing = re.sub(r'\b(XX|XY)\b', '', existing, flags=re.IGNORECASE).strip(', ')
         has_custom_existing = bool(cleaned_existing)
@@ -269,6 +306,24 @@ def derive_autosomes(raw_result, chromosome_statuses, existing_autosomes=""):
     return ", ".join(parts) if parts else "Normal"
 
 
+def sex_chromosomes_color_role(sex_text):
+    """
+    'black' | 'red' | 'blue' for the Sex Chromosomes value:
+      - blank / Normal / No result / NA / N/A -> black (NA is not itself an
+        abnormal finding, same treatment as Autosomes/Interpretation)
+      - Mosaic ... -> blue
+      - anything else (an actual abnormal finding) -> red
+    Shared by the PDF template, the DOCX generator, and the editor's JS
+    getSexChrColor() so the three cannot drift.
+    """
+    s = str(sex_text or '').upper().strip()
+    if 'MOSAIC' in s:
+        return 'blue'
+    if not s or s in ('NA', 'N/A', 'NORMAL', 'NO RESULT'):
+        return 'black'
+    return 'red'
+
+
 def sanitize_sex_chromosomes(sex_text, raw_result="", classification=None):
     s = str(sex_text or "").strip()
     su = s.upper()
@@ -296,6 +351,53 @@ def sanitize_sex_chromosomes(sex_text, raw_result="", classification=None):
         return "Mosaic +Y" if has_mosaic else "+Y"
 
     return s_clean if s_clean else "Normal"
+
+
+# --- Autosomes text colour -------------------------------------------------
+# Anything that is not an actual finding is ALWAYS black. "Normal" is not an
+# abnormality to flag, so it stays black whatever the Result line or the
+# Interpretation says -- which is what used to go wrong: the interpretation
+# override ran last and unconditionally, painting a "Normal" Autosomes value
+# blue on every mosaic embryo. \b keeps "Abnormal" out of this set.
+_AUTO_PLAIN_RE   = re.compile(r'\b(NORMAL|EUPLOID|NO RESULT|INCONCLUSIVE|LOW DNA|NO DNA)\b')
+_AUTO_FINDING_RE = re.compile(r'(?:DEL|DUP)\s*\(|[+-]\s*\d')
+
+
+def autosomes_is_plain(autosomes_text):
+    """True when the Autosomes value carries no finding, so it must render black."""
+    t = str(autosomes_text or '').strip().upper()
+    if t in ('', '-', 'NA', 'N/A'):
+        return True
+    if _AUTO_FINDING_RE.search(t):
+        return False
+    return bool(_AUTO_PLAIN_RE.search(t))
+
+
+def autosomes_color_role(autosomes_text, interp_text='', result_text=''):
+    """
+    'black' | 'red' | 'blue' for the Autosomes value, per PGTA conditions:
+      - no finding (Normal / blank / No result / Inconclusive / Low DNA) -> black
+      - Multiple chromosomal abnormalities                               -> red
+      - Interpretation Aneuploid / Chaotic embryo / (-)                  -> red
+      - Interpretation Low level / High level / Complex mosaic           -> blue
+      - Interpretation Inconclusive                                      -> black
+      - no interpretation to go by: a mosaic percentage -> blue, else red
+    Shared by the PDF template and the DOCX generator so the two cannot drift.
+    """
+    if autosomes_is_plain(autosomes_text):
+        return 'black'
+    t = str(autosomes_text or '').upper()
+    i = str(interp_text or '').upper().strip()
+    if 'MULTIPLE CHROMOSOMAL ABNORMALITIES' in t or \
+       'MULTIPLE CHROMOSOMAL ABNORMALITIES' in str(result_text or '').upper():
+        return 'red'
+    if 'ANEUPLOID' in i or 'CHAOTIC' in i or i == '(-)':
+        return 'red'
+    if 'MOSAIC' in i:
+        return 'blue'
+    if 'INCONCLUSIVE' in i:
+        return 'black'
+    return 'blue' if '%' in t else 'red'
 
 
 def _find_arm(raw, chr_num, op):

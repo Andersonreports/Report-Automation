@@ -382,6 +382,7 @@
             <button class="btn" id="m_savedraft"><i class="fas fa-save"></i> Save Draft</button>
             <button class="btn" id="m_loaddraft"><i class="fas fa-folder-open"></i> Load Draft</button>
             <button class="btn" id="m_clear"><i class="fas fa-eraser"></i> Clear</button>
+            <input type="file" id="m_draftLoadInput" accept=".json" style="display:none;">
           </div>
         </div>
       </div>
@@ -615,17 +616,6 @@
   </section>
 
   <div class="toast-wrap" id="toasts"></div>
-
-  
-  <div class="modal-overlay" id="draftModal" style="display:none;" onclick="if(event.target===this) closeDraftModal();">
-    <div class="modal-box">
-      <div class="modal-head">
-        <h3><i class="fas fa-folder-open"></i> Load Draft</h3>
-        <button class="modal-close" onclick="closeDraftModal()"><i class="fas fa-times"></i></button>
-      </div>
-      <div class="modal-body" id="draftModalBody"></div>
-    </div>
-  </div>
 
   <div id="pfModalOverlay" style="display:none; position:absolute; z-index:2000;">
     <div class="modal-box" style="max-height:380px;">
@@ -1158,79 +1148,50 @@
       .then(function(){ btn.disabled=false; btn.innerHTML=old; });
   });
 
-  $("m_savedraft").addEventListener("click", function(){
-    var body={ data:readForm(m_inputs), report_type:$("m_rt").value, images:M_images };
-    fetch(API+"/karyotype/draft/save",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)})
-      .then(function(r){return r.json();})
-      .then(function(j){ toast(j.saved?("Draft saved: "+esc(j.saved)):"Save failed", j.saved?"ok":"err"); });
-  });
-  function closeDraftModal(){ $("draftModal").style.display="none"; }
-
-  function _draftLabel(fname){
-    
-    var m=fname.match(/^karyo_draft_(.+)_(\d{8})_(\d{6})\.json$/);
-    if(!m) return fname;
-    var name=m[1].replace(/_/g," ");
-    var d=m[2], t=m[3];
-    var dateStr=d.slice(6,8)+"/"+d.slice(4,6)+"/"+d.slice(0,4);
-    var timeStr=t.slice(0,2)+":"+t.slice(2,4);
-    return name+" — "+dateStr+" "+timeStr;
+  function _karyoDraftStamp(){
+    var d=new Date();
+    function pad(n){ return (n<10?"0":"")+n; }
+    return d.getFullYear()+pad(d.getMonth()+1)+pad(d.getDate())+"_"+pad(d.getHours())+pad(d.getMinutes())+pad(d.getSeconds());
   }
 
-  function openDraftModal(list, onPick){
-    var body=$("draftModalBody");
-    if(!list.length){
-      body.innerHTML='<div class="empty">No saved drafts.</div>';
-    } else {
-      body.innerHTML=list.map(function(fname,i){
-        return '<div class="draft-item" data-idx="'+i+'">'
-          + '<i class="fas fa-file-alt"></i>'
-          + '<span class="draft-name">'+esc(_draftLabel(fname))+'</span>'
-          + '<button class="draft-del" data-idx="'+i+'" title="Delete draft"><i class="fas fa-trash"></i></button>'
-          + '</div>';
-      }).join("");
-      Array.prototype.forEach.call(body.querySelectorAll(".draft-item"), function(el){
-        el.addEventListener("click", function(e){
-          if(e.target.closest(".draft-del")) return;
-          onPick(list[+el.dataset.idx]);
-          closeDraftModal();
-        });
-      });
-      Array.prototype.forEach.call(body.querySelectorAll(".draft-del"), function(btn){
-        btn.addEventListener("click", function(e){
-          e.stopPropagation();
-          var fname=list[+btn.dataset.idx];
-          fetch(API+"/karyotype/draft/delete/"+encodeURIComponent(fname),{method:"DELETE"})
-            .then(function(){
-              list=list.filter(function(x){return x!==fname;});
-              openDraftModal(list, onPick);
-              toast("Draft deleted.","ok");
-            });
-        });
-      });
-    }
-    $("draftModal").style.display="flex";
+  $("m_savedraft").addEventListener("click", function(){
+    var body={ data:readForm(m_inputs), report_type:$("m_rt").value, images:M_images };
+    var pname=((body.data.NAME||"draft").replace(/[^a-zA-Z0-9 ]/g,"").replace(/\s+/g,"_"))||"draft";
+    var fname="Karyotype_Draft_"+pname+"_"+_karyoDraftStamp()+".json";
+    var blob=new Blob([JSON.stringify(body,null,2)],{type:"application/json"});
+    var url=URL.createObjectURL(blob);
+    var a=document.createElement("a"); a.href=url; a.download=fname; a.click();
+    URL.revokeObjectURL(url);
+    toast("Draft saved to your Downloads folder: "+esc(fname),"ok");
+  });
+
+  function _karyoApplyDraft(dr){
+    writeForm(m_inputs, dr.data||{});
+    var rt=dr.report_type || detectReportType((dr.data||{}).RESULT||"");
+    if(REPORT_TYPE_OPTIONS.indexOf(rt)>=0) $("m_rt").value=rt;
+    M_images=(dr.images||[]).map(function(im){
+      return (typeof im==="string")
+        ? {filename:im,url:apiUrl("/karyotype/image/"+im),original:im}
+        : {filename:im.filename, url:apiUrl(im.url||("/karyotype/image/"+im.filename)), original:im.original||im.filename};
+    });
+    m_renderImgs(); m_schedule();
+    toast("Draft loaded.","ok");
   }
 
   $("m_loaddraft").addEventListener("click", function(){
-    fetch(API+"/karyotype/draft/list").then(function(r){return r.json();}).then(function(j){
-      var list=j.drafts||[];
-      openDraftModal(list, function(fname){
-      fetch(API+"/karyotype/draft/load/"+encodeURIComponent(fname)).then(function(r){return r.json();}).then(function(dr){
-        if(dr.error){ toast("Load failed","err"); return; }
-        writeForm(m_inputs, dr.data||{});
-        var rt=dr.report_type || detectReportType((dr.data||{}).RESULT||"");
-        if(REPORT_TYPE_OPTIONS.indexOf(rt)>=0) $("m_rt").value=rt;
-        M_images=(dr.images||[]).map(function(im){
-          return (typeof im==="string")
-            ? {filename:im,url:apiUrl("/karyotype/image/"+im),original:im}
-            : {filename:im.filename, url:apiUrl(im.url||("/karyotype/image/"+im.filename)), original:im.original||im.filename};
-        });
-        m_renderImgs(); m_schedule();
-        toast("Draft loaded.","ok");
-      });
-      });
-    });
+    $("m_draftLoadInput").value="";
+    $("m_draftLoadInput").click();
+  });
+  $("m_draftLoadInput").addEventListener("change", function(e){
+    var file=e.target.files[0]; if(!file) return;
+    var reader=new FileReader();
+    reader.onload=function(ev){
+      try{
+        var dr=JSON.parse(ev.target.result);
+        _karyoApplyDraft(dr);
+      }catch(ex){ toast("Invalid draft file: "+esc(ex.message),"err"); }
+    };
+    reader.readAsText(file);
   });
   $("m_clear").addEventListener("click", function(){
     writeForm(m_inputs,{});

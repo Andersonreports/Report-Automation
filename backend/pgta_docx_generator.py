@@ -8,6 +8,7 @@ from docx.oxml.ns import qn
 from docx.oxml import OxmlElement
 from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
 import os
+import re
 import sys
 from io import BytesIO
 from datetime import datetime
@@ -134,6 +135,13 @@ class PGTADocxGenerator:
         if s.lower() == "nan": return default
         return s
 
+    def _strip_ref_note(self, s):
+        """Drop a trailing "(...)" note from a Sample/Embryo ID, e.g. "SS1(D5)" -> "SS1".
+        Users append these in brackets as a personal reference for the Results
+        summary Sample column only; they should not leak into any other place
+        (e.g. the embryo detail page header)."""
+        return re.sub(r'\s*\([^)]*\)\s*$', '', s or '').strip()
+
 
     def generate_docx(self, output_path, patient_data, embryos_data, show_logo=True, show_grid=False):
         self.show_grid = show_grid
@@ -166,7 +174,7 @@ class PGTADocxGenerator:
         for embryo in embryos_data:
             interp = str(embryo.get('interpretation', '')).upper()
             res    = str(embryo.get('result_summary', '')).upper()
-            if "LOW DNA" not in interp and "LOW DNA" not in res:
+            if "LOW DNA" not in interp and "NO DNA" not in interp and "LOW DNA" not in res and "NO DNA" not in res:
                 all_low_dna = False
                 break
 
@@ -178,7 +186,7 @@ class PGTADocxGenerator:
             for embryo in embryos_data:
                 interp = str(embryo.get('interpretation', '')).upper()
                 res    = str(embryo.get('result_summary', '')).upper()
-                if "LOW DNA" in interp or "LOW DNA" in res:
+                if "LOW DNA" in interp or "NO DNA" in interp or "LOW DNA" in res or "NO DNA" in res:
                     continue
                 self._add_embryo_page(doc, patient_data, embryo)
 
@@ -272,7 +280,8 @@ class PGTADocxGenerator:
             raw = self._clean(emb.get('result_summary') or emb.get('result_description') or '')
             info = clf.classify_embryo(raw)
 
-            res_display = info["summary_text"]
+            # Honor the user-supplied (editable) Result Summary verbatim.
+            res_display = self._clean(emb.get('result_summary')) or info["summary_text"]
 
             if info["classification"] == clf.LOW_DNA:
                 interp_text = "NA"
@@ -433,7 +442,7 @@ class PGTADocxGenerator:
 
         doc.add_paragraph()
 
-        eid = self._clean(embryo_data.get('embryo_id_detail')) or self._clean(embryo_data.get('embryo_id'))
+        eid = self._strip_ref_note(self._clean(embryo_data.get('embryo_id_detail')) or self._clean(embryo_data.get('embryo_id')))
         p_eid = doc.add_paragraph()
         self._set_paragraph_font(p_eid, font_name="Calibri", font_size=12, bold=True, color="#1F497D")
         p_eid.add_run(f"EMBRYO: {eid}")
@@ -441,7 +450,8 @@ class PGTADocxGenerator:
         raw_result = self._clean(embryo_data.get('result_summary') or embryo_data.get('result_description') or '')
         info = clf.classify_embryo(raw_result)
 
-        res = info["result_text"]
+        # Honor the user-supplied (editable) Result Description verbatim.
+        res = self._clean(embryo_data.get('result_description')) or info["result_text"]
 
         existing_auto = self._clean(embryo_data.get('autosomes', ''))
         chr_statuses = embryo_data.get('chromosome_statuses') or {}
@@ -465,21 +475,8 @@ class PGTADocxGenerator:
         raw_mt = self._clean(embryo_data.get('mtcopy', ''))
         mt = raw_mt if interp_text.upper() == "EUPLOID" and raw_mt and raw_mt.upper() not in ('NA', 'N/A', '') else "NA"
 
-        cell_color   = self._classify_color_hex(raw_result)
-        interp_upper_for_auto = interp_text.upper()
-        if 'ANEUPLOID' in interp_upper_for_auto or 'CHAOTIC' in interp_upper_for_auto:
-            cell_color = "#FF0000"
-        elif 'MOSAIC' in interp_upper_for_auto:
-            cell_color = "#0000FF"
-        elif 'INCONCLUSIVE' in interp_upper_for_auto:
-            cell_color = "#000000"
-        sex_up = sex.upper().strip()
-        if "MOSAIC" in sex_up:
-            sex_color = "#0000FF"
-        elif sex_up and sex_up not in ("NORMAL", "NO RESULT"):
-            sex_color = "#FF0000"
-        else:
-            sex_color = "#000000"
+        cell_color = self._autosomes_color_hex(auto, interp_text, res)
+        sex_color = self._ROLE_HEX.get(clf.sex_chromosomes_color_role(sex), "#000000")
         interp_color = self._get_interp_only_color_hex(interp_text)
         details = [
             ("Result:", res, "#000000"),
@@ -537,8 +534,8 @@ class PGTADocxGenerator:
             has_mosaic = any(
                 v and str(v).strip() and str(v).strip() != '-' and re_mos.search(r'\d', str(v))
                 for v in mosaic_map.values()
-            )
-            
+            ) or any('M' in str(v).upper() for v in chr_statuses.values())
+
             is_autosomes_normal = 'NORMAL' in autosomes or 'EUPLOID' in autosomes or not autosomes.strip()
             is_sex_mosaic = 'MOSAIC' in sex_chrs
             
@@ -565,7 +562,7 @@ class PGTADocxGenerator:
             if has_mosaic:
                 cnv_table.rows[2].cells[0].text = "Mosaic (%)"
                 for i in range(1, 23):
-                    cnv_table.rows[2].cells[i].text = str(mosaic_map.get(str(i), '-'))
+                    cnv_table.rows[2].cells[i].text = str(mosaic_map.get(str(i), '')).strip() or '-'
 
             for row in cnv_table.rows:
                 for c_idx, cell in enumerate(row.cells):
@@ -609,6 +606,13 @@ class PGTADocxGenerator:
             self._set_paragraph_font(p1, font_size=11)
             p2 = cell.add_paragraph(title); p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
             self._set_paragraph_font(p2, font_size=11)
+
+    _ROLE_HEX = {'red': "#FF0000", 'blue': "#0000FF", 'black': "#000000"}
+
+    def _autosomes_color_hex(self, autosomes_text, interp_text='', result_text=''):
+        """Autosomes colour, from the one rule shared with the PDF template."""
+        role = clf.autosomes_color_role(autosomes_text, interp_text, result_text)
+        return self._ROLE_HEX.get(role, "#000000")
 
     def _classify_color_hex(self, text):
         """Red for Aneuploid/Segmental, Blue for Mosaic, Black for Euploid/Inconclusive"""

@@ -226,9 +226,17 @@
           return;
         }
 
-        
-        
-        
+        if (data.otp_required === false) {
+          localStorage.setItem('arc_authenticated', 'true');
+          localStorage.setItem('arc_access_control', String(data.access_control !== false));
+          localStorage.setItem('arc_mobile_number', data.mobile_number || mobileNumber);
+          localStorage.setItem('arc_name', data.name || '');
+          localStorage.setItem('arc_role', data.role || 'user');
+          localStorage.setItem('arc_report', data.report || '');
+          window.location.href = '/index.html';
+          return;
+        }
+
         sessionStorage.setItem('arc_otp_pending', 'true');
         sessionStorage.setItem('arc_pending_mobile', data.mobile);
         sessionStorage.setItem('arc_pending_hash', data.hash);

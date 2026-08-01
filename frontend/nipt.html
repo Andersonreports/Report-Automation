@@ -1461,6 +1461,12 @@
       <label class="format-check"><input type="checkbox" id="cbDocx" checked> DOCX</label>
       <label class="format-check"><input type="checkbox" id="cbBranding" checked> With Branding Logo</label>
       <div class="export-sep"></div>
+      <label class="ex-title" style="margin-right:4px;">Template:</label>
+      <select id="templateSelect" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border,#ccc);">
+        <option value="1" selected>YOURGENE</option>
+        <option value="2">GENEMIND</option>
+      </select>
+      <div class="export-sep"></div>
       <div class="out-folder-wrap">
         <label>Output Folder:</label>
         <input type="text" id="outFolder" placeholder="Type or paste output folder path…"
@@ -2085,6 +2091,11 @@
       buildChrGrid();
       loadSettings();
       document.getElementById('cbBranding').addEventListener('change', schedulePreview);
+      document.getElementById('templateSelect').addEventListener('change', () => {
+        saveSettings();
+        schedulePreview();
+        if (typeof scheduleBatchPreview === 'function') scheduleBatchPreview();
+      });
       checkServer();
       
       const _retryInterval = setInterval(() => {
@@ -2129,6 +2140,7 @@
       if (s.cbPdf !== undefined) document.getElementById('cbPdf').checked = s.cbPdf;
       if (s.cbDocx !== undefined) document.getElementById('cbDocx').checked = s.cbDocx;
       if (s.cbBranding !== undefined) document.getElementById('cbBranding').checked = s.cbBranding;
+      if (s.template !== undefined) document.getElementById('templateSelect').value = s.template;
     }
     function saveSettings() {
       localStorage.setItem('nipt_settings', JSON.stringify({
@@ -2137,6 +2149,7 @@
         cbPdf: document.getElementById('cbPdf').checked,
         cbDocx: document.getElementById('cbDocx').checked,
         cbBranding: document.getElementById('cbBranding').checked,
+        template: document.getElementById('templateSelect').value,
       }));
     }
     
@@ -2315,7 +2328,7 @@
         const r = await _apiFetch('/nipt/preview', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ patient_data: p, z_scores: z, show_logo: document.getElementById('cbBranding').checked })
+          body: JSON.stringify({ patient_data: p, z_scores: z, show_logo: document.getElementById('cbBranding').checked, template: parseInt(document.getElementById('templateSelect').value, 10) })
         });
         const d = await r.json();
         if (d.preview_url) {
@@ -2354,7 +2367,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             patient_data: p, z_scores: z,
-            options: { show_logo: document.getElementById('cbBranding').checked, formats }
+            options: { show_logo: document.getElementById('cbBranding').checked, formats, template: parseInt(document.getElementById('templateSelect').value, 10) }
           })
         });
         const d = await r.json();
@@ -2377,6 +2390,11 @@
     
     
     
+    function _draftStamp() {
+      const d = new Date();
+      const pad = n => String(n).padStart(2, '0');
+      return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+    }
     function saveDraftManual() {
       const { p, z } = collectManual();
       const payload = { patient_details: p, z_scores: z };
@@ -2384,13 +2402,9 @@
       const blob = new Blob([json], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `Draft_${(p.name || 'Patient').replace(/\s+/g, '_')}_NIPT.json`;
+      a.download = `NIPT_Draft_${(p.name || 'Patient').replace(/\s+/g, '_')}_${_draftStamp()}.json`;
       a.click();
-      fetch(`${BASE}/nipt/draft/save`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: json
-      }).then(r => r.json()).then(res => {
-        if (res.status === 'saved') showToast(`Draft saved to drafts/NIPT/${res.filename}`, 'success');
-      }).catch(e => console.warn('[NIPS] draft save failed:', e));
+      showToast('Draft saved to your Downloads folder', 'success');
     }
     function loadDraftManual() {
       document.getElementById('draftLoadInput').value = '';
@@ -2464,7 +2478,10 @@
     function _titleCaseWords(v) {
       const s = _cleanStr(v);
       if (!s) return '';
-      const words = s.trim().split(/\s+/).map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+      const words = s.trim().split(/\s+/).map(w => {
+        if (/[A-Za-z]/.test(w) && /\d/.test(w)) return w.toUpperCase();
+        return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase();
+      });
       return words.join(' ')
         .replace(/\b(Mr|Mrs|Ms|Dr)\.\s*([a-z])/g, (_, t, c) => `${t}. ${c.toUpperCase()}`);
     }
@@ -2802,7 +2819,7 @@
         const r = await _apiFetch('/nipt/preview', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ patient_data: p, z_scores: z, show_logo: document.getElementById('cbBranding').checked })
+          body: JSON.stringify({ patient_data: p, z_scores: z, show_logo: document.getElementById('cbBranding').checked, template: parseInt(document.getElementById('templateSelect').value, 10) })
         });
         const d = await r.json();
         if (d.preview_url) {
@@ -2842,7 +2859,7 @@
           body: JSON.stringify({
             patient_data: pat,
             z_scores: buildZFromPatient(pat),
-            options: { show_logo: document.getElementById('cbBranding').checked, formats }
+            options: { show_logo: document.getElementById('cbBranding').checked, formats, template: parseInt(document.getElementById('templateSelect').value, 10) }
           })
         });
         const d = await r.json();
@@ -2886,7 +2903,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             patients: batchPatients,
-            options: { show_logo: document.getElementById('cbBranding').checked, formats }
+            options: { show_logo: document.getElementById('cbBranding').checked, formats, template: parseInt(document.getElementById('templateSelect').value, 10) }
           })
         });
         const d = await r.json();
@@ -2937,13 +2954,9 @@
       const blob = new Blob([json], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = `Draft_${(pat.name || 'Patient').replace(/\s+/g, '_')}_NIPT.json`;
+      a.download = `NIPT_Draft_${(pat.name || 'Patient').replace(/\s+/g, '_')}_${_draftStamp()}.json`;
       a.click();
-      fetch(`${BASE}/nipt/draft/save`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: json
-      }).then(r => r.json()).then(res => {
-        if (res.status === 'saved') showToast(`Draft saved to drafts/NIPT/${res.filename}`, 'success');
-      }).catch(e => console.warn('[NIPS] draft save failed:', e));
+      showToast('Draft saved to your Downloads folder', 'success');
     }
     function saveBulkDraft() {
       if (currentBatchIdx >= 0) saveBatchEditor(currentBatchIdx);
@@ -2952,14 +2965,9 @@
       const blob = new Blob([json], { type: 'application/json' });
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
-      a.download = 'BulkDraft_NIPT.json';
+      a.download = `NIPT_BulkDraft_${_draftStamp()}.json`;
       a.click();
-      const payload = JSON.stringify({ patient_details: { name: 'BulkDraft' }, patients: batchPatients, _type: 'nipt_bulk_draft' }, null, 2);
-      fetch(`${BASE}/nipt/draft/save`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload
-      }).then(r => r.json()).then(res => {
-        if (res.status === 'saved') showToast(`Draft saved to drafts/NIPT/${res.filename}`, 'success');
-      }).catch(e => console.warn('[NIPS] draft save failed:', e));
+      showToast('Draft saved to your Downloads folder', 'success');
     }
     function loadBulkDraft() {
       document.getElementById('bulkDraftLoadInput').value = '';

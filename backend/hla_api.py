@@ -133,14 +133,27 @@ def _auto_compute_derived_fields(case: dict) -> None:
     rtype = case.get("report_type", "")
     if rtype == "rpl_couple":
         ref = case.get("rpl_reference") or {}
+        match_override      = (ref.get("match_pct_override") or "").strip()
+        class2_override     = (ref.get("class2_pct_override") or "").strip()
+        hla_c_patient_manual = (ref.get("hla_c_patient") or "").strip()
+        hla_c_donor_manual   = (ref.get("hla_c_donor") or "").strip()
         if not (ref.get("match_str") or "").strip():
             patient = case.get("patient", {})
             donors  = case.get("donors", [])
             donor   = donors[0] if donors else {}
             try:
-                case["rpl_reference"] = compute_rpl_reference(patient, donor)
+                ref = compute_rpl_reference(patient, donor)
             except Exception:
-                pass
+                ref = {}
+        if match_override:
+            ref["match_pct"] = match_override if match_override.endswith("%") else f"{match_override}%"
+        if class2_override:
+            ref["class2_pct"] = class2_override if class2_override.endswith("%") else f"{class2_override}%"
+        if hla_c_patient_manual:
+            ref["hla_c_patient"] = hla_c_patient_manual
+        if hla_c_donor_manual:
+            ref["hla_c_donor"] = hla_c_donor_manual
+        case["rpl_reference"] = ref
     elif rtype == "single_rpl":
         ref = case.get("rpl_reference") or {}
         if not (ref.get("hla_c_patient") or "").strip():
@@ -469,14 +482,7 @@ async def pdf_to_draft(file: UploadFile = File(...)):
         raise HTTPException(400, f"Could not read this PDF: {e}")
     if not case["patient"].get("name"):
         raise HTTPException(422, "Could not find a 'Patient name' field in this PDF.")
-
-    name = re.sub(r'[^a-zA-Z0-9 ]', '', case["patient"]["name"]).strip().replace(" ", "_") or "pdf_import"
-    draft_name = f"{name}_from_pdf"
-    data = {"rtype": case["report_type"], "case": case}
-    path = os.path.join(HLA_DRAFT_DIR, f"{draft_name}.json")
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    return {"ok": True, "draft_name": draft_name, "case": case}
+    return {"ok": True, "rtype": case["report_type"], "case": case}
 
 
 def _serialize_cases(cases: list) -> list:
@@ -640,43 +646,6 @@ async def parse_sab_allele_text_endpoint(request_body: dict):
 async def get_c_supertype(request_body: dict):
     allele = request_body.get("allele", "")
     return {"supertype": c_supertype(allele)}
-
-
-
-@router.get("/drafts")
-def list_drafts():
-    files = []
-    for f in os.listdir(HLA_DRAFT_DIR):
-        if f.endswith(".json") and f != "hla_settings.json":
-            files.append(f[:-5])
-    return {"drafts": sorted(files)}
-
-
-@router.post("/drafts/save")
-async def save_draft(request_body: dict):
-    name = request_body.get("name", "manual_draft")
-    data = request_body.get("data", {})
-    path = os.path.join(HLA_DRAFT_DIR, f"{name}.json")
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-    return {"ok": True, "path": path}
-
-
-@router.get("/drafts/{name}")
-def load_draft(name: str):
-    path = os.path.join(HLA_DRAFT_DIR, f"{name}.json")
-    if not os.path.exists(path):
-        raise HTTPException(404, f"Draft '{name}' not found")
-    with open(path, "r", encoding="utf-8") as f:
-        return json.load(f)
-
-
-@router.delete("/drafts/{name}")
-def delete_draft(name: str):
-    path = os.path.join(HLA_DRAFT_DIR, f"{name}.json")
-    if os.path.exists(path):
-        os.remove(path)
-    return {"ok": True}
 
 
 

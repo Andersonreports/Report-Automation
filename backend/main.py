@@ -35,9 +35,8 @@ REPORT_DIR = os.path.join(BASE_DIR, "reports")
 PGTA_REPORT_DIR = os.path.join(BASE_DIR, "reports-pgta")
 TEMP_DIR = os.path.join(BASE_DIR, "temp")
 PGTA_CNV_DIR = os.path.join(BASE_DIR, "uploads", "pgta_cnv")
-PGTA_DRAFT_DIR = os.path.join(BASE_DIR, "drafts", "PGTA")
 
-for d in (REPORT_DIR, PGTA_REPORT_DIR, TEMP_DIR, PGTA_CNV_DIR, PGTA_DRAFT_DIR):
+for d in (REPORT_DIR, PGTA_REPORT_DIR, TEMP_DIR, PGTA_CNV_DIR):
     os.makedirs(d, exist_ok=True)
 
 TEMP_CLEANUP_INTERVAL_SECONDS = 24 * 60 * 60
@@ -46,7 +45,7 @@ TEMP_MAX_AGE_SECONDS = 24 * 60 * 60
 
 def _cleanup_old_files():
     now = time.time()
-    cleanup_dirs = [TEMP_DIR, REPORT_DIR, PGTA_REPORT_DIR] + [
+    cleanup_dirs = [TEMP_DIR, REPORT_DIR, PGTA_REPORT_DIR, os.path.join(BASE_DIR, "drafts")] + [
         os.path.join(BASE_DIR, name)
         for name in ("reports-nipt", "reports-hla", "reports-karyotype")
     ]
@@ -55,6 +54,8 @@ def _cleanup_old_files():
             continue
         for dirpath, dirnames, filenames in os.walk(base, topdown=False):
             for name in filenames:
+                if name == "hla_settings.json":
+                    continue  # persistent app settings, not a draft -- never age out
                 fp = os.path.join(dirpath, name)
                 try:
                     if now - os.path.getmtime(fp) >= TEMP_MAX_AGE_SECONDS:
@@ -155,7 +156,8 @@ if os.path.isdir(FRONTEND_DIR):
 def _serve(filename: str):
     p = os.path.join(FRONTEND_DIR, filename)
     if os.path.exists(p):
-        return FileResponse(p, media_type="text/html")
+        return FileResponse(p, media_type="text/html",
+                            headers={"Cache-Control": "no-cache, no-store, must-revalidate"})
     raise HTTPException(404, f"{filename} not found")
 
 
@@ -361,9 +363,11 @@ async def upload_excel(file: UploadFile = File(...)):
             except (TypeError, ValueError):
                 pass
             if hasattr(v, "item"):
-                return v.item()
+                v = v.item()
             if hasattr(v, "isoformat"):
                 return str(v)
+            if isinstance(v, float):
+                return round(v, 2)
             return v
 
         rows = [{k: _safe(v) for k, v in r.items()}
@@ -371,39 +375,6 @@ async def upload_excel(file: UploadFile = File(...)):
         return {"rows": rows}
     except Exception as e:
         return {"error": str(e), "rows": []}
-
-
-
-TERA_DRAFT_DIR = os.path.join(BASE_DIR, "drafts", "TERA")
-os.makedirs(TERA_DRAFT_DIR, exist_ok=True)
-
-
-@app.post("/save-draft/{draft_type}")
-async def save_draft(draft_type: str, request: Request):
-    data = await request.json()
-    fname = re.sub(r'[^a-zA-Z0-9_-]', '_', draft_type) + ".json"
-    with open(os.path.join(TERA_DRAFT_DIR, fname), "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=2, ensure_ascii=False)
-    return {"status": "saved"}
-
-
-@app.get("/list-drafts")
-def list_drafts():
-    try:
-        files = sorted(os.listdir(TERA_DRAFT_DIR), reverse=True)
-        return {"drafts": [{"draft_type": f.replace(".json", ""), "filename": f} for f in files if f.endswith(".json")]}
-    except Exception as e:
-        return {"drafts": [], "error": str(e)}
-
-
-@app.get("/load-draft/{draft_type}")
-def load_draft(draft_type: str):
-    fname = re.sub(r'[^a-zA-Z0-9_-]', '_', draft_type) + ".json"
-    fpath = os.path.join(TERA_DRAFT_DIR, fname)
-    if not os.path.exists(fpath):
-        return {"data": None}
-    with open(fpath, encoding="utf-8") as f:
-        return {"data": json.load(f)}
 
 
 
@@ -572,9 +543,19 @@ async def pgta_generate(request: Request, background_tasks: BackgroundTasks):
         else:
             name_seg = f"{p_first}_{p_init}"
 
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         logo_tag = "withlogo" if show_logo else "withoutlogo"
-        base_fn = f"PGTA_{name_seg}_{ts}_{logo_tag}"
+
+        def _id_seg(value):
+            """An identifier as a filename segment: strip the trailing '.0' a
+            spreadsheet import leaves behind, then drop anything non-alphanumeric."""
+            raw = re.sub(r'\.0+$', '', str(value or '').strip())
+            return re.sub(r'[^A-Za-z0-9]', '', raw)
+
+        # <sample number>_<patient name>_PGTA_<logo tag>. The sample number leads
+        # so reports sort and search by the lab's own identifier; it is dropped
+        # from the name when it wasn't entered.
+        sample_seg = _id_seg(patient_info.get("sample_number"))
+        base_fn = "_".join(s for s in (sample_seg, name_seg, "PGTA", logo_tag) if s)
         results = {}
 
         if "pdf" in formats:
@@ -659,6 +640,45 @@ async def _parse_pgta_excel_core(contents: bytes):
         s = re.sub(r'\([^)]*\)', '', s)
         return re.sub(r'[^A-Z0-9]', '', s)
 
+    def norm_pin(s):
+        # Uppercase + strip non-alphanumerics ONLY. Unlike norm() it does not
+        # drop leading initials or parenthesised text, so composite Patient
+        # Nos like "260739312-RPT" survive intact for comparison.
+        return re.sub(r'[^A-Z0-9]', '', str(s or '').upper())
+
+    def pin_matches(a, b):
+        # Both already norm_pin'd. Exact, or substring either way so a repeat
+        # sample's suffixed PIN ("260739312-RPT") still matches its patient.
+        if not a or not b:
+            return False
+        return a == b or (len(a) >= 4 and a in b) or (len(b) >= 4 and b in a)
+
+    def sample_name_ids(sname):
+        # Identifiers a Sample name can carry: the dash-delimited prefixes of
+        # the part before "_". "AG-1234-E1_S9" -> {"AG","AG1234","AG1234E1"}.
+        # A PIN must EQUAL one of these, so "1234" cannot grab "AG12345-E1".
+        ids, acc = set(), ''
+        for part in str(sname or '').split('_')[0].split('-'):
+            acc += part
+            n = norm_pin(acc)
+            if n:
+                ids.add(n)
+        return ids
+
+    def sample_name_segments(sname):
+        # The individual dash-delimited segments, so a PIN sitting further
+        # along the name ("AG-12345-E1") still matches -- whole segment only.
+        return {n for n in (norm_pin(p) for p in
+                            str(sname or '').split('_')[0].split('-')) if n}
+
+    def name_short(n):
+        # Some Details sheets append a lone trailing initial (a spouse's first
+        # letter) that the generated Sample name drops. Used as a lower tier
+        # only -- applied blindly it truncates real surnames.
+        if len(n) > 3 and not n[-2:-1].isdigit() and n[-1] in 'CDRSGKMNPTVW' and len(n[:-1]) >= 3:
+            return n[:-1]
+        return n
+
     def first_name_token(full_name):
         s = str(full_name or '').upper().strip()
         for pfx in ('MRS.', 'MR.', 'SMT.', 'DR.', 'MS.', 'MISS.', 'PROF.'):
@@ -669,19 +689,26 @@ async def _parse_pgta_excel_core(contents: bytes):
         tok = s.split()[0] if s.split() else s
         return re.sub(r'[^A-Z0-9]', '', tok)
 
-    def short_embryo_id(sname):
+    def short_embryo_id(sname, matched_patient=None):
         # "PATIENT-V1_extra" -> "V1": strip the patient-name prefix and any
         # trailing "_..." suffix from a composite bulk-import sample name.
-        # Done once here (parse time) so the editable Embryo ID field starts
-        # clean; the renderer then shows it verbatim, with no further
-        # reinterpretation of dashes the user later types.
-        short_id = sname
-        if '-' in sname:
-            parts = sname.split('-')
-            if len(parts) >= 2:
-                id_part = parts[1]
-                short_id = id_part.split('_')[0] if '_' in id_part else id_part
-        return short_id
+        # Only stripped when the text before the dash actually matches the
+        # matched patient's name/first token -- otherwise the dash is part
+        # of the embryo tag itself (e.g. "BP-1") and must be kept verbatim.
+        base = sname.split('_')[0] if '_' in sname else sname
+        if '-' in base and matched_patient is not None:
+            prefix, _, rest = base.partition('-')
+            prefix_n = norm(prefix)
+            name_n = matched_patient.get("_name_n", "")
+            first_tok = matched_patient.get("_first_tok", "")
+            pid_n = matched_patient.get("_pid_n", "")
+            if rest and prefix_n and (
+                (name_n and (prefix_n == name_n or name_n.startswith(prefix_n))) or
+                (first_tok and prefix_n == first_tok) or
+                (pid_n and (prefix_n == pid_n or pid_n.startswith(prefix_n)))
+            ):
+                return rest
+        return base
 
     det_i = next((i for i, s in enumerate(
         sheets_lower) if 'detail' in s), None)
@@ -736,8 +763,9 @@ async def _parse_pgta_excel_core(contents: bytes):
                 "indication":          clean_val(row, ['Indication', 'indication', 'Clinical Indication']),
                 "embryos":             []
             }
-            p["_pid_n"] = norm(pid)
+            p["_pid_n"] = norm_pin(pid)
             p["_name_n"] = norm(name)
+            p["_name_short"] = name_short(norm(name))
             p["_first_tok"] = first_name_token(name)
             patients.append(p)
 
@@ -748,8 +776,60 @@ async def _parse_pgta_excel_core(contents: bytes):
                 row, ['Sample name', 'Sample Name', 'sample_name', 'Sample ID'])
             if not sname or sname in matched_samples:
                 continue
+            # Tiers a row can be tied to a patient by, strongest first (same
+            # rules as the PGT-A frontend). Most lab Result sheets carry no PIN
+            # at all and name samples after the patient, so the name tiers are
+            # the everyday path -- but the row is resolved to the single
+            # HIGHEST-scoring patient and a tie is refused, so a row can no
+            # longer land on whichever similarly-named patient came first.
+            row_pin = norm_pin(clean_val(
+                row, ['PIN', 'PIN No', 'PIN No.', 'PIN Number',
+                      'Patient No', 'Patient No.', 'Patient ID', 'Patient_ID']))
+            sample_ids = sample_name_ids(sname)
+            sample_segs = sample_name_segments(sname)
+            norm_s = norm(sname)
+            s_ft = norm_pin(sname.split('_')[0].split('-')[0])
+
+            def match_score(p):
+                pin_n, name_n = p["_pid_n"], p["_name_n"]
+                short_n, ftok = p["_name_short"], p["_first_tok"]
+                # A PIN column on the Result sheet is authoritative: when both
+                # sides have a PIN they must agree, and no name tier may
+                # rescue a disagreement.
+                if row_pin and pin_n:
+                    return 100 if pin_matches(pin_n, row_pin) else 0
+                if pin_n and pin_n in sample_ids:
+                    return 90
+                if len(pin_n) >= 3 and pin_n in sample_segs:
+                    return 85
+                if name_n and s_ft == name_n:
+                    return 80
+                if short_n and short_n != name_n and s_ft == short_n:
+                    return 70
+                if len(s_ft) >= 5 and len(name_n) > len(s_ft) and name_n.startswith(s_ft):
+                    return 60
+                if len(name_n) >= 4 and norm_s.startswith(name_n):
+                    rest = norm_s[len(name_n):]
+                    if rest == '' or rest[0].isdigit() or len(rest) <= 3:
+                        return 55
+                if len(ftok) >= 4 and s_ft == ftok:
+                    return 50
+                return 0
+
+            matched, best, tied = None, 0, False
+            for p in patients:
+                score = match_score(p)
+                if not score:
+                    continue
+                if score > best:
+                    matched, best, tied = p, score, False
+                elif score == best:
+                    tied = True
+            if tied:
+                matched = None
+
             emb = {
-                "embryo_id":           short_embryo_id(sname),
+                "embryo_id":           short_embryo_id(sname, matched),
                 "result_summary":      clean_val(row, ['Result', 'result', 'Summary']),
                 "interpretation":      clean_val(row, ['Conclusion', 'Interpretation', 'interpretation']),
                 "mtcopy":              clean_val(row, ['MTcopy', 'MT Copy', 'mtcopy', 'MT']),
@@ -760,32 +840,18 @@ async def _parse_pgta_excel_core(contents: bytes):
                 "mosaic_percentages":  {},
                 "inconclusive_comment": ""
             }
-            ns = norm(sname)
-            sample_base = sname.split('_')[0]
-            sample_first_tok = re.sub(
-                r'[^A-Z0-9]', '', sample_base.split('-')[0].upper().strip())
 
-            # Tier 1: Sample ID/PIN is a substring of the normalized sample name (most reliable)
-            matched = next(
-                (p for p in patients if p["_pid_n"] and p["_pid_n"] in ns), None)
-            # Tier 2: normalized sample name starts with the normalized patient name
-            if matched is None:
-                matched = next(
-                    (p for p in patients if p["_name_n"] and ns.startswith(p["_name_n"])), None)
-            # Tier 3: first-name-token exact match (guarded by min length to avoid false positives)
-            if matched is None:
-                matched = next(
-                    (p for p in patients if len(p["_first_tok"]) >= 4 and p["_first_tok"] == sample_first_tok), None)
-
+            # No match (or an ambiguous one) means no report — the old "if
+            # there's only one patient, give them the row" fallback stays gone,
+            # since it attached results to a patient nothing pointed at.
             if matched:
                 matched_samples.add(sname)
                 matched["embryos"].append(emb)
-            elif len(patients) == 1:
-                patients[0]["embryos"].append(emb)
 
     for p in patients:
         p.pop("_pid_n", None)
         p.pop("_name_n", None)
+        p.pop("_name_short", None)
         p.pop("_first_tok", None)
 
     return {"patients": patients, "sheet_names": sheets}
@@ -833,46 +899,6 @@ async def pgta_parse_excel_bulk(files: List[UploadFile] = File(...)):
         traceback.print_exc()
         return {"error": str(e)}
 
-
-
-@app.post("/pgta/draft/save")
-async def pgta_save_draft(request: Request):
-    try:
-        body = await request.json()
-        patient = body.get("patient", {})
-        pname = re.sub(r'[^a-zA-Z0-9 ]', '', str(patient.get("patient_name",
-                       "draft"))).replace(" ", "_").strip() or "draft"
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        fname = f"pgta_bulk_draft_{pname}_{ts}.json"
-        fpath = os.path.join(PGTA_DRAFT_DIR, fname)
-        with open(fpath, "w", encoding="utf-8") as f:
-            json.dump({"patients": [patient], "_type": "pgta_bulk_draft",
-                      "_savedAt": datetime.now().isoformat()}, f, indent=2)
-        return {"status": "saved", "filename": fname}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-
-@app.get("/pgta/draft/list")
-def pgta_list_drafts():
-    try:
-        files = sorted([f for f in os.listdir(PGTA_DRAFT_DIR)
-                       if f.endswith(".json")], reverse=True)
-        return {"files": files}
-    except Exception as e:
-        return {"files": [], "error": str(e)}
-
-
-@app.delete("/pgta/draft/delete/{filename}")
-def pgta_delete_draft(filename: str):
-    try:
-        fp = os.path.join(PGTA_DRAFT_DIR, os.path.basename(filename))
-        if os.path.exists(fp):
-            os.remove(fp)
-            return {"status": "deleted"}
-        return {"status": "not_found"}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
 
 
 
@@ -979,9 +1005,7 @@ def health():
 
 
 NIPT_REPORT_DIR = os.path.join(BASE_DIR, "reports-nipt")
-NIPT_DRAFT_DIR = os.path.join(BASE_DIR, "drafts", "NIPT")
 os.makedirs(NIPT_REPORT_DIR, exist_ok=True)
-os.makedirs(NIPT_DRAFT_DIR,  exist_ok=True)
 
 app.mount("/reports-nipt", StaticFiles(directory=NIPT_REPORT_DIR),
           name="reports-nipt")
@@ -1009,10 +1033,17 @@ _HOSPITAL_ACRONYMS = {
 
 
 def _title_case_words(value: str) -> str:
-    text = " ".join(w[:1].upper() + w[1:].lower()
-                    for w in str(value or "").strip().split())
-    return re.sub(r"\b(Mr|Mrs|Ms|Dr)\.\s*([a-z])",
+    def _w(w):
+        # Alphanumeric tokens (e.g. hospital/MRD codes like "Mdr07072") stay full caps.
+        if any(c.isdigit() for c in w) and any(c.isalpha() for c in w):
+            return w.upper()
+        return w[:1].upper() + w[1:].lower()
+    text = " ".join(_w(w) for w in str(value or "").strip().split())
+    text = re.sub(r"\b(Mr|Mrs|Ms|Dr)\.\s*([a-z])",
                   lambda m: f"{m.group(1)}. {m.group(2).upper()}", text)
+    # Hospital codes appended in parentheses, e.g. "Jane Doe (sdcgh12cf)",
+    # must always render in full caps regardless of how they were typed.
+    return re.sub(r"\(([^)]*)\)", lambda m: f"({m.group(1).upper()})", text)
 
 
 def _fmt_hospital(value: str) -> str:
@@ -1032,17 +1063,21 @@ def _norm_patient(p: dict) -> dict:
             p[k] = _title_case_words(p.get(k, ""))
     if "hospital" in p:
         p["hospital"] = _fmt_hospital(p.get("hospital", ""))
+    if "preg_status" in p:
+        # e.g. "TWIN" / "twin" / "TwIn" -> "Twin"
+        p["preg_status"] = str(p.get("preg_status", "")).strip().capitalize()
     if "clinician_qual" in p:
         p["clinician_qual"] = re.sub(r'[A-Za-z]+', lambda m: m.group().upper(),
                                      str(p.get("clinician_qual", "")))
     return p
 
 
-def _nipt_base_filename(name: str, with_logo: bool) -> str:
+def _nipt_base_filename(name: str, with_logo: bool, template: int = 1) -> str:
     n = _title_case_words(name) or "Patient"
     n = re.sub(r'[<>:"/\\|?*]+', "", n)
     n = re.sub(r"\s+", "_", n).strip("_.") or "Patient"
-    return f"{n}_NIPT_Report_{'with_logo' if with_logo else 'without_logo'}"
+    tmpl_tag = "_T2" if template == 2 else ""
+    return f"{n}_NIPT_Report{tmpl_tag}_{'with_logo' if with_logo else 'without_logo'}"
 
 
 def _safe_float(v):
@@ -1075,15 +1110,16 @@ async def nipt_preview(request: Request):
         data = await request.json()
         p_info = _norm_patient(dict(data.get("patient_data", {})))
         show_logo = bool(data.get("show_logo", True))
+        template = int(data.get("template", 1) or 1)
         try:
-            fname = _nipt_base_filename(p_info.get("name", ""), show_logo)
+            fname = _nipt_base_filename(p_info.get("name", ""), show_logo, template)
         except Exception:
             fname = "preview"
         file_id = f"{fname}_{uuid.uuid4().hex[:8]}.pdf"
         filepath = os.path.join(TEMP_DIR, file_id)
         z_scores = {k: _safe_float(v)
                     for k, v in data.get("z_scores", {}).items()}
-        NIPTReportTemplate(filepath).generate(
+        NIPTReportTemplate(filepath, template=template).generate(
             p_info, z_scores, with_logo=show_logo)
         return {"preview_url": f"/nipt/preview-file/{file_id}"}
     except Exception as e:
@@ -1113,21 +1149,22 @@ async def nipt_generate(request: Request):
         options = data.get("options", {})
         show_logo = bool(options.get("show_logo", True))
         formats = options.get("formats", ["pdf"])
+        template = int(options.get("template", 1) or 1)
 
-        base = _nipt_base_filename(p_info.get("name", ""), show_logo)
+        base = _nipt_base_filename(p_info.get("name", ""), show_logo, template)
         results = {}
 
         if "pdf" in formats:
             fn = base + ".pdf"
             fp = os.path.join(NIPT_REPORT_DIR, fn)
-            NIPTReportTemplate(fp).generate(
+            NIPTReportTemplate(fp, template=template).generate(
                 p_info, z_scores, with_logo=show_logo)
             results["pdf"] = {"file": fn, "url": f"/reports-nipt/{fn}"}
 
         if "docx" in formats:
             fn = base + ".docx"
             fp = os.path.join(NIPT_REPORT_DIR, fn)
-            NIPTDocxGenerator(fp).generate(
+            NIPTDocxGenerator(fp, template=template).generate(
                 p_info, z_scores, with_logo=show_logo)
             results["docx"] = {"file": fn, "url": f"/reports-nipt/{fn}"}
 
@@ -1149,22 +1186,23 @@ async def nipt_generate_batch(request: Request):
         options  = data.get("options", {})
         show_logo = bool(options.get("show_logo", True))
         formats   = options.get("formats", ["pdf"])
+        template  = int(options.get("template", 1) or 1)
 
         def _gen_one(pat):
             p_info   = _norm_patient(dict(pat))
             z_scores = {k: _safe_float(v) for k, v in pat.items()
                         if k.startswith("chr")}
-            base = _nipt_base_filename(p_info.get("name", ""), show_logo)
+            base = _nipt_base_filename(p_info.get("name", ""), show_logo, template)
             out  = {}
             if "pdf" in formats:
                 fn = base + ".pdf"
                 fp = os.path.join(NIPT_REPORT_DIR, fn)
-                NIPTReportTemplate(fp).generate(p_info, z_scores, with_logo=show_logo)
+                NIPTReportTemplate(fp, template=template).generate(p_info, z_scores, with_logo=show_logo)
                 out["pdf"] = {"file": fn, "url": f"/reports-nipt/{fn}"}
             if "docx" in formats:
                 fn = base + ".docx"
                 fp = os.path.join(NIPT_REPORT_DIR, fn)
-                NIPTDocxGenerator(fp).generate(p_info, z_scores, with_logo=show_logo)
+                NIPTDocxGenerator(fp, template=template).generate(p_info, z_scores, with_logo=show_logo)
                 out["docx"] = {"file": fn, "url": f"/reports-nipt/{fn}"}
             return {"name": p_info.get("name", ""), "results": out}
 
@@ -1288,51 +1326,6 @@ async def nipt_parse_excel(file: UploadFile = File(...)):
         import traceback
         traceback.print_exc()
         return {"error": str(e), "patients": []}
-
-
-
-@app.post("/nipt/draft/save")
-async def nipt_save_draft(request: Request):
-    try:
-        body = await request.json()
-        pname = re.sub(r'[^a-zA-Z0-9 ]', '',
-                       str(body.get("patient_details", {}).get("name", "draft"))
-                       ).replace(" ", "_").strip() or "draft"
-        ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-        fname = f"nipt_draft_{pname}_{ts}.json"
-        with open(os.path.join(NIPT_DRAFT_DIR, fname), "w", encoding="utf-8") as f:
-            json.dump(body, f, indent=2)
-        return {"status": "saved", "filename": fname}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-
-@app.get("/nipt/draft/list")
-def nipt_list_drafts():
-    try:
-        files = sorted([f for f in os.listdir(NIPT_DRAFT_DIR)
-                       if f.endswith(".json")], reverse=True)
-        return {"files": files}
-    except Exception as e:
-        return {"files": [], "error": str(e)}
-
-
-@app.get("/nipt/draft/load/{filename}")
-def nipt_load_draft(filename: str):
-    fpath = os.path.join(NIPT_DRAFT_DIR, os.path.basename(filename))
-    if not os.path.exists(fpath):
-        return {"data": None}
-    with open(fpath, encoding="utf-8") as f:
-        return {"data": json.load(f)}
-
-
-@app.delete("/nipt/draft/delete/{filename}")
-def nipt_delete_draft(filename: str):
-    fp = os.path.join(NIPT_DRAFT_DIR, os.path.basename(filename))
-    if os.path.exists(fp):
-        os.remove(fp)
-        return {"status": "deleted"}
-    return {"status": "not_found"}
 
 
 

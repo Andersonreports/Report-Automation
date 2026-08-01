@@ -13,6 +13,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase.pdfmetrics import registerFontFamily
 from PIL import Image as PILImage
 import os
+import re
 import sys
 import base64
 from io import BytesIO
@@ -70,8 +71,31 @@ class PGTAReportTemplate:
     MARGIN_TOP = 90
     MARGIN_BOTTOM = 150
     DOSE_MARGIN_TOP = 100
-    DOSE_MARGIN_BOTTOM = 150
+    # No footer banner is drawn without the logo, so the frame can run further
+    # down the page - it only has to clear the GenQA logo (top edge y=102.5) and
+    # the "Page X of Y" line (drawn at y=118, 9pt tall).
+    DOSE_MARGIN_BOTTOM = 134
+
+    # SimpleDocTemplate builds its frame with reportlab's default padding, which
+    # eats into the space the story actually gets on both axes.
+    FRAME_PADDING = 6
+
+    # When an embryo page is marginally too tall for the signature block, reclaim
+    # space from padding first, then from the copy-number chart, which stays
+    # legible down to this fraction of its natural size.
+    SIG_GAP = 12
+    SIG_GAP_MIN = 4
+    SIG_TOP_GAP = 12.7
+    SIG_TOP_GAP_MIN = 4
+    CNV_IMAGE_MIN_SCALE = 0.75
+    # Aim a little under the frame: landing on exactly zero slack lets rounding
+    # differences between our measurement and the real layout force a break.
+    SIG_FIT_TOLERANCE = 2
     CONTENT_WIDTH = PAGE_WIDTH - MARGIN_LEFT - MARGIN_RIGHT
+
+    # Shared scratch canvas - platypus needs one attached to a flowable before it
+    # can be asked how tall it is.
+    _measure_canvas = None
     
     ASSETS_DIR = "assets/pgta"
     HEADER_LOGO = os.path.join(ASSETS_DIR, "image_page1_0.png")
@@ -354,8 +378,10 @@ class PGTAReportTemplate:
             topMargin=top_margin,
             bottomMargin=bottom_margin
         )
-        
+
         self._show_logo = show_logo
+        self._frame_height = (self.PAGE_HEIGHT - top_margin - bottom_margin
+                              - 2 * self.FRAME_PADDING)
         
         story = []
         
@@ -366,7 +392,7 @@ class PGTAReportTemplate:
         for embryo in embryos_data:
             interp = str(embryo.get('interpretation', '')).upper()
             res = str(embryo.get('result_summary', '')).upper()
-            if "LOW DNA" not in interp and "LOW DNA" not in res:
+            if "LOW DNA" not in interp and "NO DNA" not in interp and "LOW DNA" not in res and "NO DNA" not in res:
                 all_low_dna = False
                 break
 
@@ -375,16 +401,14 @@ class PGTAReportTemplate:
             story.append(self._create_signature_table())
         else:
             story.append(PageBreak())
-        
+
         for idx, embryo in enumerate(embryos_data):
             interp = str(embryo.get('interpretation', '')).upper()
             res = str(embryo.get('result_summary', '')).upper()
-            if "LOW DNA" in interp or "LOW DNA" in res:
+            if "LOW DNA" in interp or "NO DNA" in interp or "LOW DNA" in res or "NO DNA" in res:
                 continue
                 
-            story.extend(self._build_embryo_page(patient_data, embryo))
-            story.append(Spacer(1, 12))
-            story.append(self._create_signature_table())
+            story.extend(self._embryo_block_with_signature(patient_data, embryo))
             story.append(PageBreak())
         
         doc.build(story, onFirstPage=self._add_header_footer,
@@ -496,7 +520,14 @@ class PGTAReportTemplate:
         s = str(val).strip()
         if s.lower() == "nan": return default
         return s
-    
+
+    def _strip_ref_note(self, s):
+        """Drop a trailing "(...)" note from a Sample/Embryo ID, e.g. "SS1(D5)" -> "SS1".
+        Users append these in brackets as a personal reference for the Results
+        summary Sample column only; they should not leak into any other place
+        (e.g. the embryo detail page header)."""
+        return re.sub(r'\s*\([^)]*\)\s*$', '', s or '').strip()
+
     def _wrap_text(self, text, bold=False, font_size=None, align='LEFT', max_width=None):
         """Wrap text in a Paragraph for table cells, with automatic Line Break support"""
         if not text: return ""
@@ -583,9 +614,11 @@ class PGTAReportTemplate:
 
         for idx, embryo in enumerate(embryos_data, 1):
             raw_result = self._clean(embryo.get('result_summary') or embryo.get('result_description') or '')
-            
+
             info = clf.classify_embryo(raw_result)
-            res_sum = info["summary_text"]
+            # Honor the user-supplied (editable) Result Summary verbatim; only
+            # fall back to the auto-classified text when it is blank.
+            res_sum = self._clean(embryo.get('result_summary')) or info["summary_text"]
 
             if info["classification"] == clf.LOW_DNA:
                 interp_text = "NA"
@@ -647,7 +680,7 @@ class PGTAReportTemplate:
         elements.append(Spacer(1, 12))
 
         elements.append(KeepTogether([
-            self._create_section_header("Conditions for reporting mosaicism"),
+            self._section_header_flowable("Conditions for reporting mosaicism"),
             Spacer(1, 8),
             Paragraph(self.MOSAICISM_TEXT, self.styles['PGTABodyText']),
         ]))
@@ -668,7 +701,7 @@ class PGTAReportTemplate:
         elements.append(Spacer(1, 12))
         elements.append(Spacer(1, 12))
 
-        ref_block = [self._create_section_header("References"), Spacer(1, 8)]
+        ref_block = [self._section_header_flowable("References"), Spacer(1, 8)]
         for idx, ref in enumerate(self.REFERENCES, 1):
             ref_block.append(Paragraph(f"{idx}. {ref}", self.styles['PGTABodyText']))
         elements.append(KeepTogether(ref_block))
@@ -741,7 +774,9 @@ class PGTAReportTemplate:
         raw_result = self._clean(embryo_data.get('result_summary') or embryo_data.get('result_description') or '')
         info = clf.classify_embryo(raw_result)
 
-        res_text = info["result_text"]
+        # Honor the user-supplied (editable) Result Description verbatim; only
+        # fall back to the auto-classified sentence when it is blank.
+        res_text = self._clean(embryo_data.get('result_description')) or info["result_text"]
 
         existing_auto = self._clean(embryo_data.get('autosomes', ''))
         chr_statuses = embryo_data.get('chromosome_statuses') or {}
@@ -760,39 +795,14 @@ class PGTAReportTemplate:
             interp_text = "Euploid"
         interp_color = self._get_interp_only_color(interp_text)
 
-        auto_color = colors.black
-        auto_upper = autosomes_text.upper()
-        
-        if "MULTIPLE CHROMOSOMAL ABNORMALITIES" in res_text.upper():
-            auto_color = colors.red
-        elif 'NORMAL' in auto_upper or 'EUPLOID' in auto_upper or not autosomes_text.strip():
-            auto_color = colors.black
-        elif '%' in autosomes_text:
-            auto_color = colors.blue
-        elif any(x in auto_upper for x in ['DEL(', 'DUP(', '-', '+', 'STATUS L', 'STATUS G', 'STATUS SL', 'STATUS SG', ' SL', ' SG', ' L,', ' G,', ' L ', ' G ']) or auto_upper.endswith(' L') or auto_upper.endswith(' G'):
-            auto_color = colors.red
-        elif 'CNV STATUS' in auto_upper:
-            auto_color = colors.red
+        auto_color = self._autosomes_color(autosomes_text, interp_text, res_text)
 
-        interp_upper_for_auto = interp_text.upper()
-        if 'ANEUPLOID' in interp_upper_for_auto or 'CHAOTIC' in interp_upper_for_auto:
-            auto_color = colors.red
-        elif 'MOSAIC' in interp_upper_for_auto:
-            auto_color = colors.blue
-        elif 'INCONCLUSIVE' in interp_upper_for_auto:
-            auto_color = colors.black
-
-        sex_up = sex_text.upper().strip()
-        sex_color = colors.black
-        if "MOSAIC" in sex_up:
-            sex_color = colors.blue
-        elif sex_up and sex_up not in ("NORMAL", "NO RESULT"):
-            sex_color = colors.red
+        sex_color = self._ROLE_COLORS.get(clf.sex_chromosomes_color_role(sex_text), colors.black)
 
         raw_mt = self._clean(embryo_data.get('mtcopy', ''), 'NA')
         mtcopy = raw_mt if interp_text.upper() == "EUPLOID" else "NA"
 
-        detail_embryo_id = self._clean(embryo_data.get('embryo_id_detail')) or self._clean(embryo_data.get('embryo_id'))
+        detail_embryo_id = self._strip_ref_note(self._clean(embryo_data.get('embryo_id_detail')) or self._clean(embryo_data.get('embryo_id')))
 
         embryo_id_style = ParagraphStyle(
             name='EmbryoIDStyle',
@@ -888,11 +898,11 @@ class PGTAReportTemplate:
         has_mosaic = any(
             v and str(v).strip() and str(v).strip() != '-' and re_mos.search(r'\d', str(v))
             for v in mosaic_percentages.values()
-        )
-        
+        ) or any('M' in str(v).upper() for v in chr_statuses.values())
+
         is_autosomes_normal = 'NORMAL' in autosomes or 'EUPLOID' in autosomes or not autosomes.strip()
         is_sex_mosaic = 'MOSAIC' in sex_chrs
-        
+
         if is_autosomes_normal and is_sex_mosaic:
             has_mosaic = False
             
@@ -903,7 +913,7 @@ class PGTAReportTemplate:
             
             for i in range(1, 23):
                 status = chr_statuses.get(str(i), 'N')
-                perc = mosaic_percentages.get(str(i), '-')
+                perc = str(mosaic_percentages.get(str(i), '')).strip() or '-'
                 s_color = self._get_status_color(status)
                 
                 f_size = 8 if len(status) > 2 else 9
@@ -942,15 +952,114 @@ class PGTAReportTemplate:
         
         return table
 
-    def _create_signature_table(self):
+    def _flatten(self, flowables):
+        """KeepTogether only constrains where a page break may fall - platypus
+        lays its contents out individually, and its own wrap() reports a huge
+        sentinel height, so flatten it before measuring."""
+        for f in flowables:
+            if isinstance(f, KeepTogether):
+                yield from self._flatten(f._content)
+            else:
+                yield f
+
+    def _flowable_height(self, flowable, avail_width):
+        """Height a single flowable's wrap() reports at avail_width."""
+        if PGTAReportTemplate._measure_canvas is None:
+            PGTAReportTemplate._measure_canvas = canvas.Canvas(BytesIO())
+
+        flowable.canv = PGTAReportTemplate._measure_canvas
+        try:
+            return flowable.wrap(avail_width, self.PAGE_HEIGHT)[1]
+        except Exception:
+            return 0
+        finally:
+            try:
+                del flowable.canv
+            except Exception:
+                pass
+
+    def _block_height(self, flowables, avail_width):
+        """Height a run of flowables occupies at the top of a frame.
+
+        Mirrors reportlab's Frame._add: wrap() excludes a flowable's own
+        spaceBefore/spaceAfter, and space between two flowables collapses to the
+        larger of the pair rather than summing.
+        """
+        total = 0.0
+        prev_after = 0.0
+        at_top = True
+        for f in self._flatten(flowables):
+            if not at_top:
+                total += max(f.getSpaceBefore() - prev_after, 0)
+            total += self._flowable_height(f, avail_width)
+            prev_after = f.getSpaceAfter()
+            total += prev_after
+            at_top = False
+        return total
+
+    def _shrink_cnv_image(self, elements, needed):
+        """Scale the copy-number chart down by up to `needed` points, preserving
+        its aspect ratio. Returns the height actually reclaimed."""
+        for f in elements:
+            # The chart is the only bare Image on an embryo page; the signature
+            # images live inside the signature block's KeepTogether.
+            if not isinstance(f, Image):
+                continue
+            current = f.drawHeight
+            target = max(current * self.CNV_IMAGE_MIN_SCALE, current - needed)
+            if target >= current:
+                return 0
+            f.drawWidth *= target / current
+            f.drawHeight = target
+            return current - target
+        return 0
+
+    def _embryo_block_with_signature(self, patient_data, embryo_data):
+        """An embryo page plus its signature block, compacted so the two stay on
+        one page.
+
+        Without the logo the frame is shorter (no header/footer banner to lay the
+        content out around), and a full-height embryo page used to push the
+        signatures onto a page of their own.
+        """
+        elements = self._build_embryo_page(patient_data, embryo_data)
+        avail_width = self.CONTENT_WIDTH - 2 * self.FRAME_PADDING
+        avail = getattr(self, '_frame_height',
+                        self.PAGE_HEIGHT - self.MARGIN_TOP - self.MARGIN_BOTTOM
+                        - 2 * self.FRAME_PADDING)
+
+        gap = self.SIG_GAP
+        top_gap = self.SIG_TOP_GAP
+        over = self._block_height(
+            elements + [Spacer(1, gap), self._create_signature_table(top_gap)],
+            avail_width
+        ) - (avail - self.SIG_FIT_TOLERANCE)
+
+        if over > 0:
+            shed = min(over, gap - self.SIG_GAP_MIN)
+            gap -= shed
+            over -= shed
+        if over > 0:
+            shed = min(over, top_gap - self.SIG_TOP_GAP_MIN)
+            top_gap -= shed
+            over -= shed
+        if over > 0:
+            over -= self._shrink_cnv_image(elements, over)
+        if over > 0:
+            print(f"PGT-A: embryo {embryo_data.get('embryo_id')} page is {over:.1f}pt too "
+                  f"tall to hold the signature block; it will fall to the next page")
+
+        return elements + [Spacer(1, gap), self._create_signature_table(top_gap)]
+
+    def _create_signature_table(self, top_gap=None):
         """Create signature section with precise structural metrics from source PDF"""
         elements = []
-        
+
         elements.append(Paragraph(
-            "<b>This report has been reviewed and approved by: </b>", 
+            "<b>This report has been reviewed and approved by: </b>",
             self.styles['PGTASigApproval']
         ))
-        elements.append(Spacer(1, 12.7))
+        elements.append(Spacer(1, self.SIG_TOP_GAP if top_gap is None else top_gap))
         
         try:
             from io import BytesIO
@@ -1009,13 +1118,20 @@ class PGTAReportTemplate:
         
         return KeepTogether(elements)
 
-    def _create_section_header(self, text, show_line=True):
-        """Create a section header with navy blue text and a slight lighter line below"""
+    def _section_header_flowable(self, text, show_line=True):
+        """Raw section-header flowable (Paragraph or bordered Table), NOT wrapped
+        in KeepTogether. Use this (instead of _create_section_header) when the
+        header is going to be placed inside another KeepTogether's content list -
+        KeepTogether.wrap() always reports a huge sentinel height to force its
+        real sizing into split(), so nesting one inside another makes the outer
+        block's first-item height look ~infinite and forces an unconditional
+        page break even when the page has plenty of room left.
+        """
         header = Paragraph(f"<b>{text}</b>", self.styles["PGTASectionHeader"])
-        
+
         if not show_line:
-            return KeepTogether([header])
-            
+            return header
+
         header_table = Table([[header]], colWidths=[490], hAlign='CENTER')
         header_table.setStyle(TableStyle([
             ("LINEBELOW", (0, 0), (-1, -1), 0.5, colors.HexColor("#989998")),
@@ -1025,7 +1141,11 @@ class PGTAReportTemplate:
             ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
             ("ALIGN", (0, 0), (-1, -1), "LEFT"),
         ] + self._get_grid_style()))
-        return KeepTogether(header_table)
+        return header_table
+
+    def _create_section_header(self, text, show_line=True):
+        """Create a section header with navy blue text and a slight lighter line below"""
+        return KeepTogether(self._section_header_flowable(text, show_line))
 
     def _classify_color(self, result_text):
         """Red for Aneuploid/Segmental, Blue for Mosaic, Black for Euploid/Inconclusive"""
@@ -1044,6 +1164,13 @@ class PGTAReportTemplate:
         if "MOSAIC" in i:
             return colors.blue
         return colors.black
+
+    _ROLE_COLORS = {'red': colors.red, 'blue': colors.blue, 'black': colors.black}
+
+    def _autosomes_color(self, autosomes_text, interp_text='', result_text=''):
+        """Autosomes colour, from the one rule shared with the DOCX generator."""
+        role = clf.autosomes_color_role(autosomes_text, interp_text, result_text)
+        return self._ROLE_COLORS.get(role, colors.black)
 
     def _get_autosome_color(self, autosome_text):
         """Special color logic for autosomes field"""

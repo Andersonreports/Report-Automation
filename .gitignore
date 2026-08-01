@@ -21,6 +21,17 @@ backend/uploads/
 # Patient draft files saved locally during testing
 Draft_*.json
 
+# Run sheets / result exports / generated reports dropped in the project root
+# while testing. These carry real patient names - never push them. Anchored to
+# the root with a leading slash so genuine project files in subfolders still track.
+/*.csv
+/*.xls
+/*.xlsx
+/*.pdf
+# Excel lock files (~$...) and macOS resource forks (._...)
+/~$*
+/._*
+
 # Editor / tooling (local only)
 .vscode/
 .claude/
