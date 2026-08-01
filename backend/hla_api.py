@@ -19,7 +19,7 @@ from hla_data_parser import (
     parse_excel, get_case_summary,
     c_supertype, compute_rpl_reference,
     parse_patient_and_result_csv,
-    parse_result_csv, _parse_patient_list_csv,
+    parse_result_csv,
 )
 from hla_sab_parser import parse_sab_excel, parse_sab_allele_text, sab_pra_sentence
 import hla_assets
@@ -554,14 +554,26 @@ async def parse_patient_result_csv(
         if not cases:
             result_lookup = parse_result_csv(result_path)
             n_results = len(result_lookup)
-            n_with_id = sum(1 for e in result_lookup.values() if e.get("patient_id_candidates"))
-            n_patients = len(_parse_patient_list_csv(patient_path, nabl=nabl))
+            sample_ids = sorted({
+                sid for e in result_lookup.values() for sid in e.get("sample_ids", []) if sid
+            })
+            patient_cases = parse_excel(patient_path, nabl=nabl)
+            n_patients = len(patient_cases)
+            pins = sorted({
+                p.get("pin", "")
+                for c in patient_cases
+                for p in ([c["patient"]] + c.get("donors", []))
+                if p.get("pin")
+            })
             raise HTTPException(
                 400,
-                f"No patients could be matched. Patient CSV: {n_patients} patient(s) parsed. "
-                f"Result CSV: {n_results} sample(s) parsed, of which {n_with_id} contain a "
-                "recognizable Patient No. If that count is 0, this Result CSV doesn't embed "
-                "the Patient No yet — matching will work automatically once it does.",
+                f"No patients could be matched by Patient ID (PIN). Patient list: {n_patients} "
+                f"patient(s) parsed, PINs include: {', '.join(pins[:5]) or 'none'}"
+                f"{'…' if len(pins) > 5 else ''}. Result CSV: {n_results} sample(s) parsed, "
+                f"identifiers include: {', '.join(sample_ids[:5]) or 'none'}"
+                f"{'…' if len(sample_ids) > 5 else ''}. None of the PINs above appear in the "
+                "Result CSV's sample identifiers — check that this Result CSV is actually the "
+                "one exported for this batch.",
             )
         return {"cases": _serialize_cases(cases), "summary": get_case_summary(cases)}
     except HTTPException:

@@ -150,7 +150,32 @@ def _parse_miniseq_results(df_result: pd.DataFrame) -> dict:
 
 
 
+def _extract_surfseq_key(barcode: str) -> Optional[str]:
+    """
+    Pull the lab identifier out of a "complete csv data" barcode/sample name.
+    The GenDx export has used two different conventions for this identifier:
+    a raw numeric sample number (e.g. "...HLA-260169552_L00_R1" -> "260169552",
+    optionally with a "-RPT" repeat marker to drop: "...HLA-260169552-RPT_L00_R1"
+    -> "260169552") and, in newer exports, the alphanumeric Patient ID/PIN itself
+    (e.g. "...HLA-ACL0000039408_L00_R1" -> "ACL0000039408"). Both share the same
+    shape — an ID sitting right after "HLA-", before an optional "-XXXX" suffix
+    and/or the "_L<lane>_R<read>" tail — so one pattern covers both.
+    """
+    m = re.search(r"HLA-([A-Za-z0-9]+)(?:-[A-Z]+)?(?:_L\d+_R\d+)?$", barcode, re.IGNORECASE)
+    if m:
+        return m.group(1)
+    m = re.search(r"[_\-]([A-Za-z0-9]{4,})[_\-]", barcode)
+    return m.group(1) if m else None
+
+
 def _parse_surfseq_results(df_csv: pd.DataFrame) -> dict:
+    """
+    Parse the "complete csv data" sheet of a SURFSEQ software-report-prepare
+    workbook. Handles two layouts the export has used:
+      - clean columns: Sample name | Locus | Typing Result
+      - legacy jammed:  `barcode;"Locus";"a1, a2"` crammed into one or two cells
+    Returns: { patient_id_or_sample_num: {"hla": {locus: [a1, a2]}, "remarks": ""} }
+    """
     LOCUS_MAP = {
         "HLA_A": "A", "HLA_B": "B", "HLA_C": "C",
         "DRB1": "DRB1", "DRB3": "DRB3", "DRB4": "DRB3", "DRB5": "DRB3",
@@ -158,14 +183,34 @@ def _parse_surfseq_results(df_csv: pd.DataFrame) -> dict:
     }
 
     raw_results = {}
+    ncols = df_csv.shape[1]
+
+    def _add(key, locus, allele_tokens):
+        if not key or not locus or not allele_tokens:
+            return
+        raw_results.setdefault(key, {}).setdefault(locus, []).extend(allele_tokens)
 
     for _, row in df_csv.iterrows():
         col_a = str(row.iloc[0]).strip() if pd.notna(row.iloc[0]) else ""
-        col_b = str(row.iloc[1]).strip() if pd.notna(row.iloc[1]) else ""
-
-        if not col_a or col_a == "nan" or ";" not in col_a:
+        if not col_a or col_a == "nan" or col_a.lower() == "sample name":
             continue
 
+        if ";" not in col_a:
+            # Clean columnar layout: Sample name | Locus | Typing Result
+            if ncols < 3:
+                continue
+            locus_raw = str(row.iloc[1]).strip() if pd.notna(row.iloc[1]) else ""
+            allele_field = str(row.iloc[2]).strip() if pd.notna(row.iloc[2]) else ""
+            locus = LOCUS_MAP.get(locus_raw.upper())
+            if not locus or not allele_field:
+                continue
+            a1, a2 = _split_alleles(allele_field)
+            key = _extract_surfseq_key(col_a)
+            _add(key, locus, [a for a in (a1, a2) if a])
+            continue
+
+        # Legacy jammed layout
+        col_b = str(row.iloc[1]).strip() if ncols > 1 and pd.notna(row.iloc[1]) else ""
         raw_tokens = [t.strip().strip('"').strip("'") for t in col_a.split(";")]
         if col_b and col_b not in ("nan", ""):
             raw_tokens.append(col_b.strip().strip('"').strip("'"))
@@ -201,22 +246,11 @@ def _parse_surfseq_results(df_csv: pd.DataFrame) -> dict:
         if not allele_tokens:
             continue
 
-        m = re.search(r"HLA-(\d+)[A-Z]*[_\-]", barcode)
-        if not m:
-            m = re.search(r"[_\-](\d{4,9})[_\-]", barcode)
-        if not m:
-            continue
-        sample_num = m.group(1)
-
-        if sample_num not in raw_results:
-            raw_results[sample_num] = {}
-        if locus not in raw_results[sample_num]:
-            raw_results[sample_num][locus] = []
-        for allele_str in allele_tokens:
-            raw_results[sample_num][locus].append(allele_str)
+        key = _extract_surfseq_key(barcode)
+        _add(key, locus, allele_tokens)
 
     results = {}
-    for sample_num, loci in raw_results.items():
+    for key, loci in raw_results.items():
         hla = {}
         for locus, allele_list in loci.items():
             if len(allele_list) == 1:
@@ -228,7 +262,7 @@ def _parse_surfseq_results(df_csv: pd.DataFrame) -> dict:
                 if not a2 or a1 == a2:
                     a2 = a1
             hla[locus] = [a1, a2]
-        results[sample_num] = {"hla": hla, "remarks": ""}
+        results[key] = {"hla": hla, "remarks": ""}
 
     return results
 
@@ -411,14 +445,58 @@ def parse_result_csv(filepath: str) -> dict:
     return _parse_long_format_result_csv(filepath)
 
 
+def _lookup_result_entry(person: dict, id_to_result: dict) -> Optional[dict]:
+    """
+    Find this person's result-CSV entry, keyed primarily by Patient ID (PIN) —
+    the identifier the lab actually tracks the sample under — falling back to
+    Sample Number only if no PIN match is found (some Result CSVs still key
+    their SampleName column off the raw numeric sample number instead of PIN).
+    """
+    norm_pin = _norm_sample_id(person.get("pin", ""))
+    if norm_pin:
+        entry = id_to_result.get(norm_pin)
+        if entry:
+            return entry
+        # fall back to substring match in case Patient No is embedded
+        # within a longer composite sample identifier
+        entry = next((e for sid, e in id_to_result.items() if norm_pin in sid), None)
+        if entry:
+            return entry
+
+    norm_sample = _norm_sample_id(person.get("sample_number", ""))
+    if norm_sample:
+        entry = id_to_result.get(norm_sample)
+        if entry:
+            return entry
+        entry = next((e for sid, e in id_to_result.items() if norm_sample in sid), None)
+        if entry:
+            return entry
+
+    return None
+
+
+def _merge_result_into_person(person: dict, id_to_result: dict) -> bool:
+    entry = _lookup_result_entry(person, id_to_result)
+    if not entry:
+        return False
+    hla = entry.get("hla") or {}
+    for locus in person.get("hla", {}).keys():
+        if locus in hla:
+            person["hla"][locus] = hla[locus]
+    if entry.get("remarks"):
+        person["remarks"] = entry["remarks"]
+    return True
+
+
 def parse_patient_and_result_csv(patient_filepath: str, result_filepath: str, nabl: bool = True) -> list:
     """
-    Parse a Patient CSV and a separate Result CSV, cross-match them by Patient No
-    (the Patient CSV's "Patient No" column against the Result CSV's sample name /
-    barcode), and return only the patient cases that have a matched result, with HLA
-    data merged in.
+    Parse a Patient list (a flat "Patient Name"/"Patient No" CSV, or a full
+    patient-donor Excel workbook — anything parse_excel() understands) and a
+    separate Result CSV, cross-match them by Patient ID (PIN) against the Result
+    CSV's sample name / barcode, and return only the cases that have a matched
+    result (patient and/or donors), with HLA data merged in.
     """
-    patient_cases = _parse_patient_list_csv(patient_filepath, nabl)
+    patient_cases = parse_excel(patient_filepath, nabl)
     if not patient_cases:
         return []
 
@@ -433,26 +511,12 @@ def parse_patient_and_result_csv(patient_filepath: str, result_filepath: str, na
 
     matched_cases = []
     for case in patient_cases:
-        norm_pin = _norm_sample_id(case["patient"].get("pin", ""))
-        if not norm_pin:
-            continue
-        entry = id_to_result.get(norm_pin)
-        if not entry:
-            # fall back to substring match in case Patient No is embedded
-            # within a longer composite sample identifier
-            entry = next(
-                (e for sid, e in id_to_result.items() if norm_pin in sid),
-                None,
-            )
-        if not entry:
-            continue
-        hla = entry.get("hla") or {}
-        for locus in case["patient"]["hla"].keys():
-            if locus in hla:
-                case["patient"]["hla"][locus] = hla[locus]
-        if entry.get("remarks"):
-            case["patient"]["remarks"] = entry["remarks"]
-        matched_cases.append(case)
+        patient_matched = _merge_result_into_person(case["patient"], id_to_result)
+        donor_matched = any(
+            _merge_result_into_person(d, id_to_result) for d in case.get("donors", [])
+        )
+        if patient_matched or donor_matched:
+            matched_cases.append(case)
 
     return matched_cases
 
@@ -462,7 +526,11 @@ def _detect_report_type(patient_row: pd.Series, donor_rows: list) -> str:
     patient_rel = _clean_str(patient_row.get("relationship", "")).lower()
 
     if "RPL" in diag or "RECURRENT" in diag or "MISCARRIAGE" in diag or "RIF" in diag:
-        return "rpl_couple"
+        # rpl_couple's layout assumes a partner block; with no donor row at all
+        # (a single-patient RPL/RIF case), route to single_rpl instead — that
+        # builder is the one actually designed for a donor-less page 1, so the
+        # couple layout doesn't render mostly blank/misaligned.
+        return "rpl_couple" if donor_rows else "single_rpl"
 
     if donor_rows:
         donor_rels = [_clean_str(d.get("relationship", "")).lower() for d in donor_rows]
@@ -509,12 +577,29 @@ def _build_gender_age(row) -> str:
 
 
 def _build_person(row: pd.Series, hla_lookup: dict, join_by: str) -> dict:
-    if join_by == "pin":
-        key = _clean_str(row.get("pin", ""))
-    else:
-        key = str(row.get("sample number", "")).strip().split(".")[0]
+    # Match by Patient ID (PIN) first — that's the identifier the lab actually
+    # tracks the sample under — falling back to Sample Number only if no PIN
+    # match is found, regardless of which one `join_by` nominally favors. Some
+    # embedded result sheets key their rows off the raw sample number instead
+    # of the PIN, so both are tried rather than trusting `join_by` alone.
+    pin_key    = _clean_str(row.get("pin", ""))
+    sample_key = str(row.get("sample number", "")).strip().split(".")[0]
 
-    hla_data = hla_lookup.get(key, {})
+    key = None
+    hla_data = {}
+    for candidate in (pin_key, sample_key):
+        if not candidate:
+            continue
+        if candidate in hla_lookup:
+            key = candidate
+            hla_data = hla_lookup[candidate]
+            break
+        norm = _norm_sample_id(candidate)
+        match = next((k for k in hla_lookup if _norm_sample_id(k) == norm), None)
+        if match:
+            key = candidate
+            hla_data = hla_lookup[match]
+            break
     hla = hla_data.get("hla", {locus: [None, None] for locus in ["A", "B", "C", "DRB1", "DQB1", "DPB1"]})
     remarks = hla_data.get("remarks", "")
 
@@ -557,7 +642,7 @@ def _build_person(row: pd.Series, hla_lookup: dict, join_by: str) -> dict:
         "match":          _parse_match(row.get("match", "")),
         "hla":                   hla,
         "hla_c_type":            hla_c_type,
-        "_join_key":             key,
+        "_join_key":             key or "",
         "_has_insufficient_hla": _has_insufficient_hla,
     }
 
