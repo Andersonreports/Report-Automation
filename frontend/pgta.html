@@ -5334,8 +5334,21 @@
             embryos: []
           });
         }
-        patientMap.get(name).embryos.push({
-          embryo_id: _cleanV(row["Embryo_ID"] || row["embryo_id"] || ""),
+        const info = patientMap.get(name);
+        // The template's own contract is that Embryo_ID is just the tag, but
+        // in practice it's sometimes filled in the same "PATIENT-TAG" style
+        // as a Sample name (e.g. "GOWRISHANKARI-GV1") — strip that prefix the
+        // same way the Details+Result cross-match import already does, so
+        // the Sample column shows just the tag regardless of which import
+        // path was used. A no-dash Embryo_ID (the common case) passes through
+        // unchanged.
+        const rawEmbryoId = _cleanV(row["Embryo_ID"] || row["embryo_id"] || "");
+        const normP = _normName(name);
+        const embryoId = _stripPatientPrefix(
+          rawEmbryoId, info.pin, normP, _firstToken(name), _normNameShort(normP)
+        );
+        info.embryos.push({
+          embryo_id: embryoId,
           result_summary: _cleanV(row["Result_Summary"] || row["result_summary"] || ""),
           result_description: _cleanV(row["Result_Description"] || row["result_description"] || ""),
           autosomes: _cleanV(row["Autosomes"] || row["autosomes"] || "Normal"),

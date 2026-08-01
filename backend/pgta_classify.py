@@ -256,7 +256,12 @@ def derive_autosomes(raw_result, chromosome_statuses, existing_autosomes=""):
     # many findings to list -- matched "multiple chromosomal" and was thrown
     # away, falling back to "Normal" whenever the Result text held no
     # explicit per-chromosome codes to re-derive from instead.
-    has_custom_existing = existing.upper() not in ("", "NORMAL", "-", "NA", "N/A")
+    #
+    # "NA"/"N/A" must stay out of this placeholder set too: on an Inconclusive
+    # embryo the user may deliberately set Autosomes to "NA" (there's nothing
+    # to report), and that was being silently overwritten back to
+    # "Inconclusive" because it was lumped in with the blank/Normal case.
+    has_custom_existing = existing.upper() not in ("", "NORMAL", "-")
     if has_custom_existing:
         cleaned_existing = re.sub(r'\b(XX|XY)\b', '', existing, flags=re.IGNORECASE).strip(', ')
         has_custom_existing = bool(cleaned_existing)
