@@ -3422,8 +3422,31 @@
         ? "http://127.0.0.1:8000"          
         : (_h === ""
             ? "https://tera-report-automation.onrender.com"  
-            : "");                          
+            : "");
     document.body.classList.add("loaded");
+
+    // Build a readable Error from a failed response. Proxies such as nginx
+    // answer with a full HTML error page rather than our JSON {detail: ...}/{error: ...},
+    // so dumping the raw body puts markup in front of the user.
+    async function uploadError(r) {
+      if (r.status === 413) {
+        return new Error(
+          "Too large for the server to accept. The request was rejected by the web server " +
+          "before it reached the report generator. Ask IT to raise the upload limit, " +
+          "or process fewer cases/embryos at a time."
+        );
+      }
+      const body = (await r.text()).trim();
+      try {
+        const parsed = JSON.parse(body);
+        const detail = parsed.detail || parsed.error;
+        if (detail) return new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+      } catch (_) { }
+      if (/^\s*<(!doctype|html)/i.test(body)) {
+        return new Error(`Server returned an error page (HTTP ${r.status} ${r.statusText || ""}).`.trim());
+      }
+      return new Error(body || `Request failed (HTTP ${r.status}).`);
+    }
 
     document.getElementById("userBtn").addEventListener("click", e => {
       e.stopPropagation();
@@ -3943,6 +3966,7 @@
       const fd = new FormData(); fd.append("file", file);
       try {
         const res = await fetch(`${BASE}/pgta/upload-cnv`, { method: "POST", body: fd });
+        if (!res.ok) throw await uploadError(res);
         const data = await res.json(); if (data.error) throw new Error(data.error);
         state.cnvImages[idx] = data; state.embryoForms[idx].cnv_image_path = data.path;
         if (nameEl) nameEl.textContent = file.name;
@@ -4036,6 +4060,7 @@
           signal
         });
         if (signal.aborted) return;
+        if (!res.ok) throw await uploadError(res);
         const data = await res.json(); if (data.error) throw new Error(data.error);
         const pdfUrl = `${BASE}${data.preview_url}?t=${Date.now()}`;
         const frame = document.getElementById("previewFrame");
@@ -4083,6 +4108,7 @@
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ patient_info: getPatientData(), embryos: getEmbryosData(), options: { show_logo: opts.show_logo, show_grid: opts.show_grid, formats: formats }, output_dir: outputDir || undefined })
         });
+        if (!res.ok) throw await uploadError(res);
         const data = await res.json(); if (data.error) throw new Error(data.error);
         progressFill.style.width = "100%"; progressText.textContent = "Complete!";
 
@@ -6068,7 +6094,8 @@
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify(buildBulkPayload(p, showLogo, showGrid))
         });
-        if (myToken !== _bulkRenderToken) return; 
+        if (myToken !== _bulkRenderToken) return;
+        if (!res.ok) throw await uploadError(res);
         const data = await res.json(); if (data.error) throw new Error(data.error);
         await loadPdfToBulkPreview(`${BASE}${data.preview_url}?t=${Date.now()}`, myToken);
       } catch (err) {
@@ -6188,9 +6215,10 @@
             method: "POST", headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)
           });
+          if (!res.ok) throw await uploadError(res);
           const data = await res.json(); if (data.error) throw new Error(data.error);
-          
-          
+
+
           const folderHandle = _dirHandles["bulkOutputDir"];
           if (folderHandle) {
             const saveLocal = async (localUrl, filename) => {
@@ -6335,6 +6363,7 @@
         fd.append("manual", cmpFiles.manual);
         fd.append("automated", cmpFiles.auto);
         const res = await fetch(`${BASE}/pgta/compare`, { method: "POST", body: fd });
+        if (!res.ok) throw await uploadError(res);
         const data = await res.json();
         if (data.error) throw new Error(data.error);
         _lastCmpData = data;
