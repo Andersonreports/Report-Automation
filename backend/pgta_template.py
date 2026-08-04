@@ -834,21 +834,21 @@ class PGTAReportTemplate:
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ] + self._get_grid_style()))
         elements.append(detail_table)
-        elements.append(Spacer(1, 12))
-        
+        elements.append(self._reclaimable_spacer(12, 6))
+
         elements.append(self._create_section_header("COPY NUMBER CHART", show_line=False))
-        elements.append(Spacer(1, 6))
-        
+        elements.append(self._reclaimable_spacer(6, 3))
+
         if 'cnv_image_path' in embryo_data and embryo_data['cnv_image_path'] and os.path.exists(embryo_data['cnv_image_path']):
             try:
                 img = Image(embryo_data['cnv_image_path'], width=self.CONTENT_WIDTH)
-                
+
                 aspect = img.imageWidth / img.imageHeight
                 img.drawHeight = self.CONTENT_WIDTH / aspect
-                
+
                 img.hAlign = 'CENTER'
                 elements.append(img)
-                elements.append(Spacer(1, 12))
+                elements.append(self._reclaimable_spacer(12, 6))
             except Exception as e:
                 print(f"Error loading image: {e}")
         
@@ -869,7 +869,7 @@ class PGTAReportTemplate:
         if not is_inconclusive:
             cnv_table = self._create_cnv_table(embryo_data)
             elements.append(cnv_table)
-            elements.append(Spacer(1, 6))
+            elements.append(self._reclaimable_spacer(6, 3))
             
             legend = Paragraph(
                 "<i>N – Normal, G-Gain, L-Loss, SG-Segmental Gain, SL-Segmental Loss, "
@@ -997,6 +997,32 @@ class PGTAReportTemplate:
             at_top = False
         return total
 
+    def _reclaimable_spacer(self, height, min_height):
+        """A Spacer that _shrink_padding can compress down to `min_height` when
+        an embryo page runs long, before the copy-number chart is touched."""
+        spacer = Spacer(1, height)
+        spacer._min_height = min_height
+        return spacer
+
+    def _shrink_padding(self, elements, needed):
+        """Compress the embryo page's non-essential breathing room (marked via
+        _reclaimable_spacer) by up to `needed` points. Returns the height
+        actually reclaimed."""
+        reclaimed = 0.0
+        for f in elements:
+            if reclaimed >= needed:
+                break
+            floor = getattr(f, '_min_height', None)
+            if floor is None:
+                continue
+            avail = f.height - floor
+            if avail <= 0:
+                continue
+            shed = min(avail, needed - reclaimed)
+            f.height -= shed
+            reclaimed += shed
+        return reclaimed
+
     def _shrink_cnv_image(self, elements, needed):
         """Scale the copy-number chart down by up to `needed` points, preserving
         its aspect ratio. Returns the height actually reclaimed."""
@@ -1043,6 +1069,8 @@ class PGTAReportTemplate:
             shed = min(over, top_gap - self.SIG_TOP_GAP_MIN)
             top_gap -= shed
             over -= shed
+        if over > 0:
+            over -= self._shrink_padding(elements, over)
         if over > 0:
             over -= self._shrink_cnv_image(elements, over)
         if over > 0:

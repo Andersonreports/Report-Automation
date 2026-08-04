@@ -3045,7 +3045,7 @@
           <div id="bulkPatientSection" style="flex:1;display:flex;flex-direction:column;min-height:0;">
 
 
-            <div id="bulkMatchWarning" style="display:none;flex-shrink:0;margin:0 0 8px;padding:8px 10px;border:1px solid #f0c36d;background:#fff8e6;color:#7a5a00;border-radius:6px;font-size:11px;max-height:130px;overflow:auto;"></div>
+            <div id="bulkMatchWarning" style="display:none;flex-shrink:0;position:relative;margin:0 0 8px;padding:8px 26px 8px 10px;border:1px solid #f0c36d;background:#fff8e6;color:#7a5a00;border-radius:6px;font-size:11px;max-height:130px;overflow:auto;"></div>
 
 
             
@@ -5741,7 +5741,9 @@
       if (!box) return;
       if (!_lastMatchSkips.length && !_lastRowSkips.length) { box.style.display = "none"; box.innerHTML = ""; return; }
 
-      let html = "";
+      let html = `<button type="button" onclick="document.getElementById('bulkMatchWarning').style.display='none';" `
+        + `title="Dismiss" style="position:absolute;top:6px;right:6px;width:18px;height:18px;line-height:16px;padding:0;`
+        + `border:none;background:transparent;color:#7a5a00;font-size:14px;cursor:pointer;">&times;</button>`;
       if (_lastMatchSkips.length) {
         html += `<div style="font-weight:700;margin-bottom:4px;">`
           + `<i class="fas fa-exclamation-triangle"></i> `
