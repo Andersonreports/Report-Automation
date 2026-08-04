@@ -1427,7 +1427,11 @@ def _methodology_block(case: dict, S: dict, merge: bool = False) -> list:
     far too big and push it to a fresh page even when it would have fit.
     """
     nabl   = case.get("nabl", True)
-    imgt   = case.get("imgt_release", "") or "3.56.0"
+    # Immucor (MiniSeq/MIA FORA) and GenDx (Surfseq) ship against different
+    # IMGT/HLA database releases, so the fallback (used when the source file
+    # doesn't carry its own release value) must follow the same kit split as
+    # the methodology text below.
+    imgt   = case.get("imgt_release", "") or ("3.62" if nabl else "3.64")
     method = case.get("methodology", "") or (METHODOLOGY_MINISEQ if nabl else METHODOLOGY_SURFSEQ)
     status = case.get("typing_status", "") or "Complete"
 
@@ -1922,26 +1926,6 @@ def _build_rpl_couple(case: dict, S: dict) -> list:
 
     elems = []
 
-    def _remarks_markup(person: dict, label: str = "Remarks") -> str:
-        raw = person.get("remarks", "")
-        if not raw or not str(raw).strip():
-            return ""
-        disp = _clean_display(raw)
-        disp = _normalize_hla_alleles(disp)
-        if not disp or disp == "\u2014":
-            return ""
-        if len(disp) > 600:
-            disp = disp[:580] + "..."
-        return f"<b>{label}:</b> {disp}"
-
-    def _emit_remarks(person: dict, label: str):
-        markup = _remarks_markup(person, label)
-        if markup:
-            elems.append(Paragraph(markup,
-                                   ParagraphStyle("remarks_j", parent=S["body_small"],
-                                                  fontSize=12, leading=14,
-                                                  alignment=TA_LEFT, spaceAfter=6)))
-
     if donor:
         match_str = rpl_ref.get("match_str", "")
         match_pct = rpl_ref.get("match_pct", "")
@@ -1974,10 +1958,20 @@ def _build_rpl_couple(case: dict, S: dict) -> list:
 
         elems += _rpl_reference_section(rpl_ref, patient, donor, S, include_comment=False)
     else:
+        # _ngs_person_block already renders the patient's Remarks internally
+        # (right after the HLA table); emitting them again here duplicated
+        # the text as a second, unboxed paragraph.
+        #
+        # patient_block's pieces are already individually wrapped in their own
+        # KeepTogether (info table, HLA table + tail). Wrapping the whole list
+        # in a second, outer KeepTogether nests them - nested KeepTogethers'
+        # wrap() reports a huge sentinel height, which makes the outer one
+        # wrongly conclude the content can't fit anywhere and push all of it
+        # (info table, HLA table, remarks) onto a fresh page even when it
+        # would have fit on the current one.
         patient_block = _ngs_person_block(patient, is_donor=False, match_str="", S=S,
                                           nabl=case.get("nabl", True), separate_drb=True)
-        elems.append(KeepTogether(patient_block))
-        _emit_remarks(patient, "Remarks")
+        elems.extend(patient_block)
 
     elems.append(Spacer(1, 5 * mm))
 
