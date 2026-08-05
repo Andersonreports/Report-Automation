@@ -3590,7 +3590,12 @@
       const tbody = document.getElementById("summaryTbody");
       tbody.innerHTML = "";
       state.summaryRows.forEach((row, idx) => {
-        const matchedResult = RESULT_SUMMARY_OPTIONS.includes(row.result_summary) ? row.result_summary : getPrettySummary(row.result_summary);
+        // Show the stored Result verbatim -- it is what the report prints, and
+        // it is free text. Substituting a canned category label here made a
+        // hand-written result (e.g. "Segmental loss of chromosome 1 & 4") look
+        // like it had been replaced on the next re-render, and re-typing over
+        // that label was the only way to edit it.
+        const matchedResult = row.result_summary || "";
         const resultColor = getResultColor(row.result_summary);
         const prettyInterp = getPrettyInterpretation(row);
 
@@ -3620,7 +3625,8 @@
       const v = val.trim().toUpperCase();
       const isSegmental = /\b(DEL|DUP)\s*\(/.test(v);
       const isMosaic = /%/.test(v) || v.includes("MOSAIC") || v.includes("MG-") || v.includes("ML-") || v.includes("SML") || v.includes("SMG");
-      if (v.includes("LOW DNA") || v.includes("NO DNA")) return "Low DNA concentration";
+      if (v.includes("NO DNA")) return "No DNA detected";
+      if (v.includes("LOW DNA")) return "Low DNA concentration";
       if (v === "INCONCLUSIVE" || v.includes("NO RESULT") || v.includes("FAILED")) return "Inconclusive";
       if (v === "EUPLOID" || v === "NORMAL" || v === "NORMAL CHROMOSOME COMPLEMENT") return "Normal chromosome complement";
       if (isMosaic) return "Mosaic chromosome complement";
@@ -3659,6 +3665,24 @@
 
     function getPrettyInterpretation(row) {
       return row.interpretation || "NA";
+    }
+
+    // A Result meaning "the embryo was not successfully analysed". Such an
+    // embryo has no karyotype, so its Interpretation is NA -- Autosomes / Sex
+    // reading "Normal" only means they were never filled in. The report
+    // generators apply the same rule (pgta_classify.NO_RESULT_CLASSES).
+    function isNoResultSummary(val) {
+      const s = (val || "").toLowerCase();
+      return s.includes("low dna") || s.includes("no dna") || s.includes("inconclusive")
+        || s.includes("no result") || s.includes("failed");
+    }
+
+    // Interpretations that carry no deliberate choice, and so may be replaced
+    // by NA. A lab-chosen "Inconclusive" / "Low DNA concentration" is kept.
+    function isAmbiguousOrNormalInterp(val) {
+      const s = (val || "").trim().toUpperCase();
+      if (s === "" || s === "NA" || s === "N/A") return true;
+      return /\bNORMAL\b/.test(s) || /\bEUPLOID\b/.test(s);
     }
 
     function getInterpColor(interp) {
@@ -3747,11 +3771,14 @@
       if (!ef || !sr) return;
       const autoText = (ef.autosomes || "").toLowerCase().trim();
       const sexText  = (ef.sex_chromosomes || "").toLowerCase().trim();
-      const resText  = (ef.result_description || ef.result_summary || "").toLowerCase();
+      const resText  = ((sr.result_summary || ef.result_summary || "") + " " +
+                        (ef.result_description || "")).toLowerCase();
       const cur      = (sr.interpretation || "").toLowerCase();
       let newInterp  = "";
-      if (resText.includes("low dna") || resText.includes("inconclusive")) {
-        newInterp = "NA";
+      if (isNoResultSummary(resText)) {
+        // Nothing analysed -> nothing to interpret; keep a deliberate choice
+        // such as "Inconclusive", otherwise NA.
+        newInterp = isAmbiguousOrNormalInterp(sr.interpretation) ? "NA" : sr.interpretation;
       } else if (autoText === "normal" && sexText === "normal") {
         newInterp = "Euploid";
       } else if (sexText === "abnormal" || (autoText && autoText !== "normal" && !autoText.includes("mosaic"))) {
@@ -5215,7 +5242,9 @@
       const qc = _cleanV(sRow["QC"]).toUpperCase();
 
       let rs = "Normal chromosome complement", interp = "NA";
-      if (/LOW/.test(ru) && /DNA|READS/.test(ru)) {
+      if (/NO\s*DNA/.test(ru)) {
+        rs = "No DNA detected";
+      } else if (/LOW/.test(ru) && /DNA|READS/.test(ru)) {
         rs = "Low DNA concentration";
       } else if (qc === "FAIL" || /INCONCLUSIVE|RESEQUENCING/.test(ru)) {
         rs = "Inconclusive";
@@ -5858,7 +5887,8 @@
 
 
       const summaryRowsHtml = embryos.map((emb, ei) => {
-        const matchedResult = RESULT_SUMMARY_OPTIONS.includes(emb.result_summary) ? emb.result_summary : getPrettySummary(emb.result_summary);
+        // Verbatim, for the same reason as renderSummaryTable().
+        const matchedResult = emb.result_summary || "";
         const resultColor = getResultColor(emb.result_summary);
         const prettyInterp = getPrettyInterpretation(emb);
         const interpColor = getInterpColor(prettyInterp);
@@ -5873,7 +5903,7 @@
       </td>
       <td><input type="text" value="${esc(emb.mtcopy || 'NA')}" oninput="state.bulkPatients[${i}].embryos[${ei}].mtcopy=this.value;scheduleBulkPreview()" style="width:70px;" placeholder="NA"></td>
       <td>
-        <select onchange="updateBulkSummaryInterp(${i},${ei},this.value,this)"
+        <select class="bulk-interp-${i}-${ei}" onchange="updateBulkSummaryInterp(${i},${ei},this.value,this)"
           style="color:${interpColor};font-weight:600;">
           ${INTERP_OPTIONS.map(v => `<option style="color:${getInterpColor(v)};"${(emb.interpretation || "") === v ? " selected" : ""}>${esc(v)}</option>`).join("")}
         </select>
@@ -5909,7 +5939,7 @@
       <div class="bulk-editor-field"><label>Embryo ID:</label><input value="${esc(emb.embryo_id || "")}" oninput="state.bulkPatients[${i}].embryos[${ei}].embryo_id=this.value;scheduleBulkPreview()"></div>
       <div class="bulk-editor-field"><label>Result Summary:</label>
         ${(() => {
-          const matchedRS = RESULT_SUMMARY_OPTIONS.includes(emb.result_summary) ? emb.result_summary : getPrettySummary(emb.result_summary);
+          const matchedRS = emb.result_summary || "";
           return `<input type="text" list="result-summary-dl" value="${esc(matchedRS)}" style="color:${getResultColor(matchedRS)};font-weight:600;"
           onfocus="datalistShowAll(this)" onblur="datalistRestore(this)"
           oninput="this.style.color=getResultColor(this.value);updateBulkSummaryResult(${i},${ei},this.value)" placeholder="Select or type result summary...">`;
@@ -5932,7 +5962,7 @@
         <datalist id="bulk-sex-dl-${i}-${ei}">${SEX_DATALIST_OPTIONS.map(o => `<option value="${esc(o)}">`).join("")}</datalist>
       </div>
       <div class="bulk-editor-field"><label>Interpretation:</label>
-        <select style="color:${getInterpColor(emb.interpretation || "NA")};font-weight:600;" onchange="this.style.color=getInterpColor(this.value);state.bulkPatients[${i}].embryos[${ei}].interpretation=this.value;scheduleBulkPreview()">
+        <select class="bulk-interp-${i}-${ei}" style="color:${getInterpColor(emb.interpretation || "NA")};font-weight:600;" onchange="this.style.color=getInterpColor(this.value);state.bulkPatients[${i}].embryos[${ei}].interpretation=this.value;scheduleBulkPreview()">
           ${INTERP_OPTIONS.map(v => `<option style="color:${getInterpColor(v)};"${(emb.interpretation || "NA") === v ? " selected" : ""}>${v}</option>`).join("")}
         </select>
       </div>
@@ -5967,6 +5997,15 @@
 
       if (!emb.result_description || RESULT_OPTIONS.includes(emb.result_description)) {
         emb.result_description = summaryToDescription(value);
+      }
+      // Keep the Interpretation in step with a "no result" Result, so the
+      // editor shows the NA the report will print rather than a stale Euploid.
+      if (isNoResultSummary(value) && isAmbiguousOrNormalInterp(emb.interpretation)) {
+        emb.interpretation = "NA";
+        document.querySelectorAll(`.bulk-interp-${pi}-${ei}`).forEach(sel => {
+          sel.value = "NA";
+          sel.style.color = getInterpColor("NA");
+        });
       }
       scheduleBulkPreview();
     }

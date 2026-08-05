@@ -130,6 +130,23 @@ def classify_embryo(raw_result):
     return _make(EUPLOID)
 
 
+# Classifications that mean "the embryo was not successfully analysed".
+# Such an embryo has no karyotype, so its Interpretation must never be
+# promoted to "Euploid" just because Autosomes/Sex read "Normal" -- those
+# fields are simply unfilled, not a normal finding.
+NO_RESULT_CLASSES = (FAILED, INCONCLUSIVE, LOW_DNA)
+
+
+def resolve_no_result_interp(interp_text):
+    """Interpretation for a FAILED/INCONCLUSIVE/LOW_DNA embryo.
+
+    A deliberately-chosen interpretation (e.g. "Inconclusive", "Low DNA
+    concentration") is kept; a blank/NA/Euploid/Normal one becomes "NA".
+    """
+    s = (interp_text or "").strip()
+    return "NA" if is_ambiguous_or_normal_interp(s) else s
+
+
 def is_ambiguous_or_normal_interp(interp_text):
     s = (interp_text or "").strip().upper()
     if s in ("", "NA", "N/A"):

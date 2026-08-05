@@ -283,19 +283,21 @@ class PGTADocxGenerator:
             # Honor the user-supplied (editable) Result Summary verbatim.
             res_display = self._clean(emb.get('result_summary')) or info["summary_text"]
 
-            if info["classification"] == clf.LOW_DNA:
-                interp_text = "NA"
+            if info["classification"] in clf.NO_RESULT_CLASSES:
+                # No DNA / low DNA / inconclusive / failed: there is no
+                # karyotype to interpret, so never promote to "Euploid".
+                interp_text = clf.resolve_no_result_interp(emb.get('interpretation'))
             else:
                 interp_text = self._clean(emb.get('interpretation'), '')
                 if not interp_text:
                     interp_text = info["classification"].replace("_", " ").title() if info["is_mosaic"] else "NA"
 
-            auto_val = self._clean(emb.get('autosomes')).upper()
-            sex_val = self._clean(emb.get('sex_chromosomes', 'Normal')).upper()
-            is_auto_norm = not auto_val.strip() or "NORMAL" in auto_val or "EUPLOID" in auto_val
-            is_sex_norm = "NORMAL" in sex_val
-            if is_auto_norm and is_sex_norm and clf.is_ambiguous_or_normal_interp(interp_text):
-                interp_text = "Euploid"
+                auto_val = self._clean(emb.get('autosomes')).upper()
+                sex_val = self._clean(emb.get('sex_chromosomes', 'Normal')).upper()
+                is_auto_norm = not auto_val.strip() or "NORMAL" in auto_val or "EUPLOID" in auto_val
+                is_sex_norm = "NORMAL" in sex_val
+                if is_auto_norm and is_sex_norm and clf.is_ambiguous_or_normal_interp(interp_text):
+                    interp_text = "Euploid"
             interp_display = interp_text
             result_color = self._classify_color_hex(raw)
             interp_color = self._get_interp_only_color_hex(interp_text)
@@ -464,12 +466,15 @@ class PGTADocxGenerator:
         sex = clf.sanitize_sex_chromosomes(existing_sex, raw_result, info["classification"])
 
         interp_text = self._clean(embryo_data.get('interpretation'), '')
-        is_auto_norm = not auto.strip() or "NORMAL" in auto.upper() or "EUPLOID" in auto.upper()
-        is_sex_norm = "NORMAL" in sex.upper()
-        if is_auto_norm and is_sex_norm and clf.is_ambiguous_or_normal_interp(interp_text):
-            interp_text = "Euploid"
-        elif not interp_text:
-            interp_text = "NA"
+        if info["classification"] in clf.NO_RESULT_CLASSES:
+            interp_text = clf.resolve_no_result_interp(interp_text)
+        else:
+            is_auto_norm = not auto.strip() or "NORMAL" in auto.upper() or "EUPLOID" in auto.upper()
+            is_sex_norm = "NORMAL" in sex.upper()
+            if is_auto_norm and is_sex_norm and clf.is_ambiguous_or_normal_interp(interp_text):
+                interp_text = "Euploid"
+            elif not interp_text:
+                interp_text = "NA"
         interp = interp_text
 
         raw_mt = self._clean(embryo_data.get('mtcopy', ''))
