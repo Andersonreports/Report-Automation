@@ -694,9 +694,12 @@ def compute_rpl_reference(patient: dict, donor: dict) -> dict:
         matched = int(m.group(1))
         total = int(m.group(2))
     else:
-        matched, total = 0, 12
+        # No usable "N of M" in the donor's Match field. Leave the match blank
+        # rather than reporting a fabricated "0 of 12 (0%)" -- a genuine
+        # 0 of 12 comes from the Match field saying so.
+        matched = total = None
 
-    pct = round(matched / total * 100) if total else 0
+    pct = round(matched / total * 100) if total else None
 
     class2_p = set()
     class2_d = set()
@@ -712,8 +715,8 @@ def compute_rpl_reference(patient: dict, donor: dict) -> dict:
     class2_pct = round(class2_shared / 4 * 100)
 
     return {
-        "match_str":    f"{matched} of {total}",
-        "match_pct":    f"{pct}%",
+        "match_str":    f"{matched} of {total}" if m else "",
+        "match_pct":    f"{pct}%" if m else "",
         "class2_pct":   f"{class2_pct}%",
         "hla_sharing_rif": ">50%",
         "hla_c_patient": patient.get("hla_c_type", ""),

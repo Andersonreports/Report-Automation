@@ -132,19 +132,33 @@ def _decode_b64_field(obj: dict, key: str) -> None:
 def _auto_compute_derived_fields(case: dict) -> None:
     rtype = case.get("report_type", "")
     if rtype == "rpl_couple":
-        ref = case.get("rpl_reference") or {}
+        ref = dict(case.get("rpl_reference") or {})
         match_override      = (ref.get("match_pct_override") or "").strip()
         class2_override     = (ref.get("class2_pct_override") or "").strip()
         hla_c_patient_manual = (ref.get("hla_c_patient") or "").strip()
         hla_c_donor_manual   = (ref.get("hla_c_donor") or "").strip()
-        if not (ref.get("match_str") or "").strip():
-            patient = case.get("patient", {})
-            donors  = case.get("donors", [])
-            donor   = donors[0] if donors else {}
-            try:
-                ref = compute_rpl_reference(patient, donor)
-            except Exception:
-                ref = {}
+
+        # Re-derive from the donor's *current* Match field and HLA on every
+        # request. The Match value is editable in both the manual form and the
+        # batch editor, but an imported case already carries an rpl_reference
+        # computed from the sheet -- only filling it in when it was blank meant
+        # a typed or corrected Match was silently ignored by the report.
+        patient = case.get("patient", {})
+        donors  = case.get("donors", [])
+        donor   = donors[0] if donors else {}
+        try:
+            computed = compute_rpl_reference(patient, donor)
+        except Exception:
+            computed = {}
+        if computed.get("match_str"):
+            ref["match_str"] = computed["match_str"]
+            ref["match_pct"] = computed["match_pct"]
+        if computed.get("class2_pct"):
+            ref["class2_pct"] = computed["class2_pct"]
+        for key, val in computed.items():
+            if not str(ref.get(key) or "").strip():
+                ref[key] = val
+
         if match_override:
             ref["match_pct"] = match_override if match_override.endswith("%") else f"{match_override}%"
         if class2_override:
