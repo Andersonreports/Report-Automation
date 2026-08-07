@@ -2511,7 +2511,7 @@ CDC_COMMENTS = [
     "Positive crossmatch is contraindicated in solid organ transplantation.",
     "The test should be performed within one week before transplantation.",
     "The test is AHG augmented, which increases the sensitivity of the test.",
-    "Test performed with incubation of 37Â°C.",
+    "Test performed with incubation of 37°C.",
     "The test is done with DTT and without DTT treatment of the recipient's serum. "
     "This step differentiates the presence of IgM antibody from IgG antibody.",
 ]
