@@ -3852,7 +3852,11 @@
       const sexDatalist = SEX_DATALIST_OPTIONS.map(o => `<option value="${esc(o)}">`).join("");
       const cnvName = state.cnvImages[idx] ? state.cnvImages[idx].name : "No file selected";
       const cnvThumb = state.cnvImages[idx] ? `<img class="cnv-preview-img" src="${state.cnvImages[idx].url}" alt="CNV">` : "";
-      const showInc = (ef.result_description || "").toLowerCase().includes("inconclusive") ? "" : "display:none;";
+      const showInc = ((ef.show_inconclusive_box === true)
+        || (ef.result_description || "").toLowerCase().includes("inconclusive")
+        || (ef.interpretation || "").toLowerCase().includes("inconclusive")
+        || (ef.result_summary || "").toLowerCase().includes("inconclusive")
+        || (ef.inconclusive_comment || "").toString().trim() !== "") ? "" : "display:none;";
       return `
     <div class="embryo-row">
       <div class="embryo-field"><label>Embryo ID (Summary Table)</label>
@@ -3891,7 +3895,8 @@
       <button class="cnv-upload-btn" onclick="triggerCnvUpload(${idx})"> Upload Image</button>
       <input type="file" id="cnv-input-${idx}" accept=".png,.jpg,.jpeg" style="display:none;" onchange="handleCnvUpload(${idx},this.files[0])">
       ${cnvThumb}
-      <span class="cnv-file-name" id="cnv-name-${idx}">${cnvName}</span>
+    <span class="cnv-file-name" id="cnv-name-${idx}">${cnvName}</span>
+    <button class="inc-toggle-btn" onclick="(function(e){ e.stopPropagation(); toggleInconclusiveBox(${idx}); })(event)">Inconclusive Comment</button>
     </div>
     <div class="inconclusive-box" id="inconclusive-box-${idx}" style="${showInc}">
       <label> Inconclusive Comment</label>
@@ -3954,8 +3959,35 @@
         autoSetMtcopy(idx);
         renderSummaryTable();
       }
+
+      // Update inconclusive-comment visibility immediately when relevant fields change
+      if (["interpretation", "result_description", "inconclusive_comment"].includes(field)) {
+        try { updateInconclusiveVisibility(idx); } catch (e) { /* no-op */ }
+      }
       if (["autosomes", "sex_chromosomes", "result_description"].includes(field)) autoSetInterpretation(idx);
       schedulePreview();
+    }
+
+    function updateInconclusiveVisibility(idx) {
+      const ef = state.embryoForms[idx] || {};
+      const shouldShow = (ef.show_inconclusive_box === true) || ((ef.result_description || "").toLowerCase().includes("inconclusive")
+        || (ef.interpretation || "").toLowerCase().includes("inconclusive")
+        || (ef.result_summary || "").toLowerCase().includes("inconclusive")
+        || (ef.inconclusive_comment || "").toString().trim() !== "");
+      const el = document.getElementById(`inconclusive-box-${idx}`);
+      if (!el) return;
+      el.style.display = shouldShow ? "" : "none";
+    }
+
+    function toggleInconclusiveBox(idx) {
+      if (!state.embryoForms[idx]) return;
+      const ef = state.embryoForms[idx];
+      ef.show_inconclusive_box = !ef.show_inconclusive_box;
+      updateInconclusiveVisibility(idx);
+      const el = document.getElementById(`inconclusive-box-${idx}`);
+      if (el && ef.show_inconclusive_box) {
+        const ta = el.querySelector('textarea'); if (ta) ta.focus();
+      }
     }
 
     function onChrChange(idx, chr, type, value) {
