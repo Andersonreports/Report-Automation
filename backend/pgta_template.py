@@ -851,7 +851,7 @@ class PGTAReportTemplate:
                 if pil.mode not in ('RGBA', 'LA'):
                     pil = pil.convert('RGBA')
                 bg = PILImage.new('RGBA', pil.size, (255, 255, 255, 0))
-                diff = PILImage.chops.difference(pil, bg)
+                diff = ImageChops.difference(pil, bg)
                 bbox = diff.getbbox()
                 if bbox:
                     pil = pil.crop(bbox)
