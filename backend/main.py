@@ -485,7 +485,13 @@ async def pgta_preview(request: Request):
         patient_data = data.get("patient_data", {})
         p_parts = [p for p in re.sub(r'[^a-zA-Z0-9 ]', '', str(patient_data.get("patient_name", "") or "")).strip().split() if p]
         name_seg = p_parts[0].upper() if p_parts else "PREVIEW"
-        file_id = f"PGTA_{name_seg}_{uuid.uuid4().hex[:8]}.pdf"
+
+        def _id_seg(value):
+            raw = re.sub(r'\.0+$', '', str(value or '').strip())
+            return re.sub(r'[^A-Za-z0-9]', '', raw)
+
+        sample_seg = _id_seg(patient_data.get("sample_number", ""))
+        file_id = f"PGTA_{sample_seg}_{name_seg}_{uuid.uuid4().hex[:8]}.pdf" if sample_seg else f"PGTA_{name_seg}_{uuid.uuid4().hex[:8]}.pdf"
         filepath = os.path.join(TEMP_DIR, file_id)
         embryos = data.get("embryos_data", [])
         embryos, tmp = _resolve_cnv_images(embryos)
