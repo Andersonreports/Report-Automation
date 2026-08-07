@@ -11,7 +11,7 @@ from reportlab.pdfgen import canvas
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase.pdfmetrics import registerFontFamily
-from PIL import Image as PILImage
+from PIL import Image as PILImage, ImageChops
 import os
 import re
 import sys
@@ -846,12 +846,24 @@ class PGTAReportTemplate:
 
         if 'cnv_image_path' in embryo_data and embryo_data['cnv_image_path'] and os.path.exists(embryo_data['cnv_image_path']):
             try:
-                # Use the frame's inner available width (content minus frame padding)
-                inner_width = max(1, self.CONTENT_WIDTH - 2 * self.FRAME_PADDING)
-                img = Image(embryo_data['cnv_image_path'], width=inner_width)
+                # Crop any empty white border from the CNV chart before sizing it.
+                pil = PILImage.open(embryo_data['cnv_image_path'])
+                if pil.mode not in ('RGBA', 'LA'):
+                    pil = pil.convert('RGBA')
+                bg = PILImage.new('RGBA', pil.size, (255, 255, 255, 0))
+                diff = PILImage.chops.difference(pil, bg)
+                bbox = diff.getbbox()
+                if bbox:
+                    pil = pil.crop(bbox)
 
+                buf = BytesIO()
+                pil.save(buf, format='PNG')
+                buf.seek(0)
+
+                chart_width = self.CONTENT_WIDTH
+                img = Image(buf, width=chart_width)
                 aspect = img.imageWidth / img.imageHeight
-                img.drawHeight = inner_width / aspect
+                img.drawHeight = chart_width / aspect
 
                 img.hAlign = 'CENTER'
                 elements.append(img)
