@@ -846,10 +846,12 @@ class PGTAReportTemplate:
 
         if 'cnv_image_path' in embryo_data and embryo_data['cnv_image_path'] and os.path.exists(embryo_data['cnv_image_path']):
             try:
-                img = Image(embryo_data['cnv_image_path'], width=self.CONTENT_WIDTH)
+                # Use the frame's inner available width (content minus frame padding)
+                inner_width = max(1, self.CONTENT_WIDTH - 2 * self.FRAME_PADDING)
+                img = Image(embryo_data['cnv_image_path'], width=inner_width)
 
                 aspect = img.imageWidth / img.imageHeight
-                img.drawHeight = self.CONTENT_WIDTH / aspect
+                img.drawHeight = inner_width / aspect
 
                 img.hAlign = 'CENTER'
                 elements.append(img)
@@ -860,16 +862,16 @@ class PGTAReportTemplate:
         result_summary = self._clean(embryo_data.get('result_summary', ''))
         result_desc = self._clean(embryo_data.get('result_description', ''))
         is_inconclusive = "INCONCLUSIVE" in result_summary.upper() or "INCONCLUSIVE" in result_desc.upper() or "INCONCLUSIVE" in interp_text.upper()
-        
-        if is_inconclusive:
-            inconclusive_comment = self._clean(embryo_data.get('inconclusive_comment', ''))
-            if inconclusive_comment:
-                comment_para = Paragraph(
-                    f"{inconclusive_comment}",
-                    self.styles['PGTABodyText']
-                )
-                elements.append(comment_para)
-                elements.append(Spacer(1, 12))
+
+        # If the user has provided an inconclusive comment, always render it in the report
+        inconclusive_comment = self._clean(embryo_data.get('inconclusive_comment', ''))
+        if inconclusive_comment:
+            comment_para = Paragraph(
+                f"{inconclusive_comment}",
+                self.styles['PGTABodyText']
+            )
+            elements.append(comment_para)
+            elements.append(Spacer(1, 12))
         
         if not is_inconclusive:
             cnv_table = self._create_cnv_table(embryo_data)
