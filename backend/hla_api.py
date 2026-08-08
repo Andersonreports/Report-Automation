@@ -130,6 +130,19 @@ def _decode_b64_field(obj: dict, key: str) -> None:
 
 
 def _auto_compute_derived_fields(case: dict) -> None:
+    # New batches can still carry the former IMGT release from their Excel
+    # template.  Update only the two retired kit defaults; any other explicit
+    # release remains a deliberate per-case override.
+    methodology = (case.get("methodology") or "").lower()
+    kit = (case.get("kit") or "").lower()
+    release = (case.get("imgt_release") or "").strip()
+    if "immucor" in kit or "immucor" in methodology or "mia fora" in methodology:
+        if release in ("3.56", "3.56.0"):
+            case["imgt_release"] = "3.62"
+    elif "gendx" in kit or "surfseq" in methodology:
+        if release == "3.62":
+            case["imgt_release"] = "3.64"
+
     rtype = case.get("report_type", "")
     if rtype == "rpl_couple":
         ref = dict(case.get("rpl_reference") or {})

@@ -70,9 +70,21 @@ const DEFAULT_SIG_COUNTS = {
 const SAB_KIT_NAMES = ["Immucor", "One Lambda"];
 
 const NGS_KITS = {
-  gendx:   { label: "GENDx",   imgt_release: "3.62",   methodology: "Typing by NGS Surfseq using GENDx Kit" },
-  immucor: { label: "IMMUCOR", imgt_release: "3.56.0", methodology: "Typing by NGS illumina MiniSeq using MIA FORA NGS Kits from IMMUCOR." },
+  gendx:   { label: "GENDx",   imgt_release: "3.64", methodology: "Typing by NGS Surfseq using GENDx Kit" },
+  immucor: { label: "IMMUCOR", imgt_release: "3.62", methodology: "Typing by NGS illumina MiniSeq using MIA FORA NGS Kits from IMMUCOR." },
 };
+
+function applyCurrentNgsKitRelease(c) {
+  const kit = String(c.kit || "").toLowerCase();
+  const methodology = String(c.methodology || "").toLowerCase();
+  const release = String(c.imgt_release || "").trim();
+  if ((kit.includes("immucor") || methodology.includes("immucor") || methodology.includes("mia fora")) &&
+      (release === "3.56" || release === "3.56.0")) {
+    c.imgt_release = "3.62";
+  } else if ((kit.includes("gendx") || methodology.includes("surfseq")) && release === "3.62") {
+    c.imgt_release = "3.64";
+  }
+}
 
 function sabKitId(name) {
   const s = String(name || "").trim().toLowerCase();
@@ -576,6 +588,26 @@ function _getNgsPhotoAutoInterp() {
     let match = (df.match?.value || "").trim().replace(/\s*\(\d+%\)/, "").trim() || "—";
     return `The Patient (${pName}) had showed about ${match} match with the Donor (${dName}).`;
   }).join("\n");
+}
+
+function _getNgsPhotoCaseAutoInterp(c) {
+  const pName = (c.patient?.name || "").trim() || "—";
+  const donors = c.donors || [];
+  if (!donors.length) {
+    return `The Patient (${pName}) had showed about — match with the Donor (—).`;
+  }
+  return donors.map(d => {
+    const dName = (d.name || "").trim() || "—";
+    const match = (d.match || "").trim().replace(/\s*\(\d+%\)/, "").trim() || "—";
+    return `The Patient (${pName}) had showed about ${match} match with the Donor (${dName}).`;
+  }).join("\n");
+}
+
+function _isNgsPhotoAutoInterp(value, c) {
+  const lines = String(value || "").trim().split(/\n+/).filter(Boolean);
+  const donors = c.donors || [];
+  const autoLine = /^The Patient \(.+\) had showed about .+ match with the Donor \(.+\)\.$/;
+  return lines.length === Math.max(donors.length, 1) && lines.every(line => autoLine.test(line.trim()));
 }
 
 function _refreshNgsPhotoInterp() {
@@ -2847,6 +2879,15 @@ function renderBulkEditor(i) {
   editCol.innerHTML = "";
   const c = state.bulkCases[i];
   if (!c) return;
+  applyCurrentNgsKitRelease(c);
+  let bulkNgsInterpInput = null;
+  let bulkNgsInterpIsAuto = false;
+
+  function refreshBulkNgsAutoInterp() {
+    if (!bulkNgsInterpIsAuto) return;
+    c.ngs_photo_interpretation = "";
+    if (bulkNgsInterpInput) bulkNgsInterpInput.value = _getNgsPhotoCaseAutoInterp(c);
+  }
 
   if (c.report_type === "sab_class1" || c.report_type === "sab_class2") {
     renderBulkSabEditor(editCol, c, i);
@@ -2982,7 +3023,11 @@ function renderBulkEditor(i) {
         ? el("textarea", { style: "resize:vertical; min-height:48px;" })
         : el("input", { type: "text" });
       input.value = d[key] || "";
-      input.addEventListener("input", () => { d[key] = input.value; scheduleBulkPreview(i); });
+      input.addEventListener("input", () => {
+        d[key] = input.value;
+        if (key === "name" || key === "match") refreshBulkNgsAutoInterp();
+        scheduleBulkPreview(i);
+      });
       dgrid.appendChild(el("div", { class: "field" + (isRemarks ? " full" : "") }, [el("label", {}, label), input]));
     });
     dCard.appendChild(dgrid);
@@ -3085,20 +3130,15 @@ function renderBulkEditor(i) {
   if (c.report_type === "ngs_photo") {
     const interpCard = el("div", { class: "card" }, [el("h3", {}, "Interpretation")]);
     const interpTA = el("textarea", {});
-
-    if (!c.ngs_photo_interpretation) {
-      const _pName = (c.patient?.name || "").trim() || "—";
-      const _donors = c.donors || [];
-      c.ngs_photo_interpretation = _donors.length
-        ? _donors.map(d => {
-            const _dn = (d.name || "").trim() || "—";
-            let _m = (d.match || "").trim().replace(/\s*\(\d+%\)/, "").trim() || "—";
-            return `The Patient (${_pName}) had showed about ${_m} match with the Donor (${_dn}).`;
-          }).join("\n")
-        : `The Patient (${_pName}) had showed about — match with the Donor (—).`;
-    }
-    interpTA.value = c.ngs_photo_interpretation;
-    interpTA.addEventListener("input", () => { c.ngs_photo_interpretation = interpTA.value; scheduleBulkPreview(i); });
+    bulkNgsInterpInput = interpTA;
+    bulkNgsInterpIsAuto = !c.ngs_photo_interpretation || _isNgsPhotoAutoInterp(c.ngs_photo_interpretation, c);
+    interpTA.value = bulkNgsInterpIsAuto ? _getNgsPhotoCaseAutoInterp(c) : c.ngs_photo_interpretation;
+    if (bulkNgsInterpIsAuto) c.ngs_photo_interpretation = "";
+    interpTA.addEventListener("input", () => {
+      bulkNgsInterpIsAuto = false;
+      c.ngs_photo_interpretation = interpTA.value;
+      scheduleBulkPreview(i);
+    });
     interpCard.appendChild(el("div", { class: "field full" }, [el("label", {}, "INTERPRETATION (OPTIONAL OVERRIDE)"), interpTA]));
     editCol.appendChild(interpCard);
   }

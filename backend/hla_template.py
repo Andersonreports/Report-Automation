@@ -208,6 +208,9 @@ HLA_C_REFERENCES = SINGLE_LOCUS_REFERENCES
 _FONTS_DIR = os.path.join(os.path.dirname(__file__), "assets", "hla", "fonts")
 _REGISTERED: set[str] = set()
 
+# Display placeholder for missing/insufficient values (em-dash, original behaviour)
+MISSING = "\u2014"
+
 def _register_fonts():
     """Register custom TTF fonts once (idempotent)."""
     global _REGISTERED
@@ -398,7 +401,7 @@ def _img_b64(b64: str, width: float, height: Optional[float] = None) -> Image:
 def _strip_prefix(allele: str) -> str:
     """'A*02:11:01' â '02:11:01'; returns 'â' if falsy."""
     if not allele:
-        return "â"
+        return "\u2014"
     m = re.match(r"[A-Za-z0-9]+\*(.+)", allele)
     return m.group(1) if m else allele
 
@@ -482,7 +485,7 @@ def _normalize_hla_alleles(text: str) -> str:
 
 def _auto_relation_from_gender(rel: str, gender_age: str) -> str:
     r = (rel or "").strip()
-    if r and r.upper() not in ("NA", "N/A", "SPOUSE") and r != "—":
+    if r and r.upper() not in ("NA", "N/A", "SPOUSE") and r != MISSING:
         return r
     g = (gender_age or "").split("/")[0].strip().lower()
     if g.startswith("f"):
@@ -978,7 +981,7 @@ def _ngs_info_table(person: dict, S: dict, is_donor: bool = False, patient_name:
         logo_cell = [logo_img]
 
         referred_by_val = _clean_display(person.get("referred_by", ""))
-        has_referred = referred_by_val not in ("â", "", "-")
+        has_referred = referred_by_val not in (MISSING, "", "-")
         logo_row_start = 0 if has_referred else 1
         logo_row_end   = max(logo_row_start, referred_idx - 1)
 
@@ -1057,15 +1060,15 @@ def _hla_table(person: dict, S: dict, compact: bool = False, separate_drb: bool 
 
     def _disp(l, v):
         if l == "DRB345":
-            return _clean_display(str(v)) if v and str(v).strip() else "\u2014"
+            return _clean_display(str(v)) if v and str(v).strip() else MISSING
         s = _clean_display(str(v)) if v and str(v).strip() else ""
-        return _strip_prefix(s) if s else "\u2014"
+        return _strip_prefix(s) if s else MISSING
 
     _min_widths = []
     for l in loci:
         al = _val(l)
-        v1 = al[0] if al and al[0] else "\u2014"
-        v2 = al[1] if al and len(al) > 1 and al[1] else "\u2014"
+        v1 = al[0] if al and al[0] else MISSING
+        v2 = al[1] if al and len(al) > 1 and al[1] else MISSING
         _min_widths.append(max(
             pdfmetrics.stringWidth(_hdr(l), F_HDR, 11),
             pdfmetrics.stringWidth(_disp(l, v1), F_VAL, 10),
@@ -1095,11 +1098,11 @@ def _hla_table(person: dict, S: dict, compact: bool = False, separate_drb: bool 
     for l in loci:
         al = _val(l)
         if l == "DRB345":
-            r1.append(HV(al[0] if al and al[0] else "\u2014"))
-            r2.append(HV(al[1] if al and len(al) > 1 and al[1] else "\u2014"))
+            r1.append(HV(al[0] if al and al[0] else MISSING))
+            r2.append(HV(al[1] if al and len(al) > 1 and al[1] else MISSING))
         else:
-            r1.append(HV(_strip_prefix(al[0]) if al and al[0] else "\u2014"))
-            r2.append(HV(_strip_prefix(al[1]) if al and len(al) > 1 and al[1] else "\u2014"))
+            r1.append(HV(_strip_prefix(al[0]) if al and al[0] else MISSING))
+            r2.append(HV(_strip_prefix(al[1]) if al and len(al) > 1 and al[1] else MISSING))
 
     t = Table([header, r1, r2], colWidths=col_w)
     _vpad = 2 if compact else 4
@@ -1126,7 +1129,7 @@ def _ngs_person_block(person: dict, is_donor: bool, match_str: str, S: dict,
     _raw_remarks = person.get("remarks", "")
     _remarks_display = _clean_display(_raw_remarks) if _raw_remarks else ""
     _remarks_display = _normalize_hla_alleles(_remarks_display) if _remarks_display else ""
-    if _remarks_display == "â":
+    if _remarks_display == MISSING:
         _remarks_display = ""
     if len(_remarks_display) > 600:
         _remarks_display = _remarks_display[:580] + "..."
@@ -1136,7 +1139,7 @@ def _ngs_person_block(person: dict, is_donor: bool, match_str: str, S: dict,
         _match_display = re.sub(r'\s*\(\d+%\)', '', _match_display).strip()
 
     def _is_real(v):
-        if not v or v == "\u2014": return False
+        if not v or v == MISSING: return False
         if str(v).strip().upper() in ["NA", "N/A", "NONE", "NULL", "-"]: return False
         return True
 
@@ -1215,8 +1218,8 @@ def _ngs_person_block(person: dict, is_donor: bool, match_str: str, S: dict,
 
 
 def _rpl_couple_table(patient: dict, donor: dict, S: dict, comment_text: str = "") -> Table:
-    p_name = patient.get("name", "\u2014")
-    d_name = donor.get("name",   "\u2014")
+    p_name = patient.get("name", MISSING)
+    d_name = donor.get("name",   MISSING)
     cw = CONTENT_W
 
     _label_w = cw * 0.246
@@ -1296,10 +1299,10 @@ def _rpl_couple_table(patient: dict, donor: dict, S: dict, comment_text: str = "
     for i, locus in enumerate(LOCI):
         pa = p_hla.get(locus, [None, None])
         da = d_hla.get(locus, [None, None])
-        pa1 = _strip_prefix(pa[0]) if pa and pa[0] else "\u2014"
-        pa2 = _strip_prefix(pa[1]) if pa and len(pa) > 1 and pa[1] else "\u2014"
-        da1 = _strip_prefix(da[0]) if da and da[0] else "\u2014"
-        da2 = _strip_prefix(da[1]) if da and len(da) > 1 and da[1] else "\u2014"
+        pa1 = _strip_prefix(pa[0]) if pa and pa[0] else MISSING
+        pa2 = _strip_prefix(pa[1]) if pa and len(pa) > 1 and pa[1] else MISSING
+        da1 = _strip_prefix(da[0]) if da and da[0] else MISSING
+        da2 = _strip_prefix(da[1]) if da and len(da) > 1 and da[1] else MISSING
         data.append([HL(f"HLA-{locus}*"), HV(pa1), HV(pa2), HV(da1), HV(da2)])
 
     if comment_text:
@@ -1355,7 +1358,7 @@ def _rpl_reference_section(rpl_ref: dict, patient: dict, donor: dict, S: dict,
     elif match_pct:
         hla_matching_text = f"Overall - {match_pct}"
     else:
-        hla_matching_text = "\u2014"
+        hla_matching_text = MISSING
 
     ref_data = [
         [
@@ -1826,8 +1829,8 @@ def _build_ngs_photo(case: dict, S: dict) -> list:
         row1, row2 = [cls_label], [HV("")]
         for l in loci:
             al = drb.get(l, h.get(l, [None, None])) if l in ("DRB3", "DRB4", "DRB5") else h.get(l, [None, None])
-            row1.append(HV(_strip_prefix(al[0]) if al and al[0] else "â"))
-            row2.append(HV(_strip_prefix(al[1]) if al and len(al) > 1 and al[1] else "â"))
+            row1.append(HV(_strip_prefix(al[0]) if al and al[0] else MISSING))
+            row2.append(HV(_strip_prefix(al[1]) if al and len(al) > 1 and al[1] else MISSING))
         rows.append(row1); rows.append(row2)
         extra += [("SPAN",       (0, a_r), (0, a_r + 1)),
                   ("BACKGROUND", (0, a_r), (-1, a_r + 1), C_HLA_ROW),
@@ -1845,7 +1848,7 @@ def _build_ngs_photo(case: dict, S: dict) -> list:
     def _remarks_para(person):
         raw = person.get("remarks", "")
         disp = _normalize_hla_alleles(_clean_display(raw)) if raw else ""
-        if not disp or disp == "â":
+        if not disp or disp == MISSING:
             return None
         para = Paragraph(f"<b>Remarks:</b> {disp}",
                          ParagraphStyle("_np_rmk", parent=S["body_small"],
@@ -1886,11 +1889,11 @@ def _build_ngs_photo(case: dict, S: dict) -> list:
         for d in donors:
             d_name = _norm_name(d.get("name", ""))
             match  = re.sub(r"\s*\(\d+%\)", "", _clean_display(d.get("match", "")).strip()).strip()
-            if match and match != "â":
+            if match and match != MISSING:
                 sentence = (f"The Patient ({p_name}) had showed about {match} match "
                             f"with the Donor ({d_name}).")
             else:
-                sentence = (f"The Patient ({p_name}) had showed about â match "
+                sentence = (f"The Patient ({p_name}) had showed about {MISSING} match "
                             f"with the Donor ({d_name}).")
             interp_block.append(Paragraph(sentence, S["body"]))
     elems.append(KeepTogether(interp_block + _methodology_block(case, S, merge=True)))
@@ -1942,7 +1945,7 @@ def _build_rpl_couple(case: dict, S: dict) -> list:
             if not raw or not str(raw).strip():
                 return ""
             disp = _normalize_hla_alleles(_clean_display(raw))
-            if not disp or disp == "â":
+            if not disp or disp == MISSING:
                 return ""
             if len(disp) > 600:
                 disp = disp[:580] + "..."
@@ -2059,8 +2062,8 @@ def _rpl_single_patient_table(patient: dict, S: dict) -> Table:
     p_hla = patient.get("hla", {})
     for locus in LOCI:
         pa = p_hla.get(locus, [None, None])
-        a1 = _strip_prefix(pa[0]) if pa and pa[0] else "â"
-        a2 = _strip_prefix(pa[1]) if pa and len(pa) > 1 and pa[1] else "â"
+        a1 = _strip_prefix(pa[0]) if pa and pa[0] else MISSING
+        a2 = _strip_prefix(pa[1]) if pa and len(pa) > 1 and pa[1] else MISSING
         data.append([HL(f"HLA-{locus}*"), HV(a1), HV(a2)])
 
     t = Table(data, colWidths=col_w)
@@ -2103,7 +2106,7 @@ def _build_single_rpl(case: dict, S: dict) -> list:
     # Remarks (was previously omitted from this report entirely).
     _rpl_rmk = _clean_display(patient.get("remarks", "") or "")
     _rpl_rmk = _normalize_hla_alleles(_rpl_rmk) if _rpl_rmk else ""
-    if _rpl_rmk == "—":
+    if _rpl_rmk == MISSING:
         _rpl_rmk = ""
     if len(_rpl_rmk) > 600:
         _rpl_rmk = _rpl_rmk[:580] + "..."
@@ -2235,7 +2238,7 @@ def _build_single_locus(case: dict, S: dict) -> list:
     allele2     = (case.get("sl_allele2", "") or "").strip()
     sl_note     = (case.get("sl_note",    "") or "").strip()
     _rmk_display = _clean_display(patient.get("remarks", "")) or ""
-    if _rmk_display == "â":
+    if _rmk_display == MISSING:
         _rmk_display = ""
     signatories = case.get("signatories") or hla_assets.get_default_signatories(
         "single_locus", nabl)
@@ -2283,8 +2286,8 @@ def _build_single_locus(case: dict, S: dict) -> list:
     result_rows = [
         [Paragraph("<b>LOCUS</b>",          _cell_s),
          Paragraph(f"<b>HLA-{locus}*</b>", _cell_s)],
-        [Paragraph("1", _val_s), Paragraph(_clean_display(allele1) or "â", _val_s)],
-        [Paragraph("2", _val_s), Paragraph(_clean_display(allele2) or "â", _val_s)],
+        [Paragraph("1", _val_s), Paragraph(_clean_display(allele1) or MISSING, _val_s)],
+        [Paragraph("2", _val_s), Paragraph(_clean_display(allele2) or MISSING, _val_s)],
     ]
     style_cmds = [
         ("BACKGROUND",    (0, 0), (-1, 0),   C_HLA_HDR),
@@ -2386,14 +2389,14 @@ def _build_hla_c(case: dict, S: dict) -> list:
         elems.append(Spacer(1, 3 * mm))
 
         _poc_name = _clean_display(_title_case(patient.get("name", "")))
-        _poc_name_val = f"POC of {_poc_name}" if _poc_name else "â"
+        _poc_name_val = f"POC of {_poc_name}" if _poc_name else MISSING
         _col_w = [CONTENT_W * 0.20, CONTENT_W * 0.30]
 
         result_rows = [
             [Paragraph("<b>Name</b>", _val_c_s),
              Paragraph(_poc_name_val, _val_c_s)],
             [Paragraph("<b>POC HLA-C<br/>Type</b>", _val_c_s),
-             Paragraph(_clean_display(remark) or "â", _val_c_s)],
+             Paragraph(_clean_display(remark) or MISSING, _val_c_s)],
         ]
         result_t = Table(result_rows, colWidths=_col_w)
         result_t.hAlign = "CENTER"
@@ -2413,11 +2416,11 @@ def _build_hla_c(case: dict, S: dict) -> list:
 
         result_rows = [
             [Paragraph("Name", _lbl_l_s),
-             Paragraph(_clean_display(_title_case(patient.get("name", ""))) or "â", _val_c_s),
+             Paragraph(_clean_display(_title_case(patient.get("name", ""))) or MISSING, _val_c_s),
              ""],
             [Paragraph("<b>HLA-C*</b>", _lbl_l_s),
-             Paragraph(_clean_display(allele1) or "â", _val_c_s),
-             Paragraph(_clean_display(allele2) or "â", _val_c_s)],
+             Paragraph(_clean_display(allele1) or MISSING, _val_c_s),
+             Paragraph(_clean_display(allele2) or MISSING, _val_c_s)],
         ]
         result_t = Table(result_rows, colWidths=_col_w)
         result_t.hAlign = "CENTER"
@@ -2438,7 +2441,7 @@ def _build_hla_c(case: dict, S: dict) -> list:
         _rem_w = [CONTENT_W * 0.40]
         rem_t = Table([
             [Paragraph(f"<b>{_parent_label} HLA-C Type</b>", _val_c_s)],
-            [Paragraph(remark or "â", _val_c_s)],
+            [Paragraph(remark or MISSING, _val_c_s)],
         ], colWidths=_rem_w)
         rem_t.hAlign = "CENTER"
         rem_t.setStyle(TableStyle([
@@ -3518,7 +3521,7 @@ def _build_luminex_report(case: dict, S: dict) -> list:
         a = _merged_drb345(hla_dict) if locus == "DRB345" else hla_dict.get(locus, ["", ""])
         v1 = _clean_display(a[0]) if a else ""
         v2 = _clean_display(a[1]) if len(a) > 1 else ""
-        return (v1 or "â", v2 or "â")
+        return (v1 or MISSING, v2 or MISSING)
 
     pat_name_d = _title_case(_clean_display(patient.get("name", "")), is_name=True) or "Patient"
     don_name_d = _title_case(_clean_display(donor.get("name",  "")), is_name=True) or "Donor"
@@ -3732,7 +3735,7 @@ def _build_sab_report(case: dict, S: dict) -> list:
         elems.append(Paragraph(f"{i}. {c}", _bull_s))
 
     _rmk = _fix_pra_class(_clean_display(patient.get("remarks", "")))
-    if _rmk and _rmk != "â":
+    if _rmk and _rmk != MISSING:
         elems.append(Spacer(1, 4*mm))
         _rmk_s = ParagraphStyle("_sab_rmk", fontName=F_BOLD, fontSize=10, leading=14)
         elems.append(Paragraph(f"<b>Remarks:</b> {_rmk}", _rmk_s))
