@@ -462,6 +462,17 @@ def auto_map_cnvs(embryos, image_filenames):
         m = re.search(r'\d+', str(s))
         return int(m.group()) if m else None
 
+    def is_noxy_filename(name):
+        return bool(re.search(r'(^|[^a-z0-9])noxy([^a-z0-9]|$)', name, re.IGNORECASE))
+
+    def pick_best_filename(names):
+        if not names:
+            return None
+        for name in names:
+            if is_noxy_filename(name):
+                return name
+        return names[0]
+
     for emb in list(unmapped_embryos):
         eid = str(emb.get("embryo_id") or "").strip().lower()
         if not eid: continue
@@ -483,12 +494,10 @@ def auto_map_cnvs(embryos, image_filenames):
         eid = str(emb.get("embryo_id") or "").strip().lower()
         if not eid: continue
         
-        matched_filename = None
         eid_esc = re.escape(eid)
-        for low_name, orig_name in available_imgs.items():
-            if re.search(rf"(^|[^a-z0-9]){eid_esc}([^a-z0-9]|$)", low_name):
-                matched_filename = orig_name
-                break
+        matches = [orig_name for low_name, orig_name in available_imgs.items()
+                   if re.search(rf"(^|[^a-z0-9]){eid_esc}([^a-z0-9]|$)", low_name)]
+        matched_filename = pick_best_filename(matches)
         
         if matched_filename:
             emb["cnv_image_name"] = matched_filename
@@ -502,16 +511,15 @@ def auto_map_cnvs(embryos, image_filenames):
         
         target_norm = alpha_norm(eid)
         target_num = extract_num(eid)
-        matched_filename = None
-        
+        matches = []
         for low_name, orig_name in available_imgs.items():
             if target_norm in alpha_norm(low_name):
                 if target_num is not None:
                     file_num = extract_num(low_name)
                     if file_num is not None and file_num != target_num:
                         continue
-                matched_filename = orig_name
-                break
+                matches.append(orig_name)
+        matched_filename = pick_best_filename(matches)
         
         if matched_filename:
             emb["cnv_image_name"] = matched_filename

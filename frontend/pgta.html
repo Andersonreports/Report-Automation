@@ -4373,6 +4373,7 @@
       }
       statusEl.textContent = `${count} image${count !== 1 ? 's' : ''} uploaded`;
       showToast(`Uploaded ${count} CNV chart${count !== 1 ? 's' : ''}`, "success");
+      schedulePreview();
     }
 
     
@@ -5642,7 +5643,8 @@
         if (!sampleName) continue;
         const base = sampleName.split("_")[0].toUpperCase();
         if (!base) continue;
-        const f = allImgs.find(img => !usedFiles.has(img.name) && img.name.toUpperCase().startsWith(base));
+        const candidates = allImgs.filter(img => !usedFiles.has(img.name) && img.name.toUpperCase().startsWith(base));
+        const f = candidates.find(img => /_noXY_nomos/i.test(img.name)) || candidates[0];
         if (f) {
           const b64 = await readB64(f);
           if (b64) {
@@ -5777,7 +5779,10 @@
 
       const mappedCount = await _autoMapCnvImagesLocal(imgFiles);
 
-      if (bulkSelectedIndex >= 0) renderBulkEditor(bulkSelectedIndex);
+      if (bulkSelectedIndex >= 0) {
+        renderBulkEditor(bulkSelectedIndex);
+        previewBulkPatient(bulkSelectedIndex);
+      }
       if (statusEl) {
         statusEl.style.display = '';
         statusEl.style.background = mappedCount > 0 ? '#d1fae5' : '#fee2e2';
@@ -6002,7 +6007,7 @@
       <div class="bulk-editor-field"><label>Inconclusive Comment:</label><input value="${esc(emb.inconclusive_comment || "")}" oninput="state.bulkPatients[${i}].embryos[${ei}].inconclusive_comment=this.value;scheduleBulkPreview()" placeholder="If inconclusive..."></div>
       <div class="bulk-editor-field">
         <label>CNV Chart Image</label>
-        <div style="display:flex;align-items:center;gap:8px;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
           ${emb.cnv_image_b64
             ? `<span class="cnv-mapped-badge"><i class="fas fa-cloud"></i> Cloud-mapped: ${esc(emb.cnv_image_name || "image")}</span>
                <button style="font-size:10px;padding:2px 8px;background:#fee2e2;color:#b91c1c;border:none;border-radius:4px;cursor:pointer;" onclick="state.bulkPatients[${i}].embryos[${ei}].cnv_image_b64='';state.bulkPatients[${i}].embryos[${ei}].cnv_image_name='';renderBulkEditor(${i});">Remove</button>`
@@ -6011,6 +6016,7 @@
                <button style="font-size:10px;padding:2px 8px;background:var(--primary);color:#fff;border:none;border-radius:4px;cursor:pointer;" onclick="document.getElementById('bulk-cnv-${i}-${ei}').click()">Upload</button>`
           }
         </div>
+        ${emb.cnv_image_b64 ? `<div style="margin-top:8px;max-width:100%;"><img src="${esc(emb.cnv_image_b64)}" alt="CNV" style="max-width:100%;max-height:140px;border:1px solid #d1d5db;border-radius:8px;object-fit:contain;"></div>` : ''}
       </div>
       <div style="margin-top:6px;padding:6px 8px;background:var(--grey-box);border-radius:6px;">
         <div style="font-size:10px;font-weight:700;color:var(--primary);margin-bottom:4px;"> Chromosome Details (1–22)</div>
@@ -6085,7 +6091,11 @@
         emb.cnv_image_b64  = e.target.result;
         emb.cnv_image_name = file.name;
         renderBulkEditor(pi);
-        scheduleBulkPreview();
+        if (bulkSelectedIndex === pi) {
+          previewBulkPatient(pi);
+        } else {
+          scheduleBulkPreview();
+        }
         showToast(`CNV image set for Embryo ${emb.embryo_id || (ei + 1)}`, "success");
       };
       reader.readAsDataURL(file);
