@@ -1613,8 +1613,13 @@ def _build_ngs_transplant(case: dict, S: dict) -> list:
     # Where the IMGT/Coverage/Methodology + signature block goes.
     #
     # With 0-1 donors the person blocks are deliberately spaced out to fill the
-    # first page, and the block gets a page of its own -- the layout approved
-    # against the reference report, so it keeps its forced break.
+    # first page (spacing_scale=2.0 above), and the block gets a page of its
+    # own -- the layout approved against the reference report, so it keeps its
+    # forced break. loci11 never gets that deliberate full-page spread (its
+    # scale is fixed at 1.5 regardless of donor count), so forcing the same
+    # break here was wasting the leftover space below the last person block
+    # and pushing IMGT/signatures to a page of their own even when they would
+    # have fit -- the bug this condition now avoids for loci11.
     #
     # With 2+ donors that same forced break wasted a page: one patient + two
     # donors gave page 1 = patient + donor 1, page 2 = donor 2 with half the
@@ -1629,7 +1634,7 @@ def _build_ngs_transplant(case: dict, S: dict) -> list:
     # fit-check conclude the content is far too big and push it to a fresh page
     # even when it would have fit -- i.e. it would silently behave like the
     # forced break it replaces.
-    if len(donors) >= 2:
+    if len(donors) >= 2 or _is_loci11:
         block = [Spacer(1, 3 * mm)] + list(_methodology_block(case, S, merge=True)) + list(sig_items)
         elems.append(KeepTogether(block))
     else:
