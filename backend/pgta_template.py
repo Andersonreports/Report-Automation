@@ -134,7 +134,38 @@ class PGTAReportTemplate:
         'Lin, Pin-Yao, et al. "Clinical outcomes of single mosaic embryo transfer: high-level or low-level mosaic embryo, does it matter?" Journal of clinical medicine 9.6 (2020): 1695.',
         'Kahraman, Semra, et al. "The birth of a baby with mosaicism resulting from a known mosaic embryo transfer: a case report." Human Reproduction 35.3 (2020): 727-733.'
     ]
-    
+
+    # --- PGT-SR (Structural Rearrangement) variant ---------------------------
+    TITLE_PGTA = "Preimplantation Genetic Testing for Aneuploidies (PGT-A)"
+    TITLE_PGTSR_COVER = "Preimplantation Genetic Testing for Structural Rearrangement (PGT - SR)"
+    TITLE_PGTSR = "Preimplantation Genetic Testing for Structural Rearrangement (PGT-SR)"
+
+    LIMITATIONS_PGTSR = [
+        "This technique cannot detect point mutations, balanced translocations, inversions, triploidy, uniparental disomy and epigenetic modifications.",
+        "NGS-based PGT-SR diagnosis of biopsied material from cleavage stage or blastocyst embryos does not allow for a distinction between embryos with a normal or a balanced karyotype.",
+        "Probes used do not cover the p arm of acrocentric chromosomes as they are rich in repeat regions and RNA markers and devoid of genes. Changes in this region will not be detected. However, these regions have less clinical significance due to the absence of genes.",
+        "Deletions and duplications with the size of < 10 Mb cannot be detected.",
+        "Risk of misinterpretation of the actual embryo karyotype due to the presence of chromosomal mosaicism, either at cleavage-stage or at blastocyst stage may exist.",
+        "This technique cannot detect variants of polyploidy and haploidy",
+        "NGS without genotyping cannot identify the nature (meiotic or mitotic) nor the parental origin of aneuploidies",
+        "Due to the intrinsic nature of chromosomal mosaicism, the chromosomal make-up achieved from a biopsy only may represent a picture of a small part of the embryo and may not necessarily reflect the chromosomal content of the entire embryo. Also, the mosaicism level inferred from a multi-cell TE biopsy might not unequivocally represent the exact chromosomal mosaicism percentage of the TE cells or the inner cell mass constitution."
+    ]
+
+    RECOMMENDATIONS_PGTSR = [
+        "Balanced translocations and unbalanced translocation with size of < 10 Mb cannot be ruled out, hence invasive prenatal testing by chromosomal microarray and karyotyping is recommended.",
+        "Genetic counselling is recommended."
+    ]
+
+    REFERENCES_PGTSR = [
+        'ESHRE PGT-SR/PGT-A Working Group, et al. "ESHRE PGT Consortium good practice recommendations for the detection of structural and numerical chromosomal aberrations." Human reproduction open 2020.3 (2020): hoaa017.',
+        'McCoy, Rajiv C. "Mosaicism in Preimplantation human embryos: when chromosomal abnormalities are the norm." Trends in genetics 33.7 (2017): 448-463.',
+        'ESHRE Working Group on Chromosomal Mosaicism, et al. "ESHRE survey results and good practice recommendations on managing chromosomal mosaicism." Hum Reprod Open. 2022 Nov 7;2022(4):hoac044.',
+        'Cram, D. S., et al. "PGDIS position statement on the transfer of mosaic embryos 2019." Reproductive biomedicine online 39 (2019): e1-e4.',
+        'Victor, Andrea R., et al. "One hundred mosaic embryos transferred prospectively in a single clinic: exploring when and why they result in healthy pregnancies." Fertility and sterility 111.2 (2019): 280-293.',
+        'Lin, Pin-Yao, et al. "Clinical outcomes of single mosaic embryo transfer: high-level or low-level mosaic embryo, does it matter?" Journal of clinical medicine 9.6 (2020): 1695.',
+        'Kahraman, Semra, et al. "The birth of a baby with mosaicism resulting from a known mosaic embryo transfer: a case report." Human Reproduction 35.3 (2020): 727-733.'
+    ]
+
     SIGNATURES = [
         {"name": "Anand Babu. K, Ph.D", "title": "Molecular Biologist"},
         {"name": "Sachin D Honguntikar, Ph.D", "title": "Molecular Geneticist"},
@@ -368,6 +399,7 @@ class PGTAReportTemplate:
     def generate_pdf(self, output_path, patient_data, embryos_data, show_logo=True, show_grid=False):
         """Generate PGT-A report PDF"""
         self.show_grid = show_grid
+        self._pgtsr = self._is_pgtsr(patient_data)
         top_margin = self.MARGIN_TOP if show_logo else self.DOSE_MARGIN_TOP
         bottom_margin = self.MARGIN_BOTTOM if show_logo else self.DOSE_MARGIN_BOTTOM
         doc = SimpleDocTemplate(
@@ -465,7 +497,7 @@ class PGTAReportTemplate:
         
         title_style = self.styles['PGTAReportTitle']
         title = Paragraph(
-            "Preimplantation Genetic Testing for Aneuploidies (PGT-A)",
+            self.TITLE_PGTSR_COVER if self._is_pgtsr(patient_data) else self.TITLE_PGTA,
             title_style
         )
         elements.append(title)
@@ -520,6 +552,13 @@ class PGTAReportTemplate:
         s = str(val).strip()
         if s.lower() == "nan": return default
         return s
+
+    @staticmethod
+    def _is_pgtsr(patient_data):
+        """True when this report should use the PGT-SR (Structural Rearrangement)
+        wording instead of the standard PGT-A (Aneuploidy) wording."""
+        val = str((patient_data or {}).get('report_template', '') or '').strip().lower().replace('-', '').replace('_', '').replace(' ', '')
+        return val == 'pgtsr'
 
     def _strip_ref_note(self, s):
         """Drop a trailing "(...)" note from a Sample/Embryo ID, e.g. "SS1(D5)" -> "SS1".
@@ -695,16 +734,28 @@ class PGTAReportTemplate:
             elements.append(Paragraph(self.MOSAICISM_CLINICAL, self.styles['PGTABodyText']))
         elements.append(Spacer(1, 12))
 
+        is_pgtsr = getattr(self, '_pgtsr', False)
+        limitations = self.LIMITATIONS_PGTSR if is_pgtsr else self.LIMITATIONS
+        references = self.REFERENCES_PGTSR if is_pgtsr else self.REFERENCES
+
         elements.append(self._create_section_header("Limitations"))
         elements.append(Spacer(1, 8))
-        for limitation in self.LIMITATIONS:
+        for limitation in limitations:
             elements.append(Paragraph(f"• {limitation}", self.styles['PGTABulletText']))
 
         elements.append(Spacer(1, 12))
+
+        if is_pgtsr:
+            rec_block = [self._section_header_flowable("Recommendations"), Spacer(1, 8)]
+            for rec in self.RECOMMENDATIONS_PGTSR:
+                rec_block.append(Paragraph(f"• {rec}", self.styles['PGTABulletText']))
+            elements.append(KeepTogether(rec_block))
+            elements.append(Spacer(1, 12))
+
         elements.append(Spacer(1, 12))
 
         ref_block = [self._section_header_flowable("References"), Spacer(1, 8)]
-        for idx, ref in enumerate(self.REFERENCES, 1):
+        for idx, ref in enumerate(references, 1):
             ref_block.append(Paragraph(f"{idx}. {ref}", self.styles['PGTABodyText']))
         elements.append(KeepTogether(ref_block))
 
@@ -715,12 +766,12 @@ class PGTAReportTemplate:
         elements = []
         
         title = Paragraph(
-            "Preimplantation Genetic Testing for Aneuploidies (PGT-A)",
+            self.TITLE_PGTSR if self._is_pgtsr(patient_data) else self.TITLE_PGTA,
             self.styles['PGTAReportTitle']
         )
         elements.append(title)
         elements.append(Spacer(1, 8))
-        
+
         def _wrap_banner(text):
             if not text: return ""
             return Paragraph(str(text), self.styles['PGTABannerValueText'])
@@ -850,7 +901,7 @@ class PGTAReportTemplate:
                 pil = PILImage.open(embryo_data['cnv_image_path'])
                 if pil.mode not in ('RGBA', 'LA'):
                     pil = pil.convert('RGBA')
-                bg = PILImage.new('RGBA', pil.size, (255, 255, 255, 0))
+                bg = PILImage.new('RGBA', pil.size, (255, 255, 255, 255))
                 diff = ImageChops.difference(pil, bg)
                 bbox = diff.getbbox()
                 if bbox:
@@ -860,12 +911,12 @@ class PGTAReportTemplate:
                 pil.save(buf, format='PNG')
                 buf.seek(0)
 
-                chart_width = self.CONTENT_WIDTH
+                chart_width = self.CONTENT_WIDTH - 2 * self.FRAME_PADDING
                 img = Image(buf, width=chart_width)
                 aspect = img.imageWidth / img.imageHeight
                 img.drawHeight = chart_width / aspect
 
-                img.hAlign = 'CENTER'
+                img.hAlign = 'LEFT'
                 elements.append(img)
                 elements.append(self._reclaimable_spacer(12, 6))
             except Exception as e:

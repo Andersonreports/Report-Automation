@@ -2967,6 +2967,12 @@
                   <label class="fr-check"><input type="checkbox" id="fmtPdf" checked> PDF</label>
                   <label class="fr-check"><input type="checkbox" id="fmtDocx" checked> DOCX</label>
 
+                  <span class="fr-label" style="margin-left:8px;">Report Type:</span>
+                  <select id="f_report_template">
+                    <option value="pgta">PGT-A (Aneuploidy)</option>
+                    <option value="pgtsr">PGT-SR (Structural Rearrangement)</option>
+                  </select>
+
                   <span class="fr-label" style="margin-left:8px;">Branding:</span>
                   <select id="logoOption">
                     <option value="with_logo">With Logo</option>
@@ -4058,7 +4064,8 @@
         biopsy_performed_by: document.getElementById("f_biopsy_performed_by").value.trim(),
         report_date: document.getElementById("f_report_date").value.trim(),
         indication: document.getElementById("f_indication").value.trim(),
-        results_summary_comment: document.getElementById("f_results_summary_comment").value.trim()
+        results_summary_comment: document.getElementById("f_results_summary_comment").value.trim(),
+        report_template: document.getElementById("f_report_template").value
       };
     }
     function getEmbryosData() {
@@ -4490,7 +4497,8 @@
           hospital_clinic: p.hospital_clinic || "", sample_collection_date: p.sample_collection_date || "",
           specimen: p.specimen || "", sample_receipt_date: p.sample_receipt_date || "",
           biopsy_performed_by: p.biopsy_performed_by || "", report_date: p.report_date || "",
-          indication: p.indication || "", results_summary_comment: p.results_summary_comment || ""
+          indication: p.indication || "", results_summary_comment: p.results_summary_comment || "",
+          report_template: p.report_template || "pgta"
         },
         summaryRows, embryoForms, embryoCount: embryoForms.length || 1, cnvImages
       };
@@ -5918,6 +5926,12 @@
     <div class="bulk-editor-field"><label>Sample Receipt Date:</label><input value="${esc(p.sample_receipt_date || "")}" oninput="state.bulkPatients[${i}].sample_receipt_date=this.value;scheduleBulkPreview()"></div>
     <div class="bulk-editor-field"><label>Biopsy Performed By:</label><input value="${esc(p.biopsy_performed_by || "")}" oninput="state.bulkPatients[${i}].biopsy_performed_by=this.value;scheduleBulkPreview()"></div>
     <div class="bulk-editor-field"><label>Report Date:</label><input value="${esc(p.report_date || todayStr())}" oninput="state.bulkPatients[${i}].report_date=this.value;scheduleBulkPreview()"></div>
+    <div class="bulk-editor-field"><label>Report Type:</label>
+      <select onchange="state.bulkPatients[${i}].report_template=this.value;scheduleBulkPreview()">
+        <option value="pgta" ${(p.report_template || "pgta") === "pgta" ? "selected" : ""}>PGT-A (Aneuploidy)</option>
+        <option value="pgtsr" ${p.report_template === "pgtsr" ? "selected" : ""}>PGT-SR (Structural Rearrangement)</option>
+      </select>
+    </div>
     <div class="bulk-editor-field"><label>Indication:</label><textarea rows="3" oninput="state.bulkPatients[${i}].indication=this.value;scheduleBulkPreview()">${esc(p.indication || "")}</textarea></div>
     <div class="bulk-editor-field"><label>Results Summary Comment:</label><textarea rows="2" oninput="state.bulkPatients[${i}].results_summary_comment=this.value;scheduleBulkPreview()">${esc(p.results_summary_comment || "")}</textarea></div>
   </div>`;
@@ -6140,11 +6154,12 @@
           hospital_clinic: p.hospital_clinic || "", sample_collection_date: p.sample_collection_date || "",
           specimen: p.specimen || "DAY 5 TROPHECTODERM BIOPSY", sample_receipt_date: p.sample_receipt_date || "",
           biopsy_performed_by: p.biopsy_performed_by || "", report_date: p.report_date || todayStr(),
-          indication: p.indication || "", results_summary_comment: p.results_summary_comment || ""
+          indication: p.indication || "", results_summary_comment: p.results_summary_comment || "",
+          report_template: p.report_template || "pgta"
         },
         embryos: embryos,
         options: { show_logo: showLogo, show_grid: showGrid, formats: ["pdf"] },
-        
+
         patient_data: {
           patient_name: p.patient_name || "", spouse_name: p.spouse_name || "w/o",
           pin: p.pin || "", age: p.age || "", sample_number: p.sample_number || "",
@@ -6152,7 +6167,8 @@
           hospital_clinic: p.hospital_clinic || "", sample_collection_date: p.sample_collection_date || "",
           specimen: p.specimen || "DAY 5 TROPHECTODERM BIOPSY", sample_receipt_date: p.sample_receipt_date || "",
           biopsy_performed_by: p.biopsy_performed_by || "", report_date: p.report_date || todayStr(),
-          indication: p.indication || "", results_summary_comment: p.results_summary_comment || ""
+          indication: p.indication || "", results_summary_comment: p.results_summary_comment || "",
+          report_template: p.report_template || "pgta"
         },
         embryos_data: embryos, show_logo: showLogo, show_grid: showGrid
       };
@@ -6381,6 +6397,7 @@
         });
         document.getElementById("logoOption").addEventListener("change", () => schedulePreview());
         document.getElementById("gridOption").addEventListener("change", () => schedulePreview());
+        document.getElementById("f_report_template").addEventListener("change", () => schedulePreview());
         setEmbryoCount(1);
       } catch (e) { console.error("Init error:", e); }
       document.body.classList.add("loaded");

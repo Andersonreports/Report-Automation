@@ -921,6 +921,9 @@ function renderManualForm() {
   }
 
   if (["single_hla", "transplant_donor", "ngs_photo", "loci11", "rpl_couple", "single_rpl"].includes(rtype)) {
+    const imgtInput = el("input", { type: "text", placeholder: "e.g. 3.56.0", oninput: scheduleManualPreview });
+    manualSpecialFields.imgt_release = imgtInput;
+
     const methCard = el("div", { class: "card" }, [el("h3", {}, "Methodology")]);
     const methTA = el("textarea", {
       placeholder: "Leave blank to use default (MiniSeq or SurfSeq based on NABL setting)",
@@ -932,7 +935,45 @@ function renderManualForm() {
       el("label", {}, "METHODOLOGY (OPTIONAL OVERRIDE)"),
       methTA,
     ]));
+
+    const kitCard = el("div", { class: "card" }, [el("h3", {}, "Kit")]);
+    const kitSel = el("select", {}, [
+      el("option", { value: "" }, "Select kit to auto-fill IMGT Release + Methodology"),
+      ...Object.entries(NGS_KITS).map(([key, k]) => el("option", { value: key }, k.label)),
+    ]);
+    kitSel.addEventListener("change", () => {
+      const preset = NGS_KITS[kitSel.value];
+      if (preset) {
+        imgtInput.value = preset.imgt_release;
+        methTA.value = preset.methodology;
+      }
+      scheduleManualPreview();
+    });
+    manualSpecialFields.kit = kitSel;
+    kitCard.appendChild(el("div", { class: "field full" }, [
+      el("label", {}, "KIT"),
+      kitSel,
+    ]));
+    col.appendChild(kitCard);
+
+    const imgtCard = el("div", { class: "card" }, [el("h3", {}, "IMGT/HLA Release")]);
+    imgtCard.appendChild(el("div", { class: "field full" }, [
+      el("label", {}, "IMGT/HLA RELEASE"),
+      imgtInput,
+    ]));
+    col.appendChild(imgtCard);
+
     col.appendChild(methCard);
+
+    const statusCard = el("div", { class: "card" }, [el("h3", {}, "Typing Status")]);
+    const statusSel = el("select", {}, ["Complete", "Incomplete"].map(o => el("option", { value: o }, o)));
+    statusSel.addEventListener("change", scheduleManualPreview);
+    manualSpecialFields.typing_status = statusSel;
+    statusCard.appendChild(el("div", { class: "field full" }, [
+      el("label", {}, "TYPING STATUS"),
+      statusSel,
+    ]));
+    col.appendChild(statusCard);
   }
 
   col.appendChild(buildGenBar(generateManual));
@@ -983,7 +1024,11 @@ function buildCrossmatchSection(col, rtype) {
     const r = {};
     [["t_cell", "T-Cell Result"], ["b_cell", "B-Cell Result"]].forEach(([k, l]) => {
       const sel = el("select", { onchange: scheduleManualPreview }, [
-        el("option", { value: "Negative" }, "Negative"), el("option", { value: "Positive" }, "Positive"), el("option", { value: "Doubtful" }, "Doubtful"),
+        el("option", { value: "Negative" }, "Negative"),
+        el("option", { value: "Doubtful" }, "Doubtful"),
+        el("option", { value: "Weak Positive" }, "Weak Positive"),
+        el("option", { value: "Positive" }, "Positive"),
+        el("option", { value: "Strong Positive" }, "Strong Positive"),
       ]);
       r[k] = sel;
       resGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), sel]));
@@ -1562,6 +1607,15 @@ function collectManualCase() {
   if (manualSpecialFields.methodology) {
     c.methodology = manualSpecialFields.methodology.value.trim();
   }
+  if (manualSpecialFields.imgt_release) {
+    c.imgt_release = manualSpecialFields.imgt_release.value.trim();
+  }
+  if (manualSpecialFields.typing_status) {
+    c.typing_status = manualSpecialFields.typing_status.value.trim();
+  }
+  if (manualSpecialFields.kit) {
+    c.kit = manualSpecialFields.kit.value;
+  }
 
   return c;
 }
@@ -1959,6 +2013,15 @@ function populateManualForm(c) {
   }
   if (manualSpecialFields.methodology) {
     manualSpecialFields.methodology.value = c.methodology || "";
+  }
+  if (manualSpecialFields.imgt_release) {
+    manualSpecialFields.imgt_release.value = c.imgt_release || "";
+  }
+  if (manualSpecialFields.typing_status) {
+    manualSpecialFields.typing_status.value = c.typing_status === "Incomplete" ? "Incomplete" : "Complete";
+  }
+  if (manualSpecialFields.kit) {
+    manualSpecialFields.kit.value = c.kit || "";
   }
 
   scheduleManualPreview();
@@ -2458,8 +2521,10 @@ function renderBulkCrossmatchEditor(editCol, c, i) {
     [["t_cell","T-Cell Result"],["b_cell","B-Cell Result"]].forEach(([k,l]) => {
       const sel = el("select", {}, [
         el("option", { value: "Negative" }, "Negative"),
-        el("option", { value: "Positive" }, "Positive"),
         el("option", { value: "Doubtful" }, "Doubtful"),
+        el("option", { value: "Weak Positive" }, "Weak Positive"),
+        el("option", { value: "Positive" }, "Positive"),
+        el("option", { value: "Strong Positive" }, "Strong Positive"),
       ]);
       sel.value = r[k] || "Negative";
       sel.addEventListener("change", () => { r[k] = sel.value; c.cdc_results = r; refresh(); });

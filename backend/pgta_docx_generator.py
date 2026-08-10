@@ -72,6 +72,37 @@ class PGTADocxGenerator:
         'Kahraman, Semra, et al. "The birth of a baby with mosaicism resulting from a known mosaic embryo transfer: a case report." Human Reproduction 35.3 (2020): 727-733.'
     ]
 
+    # --- PGT-SR (Structural Rearrangement) variant ---------------------------
+    TITLE_PGTA = "Preimplantation Genetic Testing for Aneuploidies (PGT-A)"
+    TITLE_PGTSR_COVER = "Preimplantation Genetic Testing for Structural Rearrangement (PGT - SR)"
+    TITLE_PGTSR = "Preimplantation Genetic Testing for Structural Rearrangement (PGT-SR)"
+
+    LIMITATIONS_PGTSR = [
+        "This technique cannot detect point mutations, balanced translocations, inversions, triploidy, uniparental disomy and epigenetic modifications.",
+        "NGS-based PGT-SR diagnosis of biopsied material from cleavage stage or blastocyst embryos does not allow for a distinction between embryos with a normal or a balanced karyotype.",
+        "Probes used do not cover the p arm of acrocentric chromosomes as they are rich in repeat regions and RNA markers and devoid of genes. Changes in this region will not be detected. However, these regions have less clinical significance due to the absence of genes.",
+        "Deletions and duplications with the size of < 10 Mb cannot be detected.",
+        "Risk of misinterpretation of the actual embryo karyotype due to the presence of chromosomal mosaicism, either at cleavage-stage or at blastocyst stage may exist.",
+        "This technique cannot detect variants of polyploidy and haploidy",
+        "NGS without genotyping cannot identify the nature (meiotic or mitotic) nor the parental origin of aneuploidies",
+        "Due to the intrinsic nature of chromosomal mosaicism, the chromosomal make-up achieved from a biopsy only may represent a picture of a small part of the embryo and may not necessarily reflect the chromosomal content of the entire embryo. Also, the mosaicism level inferred from a multi-cell TE biopsy might not unequivocally represent the exact chromosomal mosaicism percentage of the TE cells or the inner cell mass constitution."
+    ]
+
+    RECOMMENDATIONS_PGTSR = [
+        "Balanced translocations and unbalanced translocation with size of < 10 Mb cannot be ruled out, hence invasive prenatal testing by chromosomal microarray and karyotyping is recommended.",
+        "Genetic counselling is recommended."
+    ]
+
+    REFERENCES_PGTSR = [
+        'ESHRE PGT-SR/PGT-A Working Group, et al. "ESHRE PGT Consortium good practice recommendations for the detection of structural and numerical chromosomal aberrations." Human reproduction open 2020.3 (2020): hoaa017.',
+        'McCoy, Rajiv C. "Mosaicism in Preimplantation human embryos: when chromosomal abnormalities are the norm." Trends in genetics 33.7 (2017): 448-463.',
+        'ESHRE Working Group on Chromosomal Mosaicism, et al. "ESHRE survey results and good practice recommendations on managing chromosomal mosaicism." Hum Reprod Open. 2022 Nov 7;2022(4):hoac044.',
+        'Cram, D. S., et al. "PGDIS position statement on the transfer of mosaic embryos 2019." Reproductive biomedicine online 39 (2019): e1-e4.',
+        'Victor, Andrea R., et al. "One hundred mosaic embryos transferred prospectively in a single clinic: exploring when and why they result in healthy pregnancies." Fertility and sterility 111.2 (2019): 280-293.',
+        'Lin, Pin-Yao, et al. "Clinical outcomes of single mosaic embryo transfer: high-level or low-level mosaic embryo, does it matter?" Journal of clinical medicine 9.6 (2020): 1695.',
+        'Kahraman, Semra, et al. "The birth of a baby with mosaicism resulting from a known mosaic embryo transfer: a case report." Human Reproduction 35.3 (2020): 727-733.'
+    ]
+
     def __init__(self, assets_dir="assets/pgta"):
         script_dir = os.path.dirname(os.path.abspath(__file__))
         self.assets_dir = os.path.join(script_dir, assets_dir)
@@ -142,9 +173,16 @@ class PGTADocxGenerator:
         (e.g. the embryo detail page header)."""
         return re.sub(r'\s*\([^)]*\)\s*$', '', s or '').strip()
 
+    @staticmethod
+    def _is_pgtsr(patient_data):
+        """True when this report should use the PGT-SR (Structural Rearrangement)
+        wording instead of the standard PGT-A (Aneuploidy) wording."""
+        val = str((patient_data or {}).get('report_template', '') or '').strip().lower().replace('-', '').replace('_', '').replace(' ', '')
+        return val == 'pgtsr'
 
     def generate_docx(self, output_path, patient_data, embryos_data, show_logo=True, show_grid=False):
         self.show_grid = show_grid
+        self._pgtsr = self._is_pgtsr(patient_data)
         doc = Document()
         
         sections = doc.sections
@@ -223,7 +261,7 @@ class PGTADocxGenerator:
     def _add_cover_page(self, doc, patient_data, embryos_data):
         title = doc.add_paragraph()
         title.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run = title.add_run("Preimplantation Genetic Testing for Aneuploidies (PGT-A)")
+        run = title.add_run(self.TITLE_PGTSR_COVER if self._is_pgtsr(patient_data) else self.TITLE_PGTA)
         self._set_paragraph_font(title, font_name="Calibri", font_size=14, bold=False)
         
         doc.add_paragraph()
@@ -380,16 +418,20 @@ class PGTADocxGenerator:
     def _add_methodology_page(self, doc, embryos_data=None):
         mosaicism_clinical_item = (None, self.MOSAICISM_CLINICAL, None) if clf.any_mosaic(embryos_data or []) else None
 
+        is_pgtsr = getattr(self, '_pgtsr', False)
+        limitations = self.LIMITATIONS_PGTSR if is_pgtsr else self.LIMITATIONS
+        references = self.REFERENCES_PGTSR if is_pgtsr else self.REFERENCES
+
         sections = [
             ("Methodology", self.METHODOLOGY_TEXT, None),
             ("Conditions for reporting mosaicism", self.MOSAICISM_TEXT, self.MOSAICISM_BULLETS),
         ]
         if mosaicism_clinical_item:
             sections.append(mosaicism_clinical_item)
-        sections += [
-            ("Limitations", None, self.LIMITATIONS),
-            ("References", None, [f"{i}. {r}" for i, r in enumerate(self.REFERENCES, 1)])
-        ]
+        sections.append(("Limitations", None, limitations))
+        if is_pgtsr:
+            sections.append(("Recommendations", None, self.RECOMMENDATIONS_PGTSR))
+        sections.append(("References", None, [f"{i}. {r}" for i, r in enumerate(references, 1)]))
         
         for head, body, bullets in sections:
             if head:
@@ -421,7 +463,7 @@ class PGTADocxGenerator:
         p_title = doc.add_paragraph()
         p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
         self._set_paragraph_font(p_title, font_name="Calibri", font_size=14, bold=False)
-        p_title.add_run("Preimplantation Genetic Testing for Aneuploidies (PGT-A)")
+        p_title.add_run(self.TITLE_PGTSR if self._is_pgtsr(patient_data) else self.TITLE_PGTA)
         doc.add_paragraph()
 
         banner = doc.add_table(rows=2, cols=6)
@@ -518,12 +560,12 @@ class PGTADocxGenerator:
         result_summary = self._clean(embryo_data.get('result_summary', ''))
         result_desc = self._clean(embryo_data.get('result_description', ''))
         is_inconclusive = "INCONCLUSIVE" in result_summary.upper() or "INCONCLUSIVE" in result_desc.upper() or "INCONCLUSIVE" in interp.upper()
-        
-        if is_inconclusive:
-            inconclusive_comment = self._clean(embryo_data.get('inconclusive_comment', ''))
-            if inconclusive_comment:
-                comment_p = doc.add_paragraph(inconclusive_comment)
-                self._set_paragraph_font(comment_p, font_size=11)
+
+        # Render any inconclusive comment provided by the user regardless of classification
+        inconclusive_comment = self._clean(embryo_data.get('inconclusive_comment', ''))
+        if inconclusive_comment:
+            comment_p = doc.add_paragraph(inconclusive_comment)
+            self._set_paragraph_font(comment_p, font_size=11)
         
         if not is_inconclusive:
             chr_statuses = embryo_data.get('chromosome_statuses') or {}
