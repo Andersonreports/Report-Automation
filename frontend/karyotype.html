@@ -1009,6 +1009,8 @@
     if(m_inputs.PIN) m_inputs.PIN.value = p.patient_no || "";
     if(m_inputs.AGE) m_inputs.AGE.value = p.age || "";
     if(m_inputs["SAMPLE NUMBER"]) m_inputs["SAMPLE NUMBER"].value = p.lab_no || "";
+    if(m_inputs["REFERRING CLINICIAN"]) m_inputs["REFERRING CLINICIAN"].value = p.referring_doctor || "";
+    if(m_inputs["HOSPITAL/CLINIC"]) m_inputs["HOSPITAL/CLINIC"].value = p.client_name || "";
     var isoDate=(p.sample_receipt_date||"").split(" ")[0];
     var parts=isoDate.split("-"), y=parts[0], mo=parts[1], d=parts[2];
     var displayDate=(y&&mo&&d)?(d+"-"+mo+"-"+y):"";
@@ -1082,11 +1084,12 @@
     return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
   }
   function patientsToCsv(patients){
-    var header = ["Patient Name","Gender","Age","Patient No","Sample Receipt Date"];
+    var header = ["Patient Name","Gender","Age","Patient No","Lab Number","Sample Receipt Date","Referred By","Hospital/Clinic"];
     var rows = patients.map(function(p){
       return [
         p.patient_name||"", p.gender||"", (p.age!=null?p.age:""),
-        p.patient_no||"", (p.sample_receipt_date||"").split(" ")[0],
+        p.patient_no||"", p.lab_no||"", (p.sample_receipt_date||"").split(" ")[0],
+        p.referring_doctor||"", p.client_name||"",
       ];
     });
     return [header].concat(rows).map(function(r){ return r.map(csvEscape).join(","); }).join("\r\n");

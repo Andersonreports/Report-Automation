@@ -1355,6 +1355,8 @@
         if (inputs[1]) inputs[1].value = p.age || "";
         if (inputs[2]) inputs[2].value = p.patient_no || "";
         if (inputs[3]) inputs[3].value = p.lab_no || "";
+        if (inputs[5]) inputs[5].value = p.referring_doctor || "";
+        if (inputs[6]) inputs[6].value = p.client_name || "";
         const isoDate = (p.sample_receipt_date || "").split(" ")[0];
         const [y, m, d] = isoDate.split("-");
         if (inputs[12] && y && m && d) inputs[12].value = `${d}-${m}-${y}`;
@@ -1401,13 +1403,16 @@
             return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
         }
         function patientsToCsv(patients) {
-            const header = ["Patient Name", "Gender", "Age", "Patient No", "Sample Receipt Date"];
+            const header = ["Patient Name", "Gender", "Age", "Patient No", "Lab Number", "Sample Receipt Date", "Referred By", "Hospital/Clinic"];
             const rows = patients.map(p => [
                 p.patient_name || "",
                 p.gender || "",
                 p.age ?? "",
                 p.patient_no || "",
+                p.lab_no || "",
                 (p.sample_receipt_date || "").split(" ")[0],
+                p.referring_doctor || "",
+                p.client_name || "",
             ]);
             return [header, ...rows].map(r => r.map(csvEscape).join(",")).join("\r\n");
         }
@@ -1827,6 +1832,32 @@
 </script>
 
   <script>
+    // Every column name the app actually looks up on an uploaded row, by its
+    // exact expected spelling. Lab exports vary in spacing/casing/punctuation
+    // ("PatientName" vs "Patient Name", "labno" vs "Lab No."), which otherwise
+    // silently breaks the lookup and makes a perfectly valid column look
+    // "missing". Matching is done on a normalized form (lowercased, spaces/
+    // underscores/periods stripped) so any such variant of a correct column
+    // name still resolves to the field the rest of the app expects.
+    const TERA_CANONICAL_COLUMNS = [
+        "Patient Name", "Age", "Sample ID", "Lab No.", "Biopsy No.", "Doctor Name",
+        "Center name", "Cycle Type", "Biopsy", "P4 /hCG injection  date time",
+        "Biopsy time in hrs", "Biopsy time in hrs.1", "TERA result", "Time for report",
+        "Date of Received", "Report Date", "Patient No", "Sample Receipt Date",
+    ];
+    function _looseColumnKey(k) {
+        return String(k || "").toLowerCase().replace(/[\s_.]/g, "");
+    }
+    const TERA_LOOSE_TO_CANONICAL = {};
+    TERA_CANONICAL_COLUMNS.forEach(c => { TERA_LOOSE_TO_CANONICAL[_looseColumnKey(c)] = c; });
+
+    function _aliasCanonicalColumns(row) {
+        Object.keys(row).forEach(k => {
+            const canonical = TERA_LOOSE_TO_CANONICAL[_looseColumnKey(k)];
+            if (canonical && !(canonical in row)) row[canonical] = row[k];
+        });
+    }
+
     async function uploadExcel() {
         const fileInput = document.getElementById("excelFile");
         if (!fileInput.files.length) return;
@@ -1850,6 +1881,7 @@
                     val = val.replace(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})(\.\d+)?$/, "$1 $2");
                     out[k.trim()] = val;
                 });
+                _aliasCanonicalColumns(out);
                 return out;
             });
 

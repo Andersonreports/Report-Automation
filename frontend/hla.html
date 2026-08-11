@@ -687,6 +687,8 @@
         }
         fillField('sample_number', p.lab_no);
         fillField('pin', p.patient_no);
+        fillField('hospital_clinic', p.client_name);
+        fillField('referred_by', p.referring_doctor);
         const isoDate = (p.sample_receipt_date || '').split(' ')[0];
         const [y, m, d] = isoDate.split('-');
         const displayDate = (y && m && d) ? `${d}-${m}-${y}` : '';
@@ -729,6 +731,8 @@
         if (p.age != null && p.gender) fillDonorField('gender_age', `${p.gender} / ${p.age}`);
         fillDonorField('sample_number', p.lab_no);
         fillDonorField('pin', p.patient_no);
+        fillDonorField('hospital_clinic', p.client_name);
+        fillDonorField('referred_by', p.referring_doctor);
         const isoDate = (p.sample_receipt_date || '').split(' ')[0];
         const [y, m, d] = isoDate.split('-');
         const displayDate = (y && m && d) ? `${d}-${m}-${y}` : '';
@@ -826,7 +830,7 @@
 
       function patientsToCsv(patients) {
         const header = [
-          'Patient Name', 'Gender', 'Age', 'Patient No', 'Sample Receipt Date',
+          'Patient Name', 'Gender', 'Age', 'Patient No', 'Lab Number', 'Sample Receipt Date',
           'Diagnosis', 'Referred By', 'Hospital/Clinic', 'Specimen', 'Relationship',
           'Remarks', 'Hospital MR No', 'Collection Date', 'Report Date',
         ];
@@ -835,8 +839,14 @@
           p.gender || '',
           p.age ?? '',
           p.patient_no || '',
+          p.lab_no || '',
           (p.sample_receipt_date || '').split(' ')[0],
-          '', '', '', '', '', '', '', '', '',
+          '',
+          p.referring_doctor || '',
+          p.client_name || '',
+          '', '', '', '',
+          (p.sample_receipt_date || '').split(' ')[0],
+          '',
         ]);
         return [header, ...rows].map(r => r.map(csvEscape).join(',')).join('\r\n');
       }

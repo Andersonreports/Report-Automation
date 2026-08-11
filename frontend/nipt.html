@@ -1963,6 +1963,8 @@
       _pfFillField("m_pin", p.patient_no);
       _pfFillField("m_age", p.age);
       _pfFillField("m_sample_id", p.lab_no);
+      _pfFillField("m_clinician", p.referring_doctor);
+      _pfFillField("m_hospital", p.client_name);
       const isoDate = (p.sample_receipt_date || "").split(" ")[0];
       const [y, m, d] = isoDate.split("-");
       const displayDate = (y && m && d) ? `${d}/${m}/${y}` : "";
@@ -2041,13 +2043,16 @@
         return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
       }
       function patientsToCsv(patients) {
-        const header = ["Patient Name", "Gender", "Age", "Patient No", "Sample Receipt Date"];
+        const header = ["Patient Name", "Gender", "Age", "Patient No", "Lab Number", "Sample Receipt Date", "Referred By", "Hospital/Clinic"];
         const rows = patients.map(p => [
           p.patient_name || "",
           p.gender || "",
           p.age ?? "",
           p.patient_no || "",
+          p.lab_no || "",
           (p.sample_receipt_date || "").split(" ")[0],
+          p.referring_doctor || "",
+          p.client_name || "",
         ]);
         return [header, ...rows].map(r => r.map(csvEscape).join(",")).join("\r\n");
       }

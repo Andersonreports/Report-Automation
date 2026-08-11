@@ -2,6 +2,8 @@
 import os, io, re, base64, sys
 from datetime import datetime
 
+from hla_template import _title_case
+
 
 def _resource_path(relative: str) -> str:
     base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
@@ -658,7 +660,7 @@ class TERAReportGenerator:
         age_r = self._s(d.get("Age", ""))
         age   = f"{age_r} Years" if age_r else "Not Provided"
         doc   = self._s(d.get("Doctor Name", "")) or "Not Provided"
-        hosp  = self._s(d.get("Center name", d.get("Hospital", d.get("Hospital ", ""))))
+        hosp  = _title_case(self._s(d.get("Center name", d.get("Hospital", d.get("Hospital ", "")))), is_name=True)
         cyc_raw     = self._s(d.get("Cycle Type", d.get("Cycle type", "HRT")))
         biopsy_days = self._int(d.get("Biopsy", ""))
         cyc_upper   = cyc_raw.upper()
