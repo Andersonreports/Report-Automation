@@ -675,7 +675,7 @@ _DEGREE_MAP = {
     "dnb": "DNB", "phd": "PhD", "dgo": "DGO", "frcs": "FRCS", "mrcp": "MRCP",
 }
 _ABBREV_SET = {"edta", "dna", "rna", "pcr", "bmt", "hla", "rpl", "rif", "nips", "poc", "ngs", "wbc", "rbc", "idd",
-               "esic", "aiims", "kims", "ivf", "iui", "icsi", "imsi"}
+               "esic", "aiims", "kims", "ivf", "iui", "icsi", "imsi", "na"}
 _PREFIX_MAP_TC = {"mr": "Mr", "mrs": "Mrs", "ms": "Ms", "master": "Master", "dr": "Dr"}
 
 
@@ -1876,12 +1876,10 @@ def _build_ngs_photo(case: dict, S: dict) -> list:
         combined.append(_rp)
     for d in donors:
         combined.append(_person_table(f"{_norm_name(d.get('name', ''))} (Donor)", d, False))
-    elems.append(KeepTogether(combined))
-
-    for d in donors:
         _rd = _remarks_para(d)
         if _rd:
-            elems.append(_rd)
+            combined.append(_rd)
+    elems.append(KeepTogether(combined))
 
     elems.append(Spacer(1, 3 * mm))
     interp_block = [_P("Interpretation", F_BOLD, 13, C_TITLE, TA_LEFT),
