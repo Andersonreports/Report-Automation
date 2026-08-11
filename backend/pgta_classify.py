@@ -148,10 +148,16 @@ def resolve_no_result_interp(interp_text):
 
 
 def is_ambiguous_or_normal_interp(interp_text):
+    """True only for a bare/blank interpretation with no deliberate qualifier.
+
+    Must be an exact match, not a substring/word check: PGT-SR interpretations
+    like "Euploid/Carrier of Balanced translocation" contain the word EUPLOID
+    but carry a deliberate, specific meaning that must survive verbatim into
+    the report, not collapse to plain "Euploid" just because Autosomes/Sex
+    happen to read Normal.
+    """
     s = (interp_text or "").strip().upper()
-    if s in ("", "NA", "N/A"):
-        return True
-    return bool(re.search(r'\bNORMAL\b', s) or re.search(r'\bEUPLOID\b', s))
+    return s in ("", "NA", "N/A", "NORMAL", "EUPLOID")
 
 
 def _make(cls):

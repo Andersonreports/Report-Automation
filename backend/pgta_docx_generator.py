@@ -285,13 +285,13 @@ class PGTADocxGenerator:
         
         doc.add_paragraph()
         
-        if 'indication' in patient_data and patient_data['indication']:
-            p_ind = doc.add_paragraph()
-            self._set_paragraph_font(p_ind, font_name="Calibri", font_size=10, bold=True)
-            p_ind.add_run("Indication")
+        p_ind = doc.add_paragraph()
+        self._set_paragraph_font(p_ind, font_name="Calibri", font_size=10, bold=True)
+        p_ind.add_run("Indication")
+        if patient_data.get('indication'):
             p_val = doc.add_paragraph(self._clean(patient_data['indication']))
             self._set_paragraph_font(p_val, font_size=9)
-            doc.add_paragraph()
+        doc.add_paragraph()
 
         p_res = doc.add_paragraph()
         self._set_paragraph_font(p_res, font_name="Calibri", font_size=10, bold=True)
@@ -416,9 +416,13 @@ class PGTADocxGenerator:
                     cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.LEFT
 
     def _add_methodology_page(self, doc, embryos_data=None):
-        mosaicism_clinical_item = (None, self.MOSAICISM_CLINICAL, None) if clf.any_mosaic(embryos_data or []) else None
-
         is_pgtsr = getattr(self, '_pgtsr', False)
+
+        # PGT-SR always carries this paragraph as standard boilerplate (per
+        # the lab's approved PGT-SR template); PGT-A only shows it when this
+        # specific batch actually has a mosaic result to discuss.
+        mosaicism_clinical_item = (None, self.MOSAICISM_CLINICAL, None) if (is_pgtsr or clf.any_mosaic(embryos_data or [])) else None
+
         limitations = self.LIMITATIONS_PGTSR if is_pgtsr else self.LIMITATIONS
         references = self.REFERENCES_PGTSR if is_pgtsr else self.REFERENCES
 

@@ -522,12 +522,12 @@ class PGTAReportTemplate:
         elements.append(KeepTogether(disclaimer_table))
         elements.append(Spacer(1, 12))
         
-        if 'indication' in patient_data and patient_data['indication']:
-            elements.append(self._create_section_header("Indication"))
-            elements.append(Spacer(1, 8))
+        elements.append(self._create_section_header("Indication"))
+        elements.append(Spacer(1, 8))
+        if patient_data.get('indication'):
             indication_text = Paragraph(patient_data['indication'], self.styles['PGTABodyText'])
             elements.append(indication_text)
-            elements.append(Spacer(1, 12))
+        elements.append(Spacer(1, 12))
         
         elements.append(self._create_section_header("Results summary"))
         elements.append(Spacer(1, 8))
@@ -730,11 +730,15 @@ class PGTAReportTemplate:
             elements.append(Paragraph(f"• {bullet}", self.styles['PGTABulletText']))
         elements.append(Spacer(1, 6))
 
-        if clf.any_mosaic(embryos_data or []):
+        is_pgtsr = getattr(self, '_pgtsr', False)
+
+        # PGT-SR always carries this paragraph as standard boilerplate (per
+        # the lab's approved PGT-SR template); PGT-A only shows it when this
+        # specific batch actually has a mosaic result to discuss.
+        if is_pgtsr or clf.any_mosaic(embryos_data or []):
             elements.append(Paragraph(self.MOSAICISM_CLINICAL, self.styles['PGTABodyText']))
         elements.append(Spacer(1, 12))
 
-        is_pgtsr = getattr(self, '_pgtsr', False)
         limitations = self.LIMITATIONS_PGTSR if is_pgtsr else self.LIMITATIONS
         references = self.REFERENCES_PGTSR if is_pgtsr else self.REFERENCES
 

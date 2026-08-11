@@ -3113,6 +3113,13 @@
                 <div class="bulk-bottom-divider"></div>
                 
                 <div style="display:flex;gap:12px;align-items:center;flex-shrink:0;">
+                  <div class="opt-field" style="min-width:170px;">
+                    <label>Report Type (all):</label>
+                    <select id="bulkReportTemplateOption" onchange="applyBulkReportTemplateToAll(this.value)" title="Sets the Report Type for every loaded patient. Override an individual patient from its own editor panel.">
+                      <option value="pgta">PGT-A (Aneuploidy)</option>
+                      <option value="pgtsr">PGT-SR (Structural Rearrangement)</option>
+                    </select>
+                  </div>
                   <div class="opt-field" style="min-width:120px;">
                     <label>Branding:</label>
                     <select id="bulkLogoOption">
@@ -3488,9 +3495,22 @@
       "No DNA detected"
     ];
     const INTERP_OPTIONS = ["Euploid", "Aneuploid", "(-)", "Chaotic embryo", "NA", "Low level mosaic", "High level mosaic", "Complex mosaic", "Inconclusive", "Low DNA concentration"];
+    // Extra Interpretation choices specific to the PGT-SR (Structural
+    // Rearrangement) report -- only offered when that template is selected.
+    const PGTSR_INTERP_OPTIONS = ["Euploid/Carrier of Balanced translocation", "Euploid/Carrier of Inversion", "Aneuploid by Unbalanced translocation"];
+    function interpOptionsFor(reportTemplate) {
+      return reportTemplate === "pgtsr" ? INTERP_OPTIONS.concat(PGTSR_INTERP_OPTIONS) : INTERP_OPTIONS;
+    }
     const SEX_OPTIONS = ["Normal", "Abnormal", "Mosaic"];
     const SEX_DATALIST_OPTIONS = ["Normal", "NA", "Abnormal", "Mosaic", "-X", "+X", "-Y", "+Y", "Mosaic -X", "Mosaic +X", "Mosaic -Y", "Mosaic +Y"];
     const CHR_STATUSES = ["N", "G", "L", "SG", "SL", "M", "MG", "ML", "SMG", "SML", "SL/SG", "SG/SL", "SML/SMG", "SMG/SML"];
+
+    // Default Indication text for the PGT-SR (Structural Rearrangement) report
+    // type only. Seeds an empty field the moment Report Type is switched to
+    // PGT-SR -- never overwrites text the user has already typed -- and stays
+    // a normal, freely editable textarea value afterwards since the patient
+    // name, chromosomes and breakpoints differ case to case.
+    const PGTSR_DEFAULT_INDICATION = "Mr. Bejawada Venkata Subbarao is a carrier of Balanced translocation involving long arm of chromosome 14 and 15(46,XY,t(14;15)(q13;q26.3)). The couple underwent ART, their embryo samples were biopsied on Day 5, trophectoderm cells were assessed for the presence of unbalanced translocation and other chromosomal aneuploidies.";
 
     
     
@@ -3618,7 +3638,7 @@
       <td><input type="text" id="summary-mtcopy-${idx}" value="${esc(row.mtcopy || 'NA')}" oninput="updateSummaryMtcopy(${idx},this.value)" style="width:70px;" placeholder="NA"></td>
       <td>
         <select id="summary-interp-${idx}" onchange="updateSummaryInterp(${idx},this.value)" style="color:${getInterpColor(prettyInterp)};font-weight:600;">
-          ${INTERP_OPTIONS.map(v => `<option style="color:${getInterpColor(v)};"${(row.interpretation || "NA") === v ? " selected" : ""}>${esc(v)}</option>`).join("")}
+          ${interpOptionsFor(document.getElementById("f_report_template")?.value).map(v => `<option style="color:${getInterpColor(v)};"${(row.interpretation || "NA") === v ? " selected" : ""}>${esc(v)}</option>`).join("")}
         </select>
       </td>
     `;
@@ -3685,10 +3705,13 @@
 
     // Interpretations that carry no deliberate choice, and so may be replaced
     // by NA. A lab-chosen "Inconclusive" / "Low DNA concentration" is kept.
+    // Must be an exact match, not a substring check: PGT-SR interpretations
+    // like "Euploid/Carrier of Balanced translocation" contain the word
+    // EUPLOID but carry a deliberate, specific meaning that must not be
+    // treated as a bare/ambiguous "Euploid".
     function isAmbiguousOrNormalInterp(val) {
       const s = (val || "").trim().toUpperCase();
-      if (s === "" || s === "NA" || s === "N/A") return true;
-      return /\bNORMAL\b/.test(s) || /\bEUPLOID\b/.test(s);
+      return s === "" || s === "NA" || s === "N/A" || s === "NORMAL" || s === "EUPLOID";
     }
 
     function getInterpColor(interp) {
@@ -3786,6 +3809,12 @@
         // such as "Inconclusive", otherwise NA.
         newInterp = isAmbiguousOrNormalInterp(sr.interpretation) ? "NA" : sr.interpretation;
       } else if (autoText === "normal" && sexText === "normal") {
+        // Don't clobber a deliberate, specific choice (e.g. the PGT-SR
+        // "Euploid/Carrier of Balanced translocation" or "Aneuploid by
+        // Unbalanced translocation" interpretations) just because Autosomes/
+        // Sex happen to read Normal -- only auto-fill when nothing
+        // deliberate has been chosen yet.
+        if (!isAmbiguousOrNormalInterp(sr.interpretation)) return;
         newInterp = "Euploid";
       } else if (sexText === "abnormal" || (autoText && autoText !== "normal" && !autoText.includes("mosaic"))) {
         newInterp = "Aneuploid";
@@ -3892,7 +3921,7 @@
     <div class="embryo-row">
       <div class="embryo-field"><label>Interpretation</label>
         <select id="embryo-interp-${idx}" style="color:${getInterpColor(ef.interpretation || 'NA')};font-weight:600;" onchange="this.style.color=getInterpColor(this.value);onEmbryoChange(${idx},'interpretation',this.value)">
-          ${INTERP_OPTIONS.map(v => `<option value="${esc(v)}" style="color:${getInterpColor(v)};"${(ef.interpretation||'NA')===v?' selected':''}>${esc(v)}</option>`).join('')}
+          ${interpOptionsFor(document.getElementById("f_report_template")?.value).map(v => `<option value="${esc(v)}" style="color:${getInterpColor(v)};"${(ef.interpretation||'NA')===v?' selected':''}>${esc(v)}</option>`).join('')}
         </select>
       </div>
     </div>
@@ -4686,6 +4715,8 @@
       _pfFillField("f_pin", p.patient_no);
       _pfFillField("f_age", p.age);
       _pfFillField("f_sample_number", p.lab_no);
+      _pfFillField("f_referring_clinician", p.referring_doctor);
+      _pfFillField("f_hospital_clinic", p.client_name);
       const isoDate = (p.sample_receipt_date || "").split(" ")[0];
       const [y, m, d] = isoDate.split("-");
       const displayDate = (y && m && d) ? `${d}-${m}-${y}` : "";
@@ -4763,13 +4794,17 @@
       return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
     }
     function _patientsToCsv(patients) {
-      const header = ["Patient Name", "Gender", "Age", "Patient No", "Sample Receipt Date"];
+      const header = ["Patient Name", "Gender", "Age", "Patient No", "Lab Number", "Sample Receipt Date", "Sample Collection Date", "Referred By", "Hospital/Clinic"];
       const rows = patients.map(p => [
         p.patient_name || "",
         p.gender || "",
         p.age ?? "",
         p.patient_no || "",
+        p.lab_no || "",
         (p.sample_receipt_date || "").split(" ")[0],
+        (p.sample_collected_time || "").split(" ")[0],
+        p.referring_doctor || "",
+        p.client_name || "",
       ]);
       return [header, ...rows].map(r => r.map(_csvEscape).join(",")).join("\r\n");
     }
@@ -5380,7 +5415,7 @@
           pin: pin,
           age: _getV(pRow, ["Age","Patient Age"]),
           sample_number: _stripDec(_getV(pRow, ["Sample Number","Sample No","Sample No.","SampleNumber","Lab Number","Lab No","Accession No","Accession Number"])),
-          referring_clinician: "",
+          referring_clinician: _getV(pRow, ["Referring Clinician","Referring Clinician Name","Referring Doctor","Doctor Name","Referred By","Clinician","Doctor"]),
           biopsy_date: bDate, sample_collection_date: cDate,
           hospital_clinic: _getV(pRow, ["Hospital/Clinic Name","Hospital/Clinic","Hospital_Clinic","Hospital","Clinic","Center"]),
           specimen: _getV(pRow, ["Specimen Type","Sample Type"], "DAY 5 TROPHECTODERM BIOPSY"),
@@ -5418,7 +5453,7 @@
             pin: _cleanV(row["PIN"] || row["pin"] || row["Patient No"] || row["Patient_No"] || ""),
             age: _cleanV(row["Age"] || row["age"] || ""),
             sample_number: _cleanV(row["Sample_Number"] || row["sample_number"] || ""),
-            referring_clinician: "",
+            referring_clinician: _cleanV(row["Referring_Clinician"] || row["referring_clinician"] || row["Referring Clinician"] || row["Doctor Name"] || row["doctor_name"] || ""),
             biopsy_date: _cleanV(row["Biopsy_Date"] || row["biopsy_date"] || ""),
             hospital_clinic: _cleanV(row["Hospital_Clinic"] || row["hospital_clinic"] || ""),
             sample_collection_date: _cleanV(row["Sample_Collection_Date"] || row["sample_collection_date"] || ""),
@@ -5476,6 +5511,7 @@
             age: _getV(row, ["Age", "Patient Age"]),
             gender: _getV(row, ["Gender", "Sex"]),
             sample_number: _stripDec(_getV(row, ["Sample Number", "Sample No", "Sample No.", "SampleNumber", "Lab Number", "Lab No", "Accession No", "Accession Number"])),
+            referring_clinician: _getV(row, ["Referring Clinician", "Referring Clinician Name", "Referring Doctor", "Doctor Name", "Referred By", "Clinician", "Doctor"]),
             biopsy_date: _fmtDate(_getV(row, ["Date of Biopsy", "Biopsy Date"])),
             sample_collection_date: _fmtDate(_getV(row, ["Sample Collection Date", "Date of Sample Collection", "Collection Date", "Date Collected"])),
             hospital_clinic: _getV(row, ["Hospital/Clinic Name", "Hospital/Clinic", "Hospital_Clinic", "Hospital", "Clinic", "Center"]),
@@ -5517,7 +5553,7 @@
           pin: p.pin,
           age: p.age,
           sample_number: p.sample_number,
-          referring_clinician: "",
+          referring_clinician: p.referring_clinician || "",
           biopsy_date: p.biopsy_date, sample_collection_date: p.sample_collection_date || p.biopsy_date,
           hospital_clinic: p.hospital_clinic,
           specimen: p.specimen || "DAY 5 TROPHECTODERM BIOPSY",
@@ -5805,6 +5841,25 @@
       }
     }
 
+    // Sets Report Type on every loaded bulk patient in one go (mirrors the
+    // per-patient override in the editor panel, which still wins if the user
+    // changes an individual patient afterward).
+    function applyBulkReportTemplateToAll(value) {
+      if (!state.bulkPatients || !state.bulkPatients.length) {
+        showToast("No patients loaded", "info");
+        return;
+      }
+      state.bulkPatients.forEach(p => {
+        p.report_template = value;
+        if (value === "pgtsr" && !(p.indication || "").trim()) p.indication = PGTSR_DEFAULT_INDICATION;
+      });
+      if (bulkSelectedIndex >= 0) {
+        renderBulkEditor(bulkSelectedIndex);
+        previewBulkPatient(bulkSelectedIndex);
+      }
+      showToast(`Report Type set to ${value === "pgtsr" ? "PGT-SR" : "PGT-A"} for all ${state.bulkPatients.length} patient(s)`, "success");
+    }
+
     let bulkSelectedIndex = -1;
 
     // Shows which patients got no report, and which Result rows found no
@@ -5927,12 +5982,12 @@
     <div class="bulk-editor-field"><label>Biopsy Performed By:</label><input value="${esc(p.biopsy_performed_by || "")}" oninput="state.bulkPatients[${i}].biopsy_performed_by=this.value;scheduleBulkPreview()"></div>
     <div class="bulk-editor-field"><label>Report Date:</label><input value="${esc(p.report_date || todayStr())}" oninput="state.bulkPatients[${i}].report_date=this.value;scheduleBulkPreview()"></div>
     <div class="bulk-editor-field"><label>Report Type:</label>
-      <select onchange="state.bulkPatients[${i}].report_template=this.value;scheduleBulkPreview()">
+      <select onchange="state.bulkPatients[${i}].report_template=this.value; if(this.value==='pgtsr' && !(state.bulkPatients[${i}].indication||'').trim()){state.bulkPatients[${i}].indication=PGTSR_DEFAULT_INDICATION;} renderBulkEditor(${i}); scheduleBulkPreview()">
         <option value="pgta" ${(p.report_template || "pgta") === "pgta" ? "selected" : ""}>PGT-A (Aneuploidy)</option>
         <option value="pgtsr" ${p.report_template === "pgtsr" ? "selected" : ""}>PGT-SR (Structural Rearrangement)</option>
       </select>
     </div>
-    <div class="bulk-editor-field"><label>Indication:</label><textarea rows="3" oninput="state.bulkPatients[${i}].indication=this.value;scheduleBulkPreview()">${esc(p.indication || "")}</textarea></div>
+    <div class="bulk-editor-field"><label>Indication:</label><textarea id="bulk_indication_${i}" rows="3" oninput="state.bulkPatients[${i}].indication=this.value;scheduleBulkPreview()">${esc(p.indication || "")}</textarea></div>
     <div class="bulk-editor-field"><label>Results Summary Comment:</label><textarea rows="2" oninput="state.bulkPatients[${i}].results_summary_comment=this.value;scheduleBulkPreview()">${esc(p.results_summary_comment || "")}</textarea></div>
   </div>`;
 
@@ -5956,7 +6011,7 @@
       <td>
         <select class="bulk-interp-${i}-${ei}" onchange="updateBulkSummaryInterp(${i},${ei},this.value,this)"
           style="color:${interpColor};font-weight:600;">
-          ${INTERP_OPTIONS.map(v => `<option style="color:${getInterpColor(v)};"${(emb.interpretation || "") === v ? " selected" : ""}>${esc(v)}</option>`).join("")}
+          ${interpOptionsFor(p.report_template).map(v => `<option style="color:${getInterpColor(v)};"${(emb.interpretation || "") === v ? " selected" : ""}>${esc(v)}</option>`).join("")}
         </select>
       </td>
     </tr>`;
@@ -6014,7 +6069,7 @@
       </div>
       <div class="bulk-editor-field"><label>Interpretation:</label>
         <select class="bulk-interp-${i}-${ei}" style="color:${getInterpColor(emb.interpretation || "NA")};font-weight:600;" onchange="this.style.color=getInterpColor(this.value);state.bulkPatients[${i}].embryos[${ei}].interpretation=this.value;scheduleBulkPreview()">
-          ${INTERP_OPTIONS.map(v => `<option style="color:${getInterpColor(v)};"${(emb.interpretation || "NA") === v ? " selected" : ""}>${v}</option>`).join("")}
+          ${interpOptionsFor(p.report_template).map(v => `<option style="color:${getInterpColor(v)};"${(emb.interpretation || "NA") === v ? " selected" : ""}>${v}</option>`).join("")}
         </select>
       </div>
       <div class="bulk-editor-field"><label>MTcopy:</label><input value="${esc(emb.mtcopy || "")}" oninput="state.bulkPatients[${i}].embryos[${ei}].mtcopy=this.value;scheduleBulkPreview()"></div>
@@ -6397,7 +6452,14 @@
         });
         document.getElementById("logoOption").addEventListener("change", () => schedulePreview());
         document.getElementById("gridOption").addEventListener("change", () => schedulePreview());
-        document.getElementById("f_report_template").addEventListener("change", () => schedulePreview());
+        document.getElementById("f_report_template").addEventListener("change", (e) => {
+          if (e.target.value === "pgtsr") {
+            const indicationEl = document.getElementById("f_indication");
+            if (indicationEl && !indicationEl.value.trim()) indicationEl.value = PGTSR_DEFAULT_INDICATION;
+          }
+          renderSummaryTable(); renderEmbryoForms();
+          schedulePreview();
+        });
         setEmbryoCount(1);
       } catch (e) { console.error("Init error:", e); }
       document.body.classList.add("loaded");
