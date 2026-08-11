@@ -352,7 +352,8 @@ async def generate_bulk(request: Request):
 @app.post("/upload-excel")
 async def upload_excel(file: UploadFile = File(...)):
     try:
-        df = pd.read_excel(file.file)
+        is_csv = (file.filename or "").lower().endswith(".csv")
+        df = pd.read_csv(file.file) if is_csv else pd.read_excel(file.file)
 
         def _safe(v):
             if v is None:
