@@ -451,7 +451,7 @@ class PGTADocxGenerator:
                 p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
                 if bullets:
                     p.paragraph_format.keep_with_next = True
-                
+
             if bullets:
                 for i, b in enumerate(bullets):
                     p = doc.add_paragraph(b, style='List Bullet')

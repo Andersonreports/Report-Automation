@@ -334,7 +334,7 @@ class PGTAReportTemplate:
             parent=self.styles['Normal'],
             fontSize=11,
             leading=13,
-            leftIndent=20,
+            leftIndent=26,
             bulletIndent=10,
             alignment=TA_JUSTIFY,
             fontName=self._get_font('Calibri', 'Helvetica')
@@ -613,8 +613,9 @@ class PGTAReportTemplate:
         import re
         patient_name = re.sub(r'\s+', ' ', self._clean(patient_data.get('patient_name'))).strip()
         spouse_name = re.sub(r'\s+', ' ', self._clean(patient_data.get('spouse_name'))).strip()
+        # Spouse phrase always starts on its own line, regardless of length.
         combined_name = f"{patient_name}<br/>{spouse_name}" if spouse_name else patient_name
-        
+
         data = [
             [self._wrap_text('<b>PATIENT NAME</b>', True), self._wrap_text(':'), self._wrap_text(f"<b>{combined_name}</b>", max_width=140), self._wrap_text('<b>PIN</b>', True), self._wrap_text(':'), self._wrap_text(f"<b>{self._clean(patient_data.get('pin'))}</b>", max_width=144)],
             [self._wrap_text('<b>DATE OF BIRTH/ AGE</b>', True), self._wrap_text(':'), self._wrap_text(f"<b>{self._clean(patient_data.get('age'))}</b>", max_width=140), self._wrap_text('<b>SAMPLE NUMBER</b>', True), self._wrap_text(':'), self._wrap_text(f"<b>{self._clean(patient_data.get('sample_number'))}</b>", max_width=144)],
@@ -727,7 +728,7 @@ class PGTAReportTemplate:
         ]))
         elements.append(Spacer(1, 6))
         for bullet in self.MOSAICISM_BULLETS:
-            elements.append(Paragraph(f"• {bullet}", self.styles['PGTABulletText']))
+            elements.append(Paragraph(bullet, self.styles['PGTABulletText'], bulletText='•'))
         elements.append(Spacer(1, 6))
 
         is_pgtsr = getattr(self, '_pgtsr', False)
@@ -745,14 +746,14 @@ class PGTAReportTemplate:
         elements.append(self._create_section_header("Limitations"))
         elements.append(Spacer(1, 8))
         for limitation in limitations:
-            elements.append(Paragraph(f"• {limitation}", self.styles['PGTABulletText']))
+            elements.append(Paragraph(limitation, self.styles['PGTABulletText'], bulletText='•'))
 
         elements.append(Spacer(1, 12))
 
         if is_pgtsr:
             rec_block = [self._section_header_flowable("Recommendations"), Spacer(1, 8)]
             for rec in self.RECOMMENDATIONS_PGTSR:
-                rec_block.append(Paragraph(f"• {rec}", self.styles['PGTABulletText']))
+                rec_block.append(Paragraph(rec, self.styles['PGTABulletText'], bulletText='•'))
             elements.append(KeepTogether(rec_block))
             elements.append(Spacer(1, 12))
 

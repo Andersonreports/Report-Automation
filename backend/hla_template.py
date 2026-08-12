@@ -366,9 +366,17 @@ def _styles() -> dict:
             "ref_hdr", fontName=F_CALI_BOLD, fontSize=14,
             textColor=C_NGS_TITLE, leading=18, spaceBefore=4, spaceAfter=2
         ),
+        "ref_hdr_black": ParagraphStyle(
+            "ref_hdr_black", fontName=F_CALI_BOLD, fontSize=14,
+            textColor=BLACK, leading=18, spaceBefore=4, spaceAfter=2
+        ),
         "section_hdr": ParagraphStyle(
             "section_hdr", fontName=F_SEGOE_BOLD, fontSize=12,
             textColor=C_NGS_TITLE, leading=15, spaceBefore=6, spaceAfter=2
+        ),
+        "section_hdr_black": ParagraphStyle(
+            "section_hdr_black", fontName=F_SEGOE_BOLD, fontSize=12,
+            textColor=BLACK, leading=15, spaceBefore=6, spaceAfter=2
         ),
         "justify": ParagraphStyle(
             "justify", fontName=F_CALI, fontSize=11,
@@ -377,6 +385,10 @@ def _styles() -> dict:
         "disc_item": ParagraphStyle(
             "disc_item", fontName=F_CALI, fontSize=11,
             textColor=BLACK, leading=15, alignment=TA_JUSTIFY, leftIndent=12, spaceAfter=3
+        ),
+        "disc_item_flush": ParagraphStyle(
+            "disc_item_flush", fontName=F_CALI, fontSize=11,
+            textColor=BLACK, leading=15, alignment=TA_JUSTIFY, leftIndent=0, spaceAfter=3
         ),
         "sign_approval": ParagraphStyle(
             "sign_approval", fontName=F_SEGOE_BOLD, fontSize=12.2,
@@ -2002,7 +2014,7 @@ def _build_rpl_couple(case: dict, S: dict) -> list:
 
 
 
-def _rpl_single_patient_table(patient: dict, S: dict) -> Table:
+def _rpl_single_patient_table(patient: dict, S: dict, comment_text: str = "") -> Table:
     """
     Unified 3-column patient + HLA table for the single RPL report.
     Mirrors the RPL couple table format (white background, black 0.5 pt grid)
@@ -2069,6 +2081,10 @@ def _rpl_single_patient_table(patient: dict, S: dict) -> Table:
         a2 = _strip_prefix(pa[1]) if pa and len(pa) > 1 and pa[1] else MISSING
         data.append([HL(f"HLA-{locus}*"), HV(a1), HV(a2)])
 
+    if comment_text:
+        data.append([Paragraph(comment_text, S["comment"]), "", ""])
+        spans.append(("SPAN", (0, len(data) - 1), (2, len(data) - 1)))
+
     t = Table(data, colWidths=col_w)
     style_cmds = [
         ("BACKGROUND",    (0, 0), (-1, -1),              WHITE),
@@ -2103,22 +2119,18 @@ def _build_single_rpl(case: dict, S: dict) -> list:
 
     elems = []
 
-    elems.append(_rpl_single_patient_table(patient, S))
-    elems.append(Spacer(1, 3 * mm))
-
-    # Remarks (was previously omitted from this report entirely).
+    # Remarks render as the table's own bottom row (boxed with the rest of
+    # the patient/HLA data), not a separate floating paragraph below it.
     _rpl_rmk = _clean_display(patient.get("remarks", "") or "")
     _rpl_rmk = _normalize_hla_alleles(_rpl_rmk) if _rpl_rmk else ""
     if _rpl_rmk == MISSING:
         _rpl_rmk = ""
     if len(_rpl_rmk) > 600:
         _rpl_rmk = _rpl_rmk[:580] + "..."
-    if _rpl_rmk:
-        elems.append(Paragraph(
-            f"<b>Remarks:</b> {_rpl_rmk}",
-            ParagraphStyle("rpl_single_remarks", parent=S["body_small"],
-                           fontSize=12, leading=14, alignment=TA_LEFT, spaceAfter=6)))
-        elems.append(Spacer(1, 2 * mm))
+    _rpl_rmk_comment = f"<b>Remarks</b>: {_rpl_rmk}" if _rpl_rmk else ""
+
+    elems.append(_rpl_single_patient_table(patient, S, comment_text=_rpl_rmk_comment))
+    elems.append(Spacer(1, 3 * mm))
 
     hla_c_p = rpl_ref.get("hla_c_patient", "")
     if not hla_c_p:
@@ -2148,22 +2160,20 @@ def _build_single_rpl(case: dict, S: dict) -> list:
             ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
         ]))
         elems.append(KeepTogether([
-            Paragraph("<b>Reference:</b>", S["ref_hdr"]),
+            Paragraph("<b>Reference:</b>", S["ref_hdr_black"]),
             c_t,
             Spacer(1, 3 * mm),
         ]))
 
-    elems.append(PageBreak())
-
     methodology_items = _methodology_block(case, S)
     elems.extend(methodology_items)
 
-    elems.append(Paragraph("<b>BACKGROUND</b>",      S["section_hdr"]))
+    elems.append(Paragraph("<b>BACKGROUND</b>",      S["section_hdr_black"]))
     elems.append(Paragraph(SINGLE_RPL_BACKGROUND,    S["justify"]))
     elems.append(Spacer(1, 2 * mm))
-    disclaimers_items = [Paragraph("<b>DISCLAIMERS</b>", S["section_hdr"])]
+    disclaimers_items = [Paragraph("<b>DISCLAIMERS</b>", S["section_hdr_black"])]
     for i, disc in enumerate(SINGLE_RPL_DISCLAIMERS, 1):
-        disclaimers_items.append(Paragraph(f"{i}.  {disc}", S["disc_item"]))
+        disclaimers_items.append(Paragraph(f"{i}.  {disc}", S["disc_item_flush"]))
     elems.append(KeepTogether(disclaimers_items[:2]))
     elems.extend(disclaimers_items[2:])
 
