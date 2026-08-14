@@ -150,6 +150,7 @@ const state = {
   bulkCurrentIndex: -1,
   bulkPhotoBytes: {},
   savedPatient: null,
+  crossmatchStash: null,
   settings: { signatories: DEFAULT_SIGNATORIES, sig_counts: { ...DEFAULT_SIG_COUNTS }, with_logo: true, nabl: true, signature_stamp: false },
 };
 
@@ -300,6 +301,21 @@ function capturePatientForRestore() {
       });
       state.savedPatient = { ...c.patient, _hla: hla };
     }
+    if (CROSSMATCH_RTYPES.includes(state.rtype)) {
+      const xf = manualSpecialFields.crossmatch;
+      const stash = state.crossmatchStash || { donor: {} };
+      if (xf && xf.donor) {
+        Object.entries(xf.donor).forEach(([k, input]) => {
+          const v = input ? input.value : "";
+          if (v && v.trim()) stash.donor[k] = v;
+        });
+        if (xf.donorPhoto) stash.donorPhoto = xf.donorPhoto;
+      }
+      if (c.cdc_results) stash.cdc_results = c.cdc_results;
+      if (c.dsa_results) stash.dsa_results = c.dsa_results;
+      if (c.flow_results) stash.flow_results = c.flow_results;
+      state.crossmatchStash = stash;
+    }
   } catch (e) {
     state.savedPatient = null;
   }
@@ -352,6 +368,33 @@ function restorePatientAfterRender() {
     set(xp.sample_number, p.sample_number); set(xp.hospital_clinic, p.hospital_clinic);
     set(xp.collection_date, p.collection_date); set(xp.receipt_date, p.receipt_date);
     set(xp.report_date, p.report_date);
+  }
+
+
+  if (CROSSMATCH_RTYPES.includes(state.rtype) && state.crossmatchStash) {
+    const stash = state.crossmatchStash;
+    const xm = manualSpecialFields.crossmatch;
+    if (xm && xm.donor && stash.donor) {
+      Object.entries(stash.donor).forEach(([k, v]) => { if (xm.donor[k]) set(xm.donor[k], v); });
+      if (stash.donorPhoto && !xm.donorPhoto) xm.donorPhoto = stash.donorPhoto;
+    }
+    if (state.rtype === "cdc_crossmatch" && manualSpecialFields.cdc_results && stash.cdc_results) {
+      const r = manualSpecialFields.cdc_results, src = stash.cdc_results;
+      if (r.t_cell) r.t_cell.value = src.t_cell || "Negative";
+      if (r.b_cell) r.b_cell.value = src.b_cell || "Negative";
+      set(r.t_with_dtt, src.t_with_dtt); set(r.b_with_dtt, src.b_with_dtt);
+    } else if (state.rtype === "dsa_crossmatch" && manualSpecialFields.dsa_results && stash.dsa_results) {
+      const r = manualSpecialFields.dsa_results, src = stash.dsa_results;
+      set(r.class1_result, src.class1_result); set(r.class1_mfi, src.class1_mfi); set(r.class1_cutoff, src.class1_cutoff);
+      set(r.class2_result, src.class2_result); set(r.class2_mfi, src.class2_mfi); set(r.class2_cutoff, src.class2_cutoff);
+    } else if (state.rtype === "flow_crossmatch" && manualSpecialFields.flow_results && stash.flow_results) {
+      const r = manualSpecialFields.flow_results, src = stash.flow_results;
+      set(r.t_mcs, src.t_mcs); set(r.t_interpretation, src.t_interpretation);
+      set(r.b_mcs, src.b_mcs); set(r.b_interpretation, src.b_interpretation);
+      set(r.interpretation, src.interpretation);
+      _flowTLastAutoInterp = src.t_interpretation || "";
+      _flowBLastAutoInterp = src.b_interpretation || "";
+    }
   }
 
   
@@ -686,6 +729,8 @@ const SPECIALIZED_RTYPES = [
   "kir_genotyping", "pra_class1", "pra_class2", "mixed_pra",
   "sab_class1", "sab_class2",
 ];
+
+const CROSSMATCH_RTYPES = ["cdc_crossmatch", "dsa_crossmatch", "flow_crossmatch"];
 
 
 
