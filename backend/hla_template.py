@@ -689,6 +689,12 @@ _DEGREE_MAP = {
 _ABBREV_SET = {"edta", "dna", "rna", "pcr", "bmt", "hla", "rpl", "rif", "nips", "poc", "ngs", "wbc", "rbc", "idd",
                "esic", "aiims", "kims", "ivf", "iui", "icsi", "imsi", "na"}
 _PREFIX_MAP_TC = {"mr": "Mr", "mrs": "Mrs", "ms": "Ms", "master": "Master", "dr": "Dr"}
+# Common no-vowel words that are ordinary English/legal terms, not abbreviations
+# (e.g. "Pvt Ltd" in a clinic name) -- exempt from the no-vowel uppercase rule.
+_NO_VOWEL_NOT_ABBREV = {"pvt", "ltd"}
+# Connector words rendered lowercase even though they'd otherwise match the
+# no-vowel uppercase rule (e.g. "9M Fertility by Ankura Hospital").
+_LOWERCASE_CONNECTORS = {"by"}
 
 
 def _title_case(text: str, is_name: bool = False) -> str:
@@ -748,12 +754,15 @@ def _title_case(text: str, is_name: bool = False) -> str:
         7. Short word (â¤4 chars, alpha-only) â uppercase (catches BMT, CKD, HD, IDD, etc.).
         8. Default â title-case.
         """
-        if (not is_name and len(token) > 1 and token == token.upper()
+        has_digit = any(c.isdigit() for c in token)
+        if (len(token) > 1 and token == token.upper() and (not is_name or has_digit)
                 and any(c.isalpha() for c in token) and token.isalnum()):
             if token.lower() in _DEGREE_MAP:
                 return _DEGREE_MAP[token.lower()] + "."
             return token
         lower = token.lower()
+        if lower in _LOWERCASE_CONNECTORS:
+            return lower
         _pfx = lower.rstrip(".")
         if _pfx in _PREFIX_MAP_TC and lower in (_pfx, _pfx + "."):
             return _PREFIX_MAP_TC[_pfx] + ("." if token.endswith(".") else "")
@@ -791,7 +800,8 @@ def _title_case(text: str, is_name: bool = False) -> str:
             return token.upper()
         if lower in _ABBREV_SET:
             return token.upper()
-        if token.isalpha() and not any(c in "aeiou" for c in lower):
+        if (token.isalpha() and not any(c in "aeiou" for c in lower)
+                and lower not in _NO_VOWEL_NOT_ABBREV):
             return token.upper()
         return token[0].upper() + token[1:].lower()
 
