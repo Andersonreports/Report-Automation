@@ -681,7 +681,9 @@ class PGTAReportTemplate:
             interp_display_color = self._get_interp_only_color(interp_text)
 
             raw_mt = self._clean(embryo.get('mtcopy'), 'NA')
-            mtcopy = raw_mt if interp_text.upper() == "EUPLOID" else "NA"
+            # PGT-SR interpretations like "Euploid/Carrier of Balanced translocation"
+            # are chromosomally euploid and should still carry an MTcopy value.
+            mtcopy = raw_mt if interp_text.upper().startswith("EUPLOID") else "NA"
 
             short_id = self._clean(embryo.get('embryo_id'))
 
@@ -861,7 +863,7 @@ class PGTAReportTemplate:
         sex_color = self._ROLE_COLORS.get(clf.sex_chromosomes_color_role(sex_text), colors.black)
 
         raw_mt = self._clean(embryo_data.get('mtcopy', ''), 'NA')
-        mtcopy = raw_mt if interp_text.upper() == "EUPLOID" else "NA"
+        mtcopy = raw_mt if interp_text.upper().startswith("EUPLOID") else "NA"
 
         detail_embryo_id = self._strip_ref_note(self._clean(embryo_data.get('embryo_id_detail')) or self._clean(embryo_data.get('embryo_id')))
 
