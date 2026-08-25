@@ -341,7 +341,11 @@ class PGTADocxGenerator:
             interp_color = self._get_interp_only_color_hex(interp_text)
 
             raw_mt = self._clean(emb.get('mtcopy', ''))
-            mt = raw_mt if interp_text.upper() == "EUPLOID" and raw_mt and raw_mt.upper() not in ('NA', 'N/A', '') else "NA"
+            # PGT-SR interpretations like "Euploid/Carrier of Balanced translocation"
+            # are chromosomally euploid and should still carry an MTcopy value, not
+            # just the bare "Euploid" text.
+            is_euploid_interp = interp_text.upper().startswith("EUPLOID")
+            mt = raw_mt if is_euploid_interp and raw_mt and raw_mt.upper() not in ('NA', 'N/A', '') else "NA"
 
             row.cells[2].text = res_display
             row.cells[3].text = mt

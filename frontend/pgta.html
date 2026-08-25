@@ -3837,7 +3837,10 @@
       const sr = state.summaryRows[idx];
       if (!sr) return;
       const interp = (sr.interpretation || "").toUpperCase();
-      if (interp !== "EUPLOID") {
+      // PGT-SR interpretations like "Euploid/Carrier of Balanced translocation"
+      // are chromosomally euploid and should keep their MTcopy value too, not
+      // just the bare "Euploid" text.
+      if (!interp.startsWith("EUPLOID")) {
         sr.mtcopy = "NA";
         if (state.embryoForms[idx]) state.embryoForms[idx].mtcopy = "NA";
         const mt = document.getElementById(`summary-mtcopy-${idx}`);
