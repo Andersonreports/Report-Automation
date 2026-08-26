@@ -1471,7 +1471,7 @@
         <label>Output Folder:</label>
         <input type="text" id="outFolder" placeholder="Type or paste output folder path…"
           oninput="syncBatchFolder(this.value)">
-        <button class="btn-folder-sm" onclick="browseOutFolder()"><i class="fas fa-folder-open"></i> Browse</button>
+        <button class="btn-folder-sm" onclick="browseOutFolder(false, this)"><i class="fas fa-folder-open"></i> Browse</button>
       </div>
       
       <span class="server-dot offline" id="serverDot" onclick="checkServer(true)" title="Click to recheck server"
@@ -1614,7 +1614,7 @@
         <input type="text" id="batchOutFolder" placeholder="Type or paste path…"
           style="padding:5px 9px;border:1px solid var(--input-border);border-radius:5px;font-size:11px;width:220px;"
           oninput="syncOutFolder(this.value)">
-        <button class="btn-folder-sm" onclick="browseOutFolder(true)"><i class="fas fa-folder-open"></i></button>
+        <button class="btn-folder-sm" onclick="browseOutFolder(true, this)"><i class="fas fa-folder-open"></i></button>
       </div>
 
       
@@ -2160,40 +2160,54 @@
     
     let _niptDirHandle = null;
 
-    async function browseOutFolder(isBatch = false) {
-      
+    async function browseOutFolder(isBatch = false, btn = null) {
+      const btnHtml = btn ? btn.innerHTML : null;
+      if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+
       try {
-        const ctrl = new AbortController();
-        setTimeout(() => ctrl.abort(), 2000);
-        const r = await _apiFetch('/open-folder-dialog', { signal: ctrl.signal });
-        const d = await r.json();
-        if (d.path) {
-          document.getElementById('outFolder').value = d.path;
-          document.getElementById('batchOutFolder').value = d.path;
-          _niptDirHandle = null; 
-          saveSettings();
-          return;
-        }
-      } catch {  }
-
-      
-      if (typeof window.showDirectoryPicker === 'function') {
+        // Native OS folder dialog runs server-side and blocks until the user
+        // picks a folder or cancels — give it the same headroom as the
+        // backend's subprocess timeout instead of aborting after a couple seconds.
         try {
-          const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
-          _niptDirHandle = handle; 
-          document.getElementById('outFolder').value = handle.name;
-          document.getElementById('batchOutFolder').value = handle.name;
-          saveSettings();
-          showToast(`Output folder set: ${handle.name}`, 'success');
-          return;
-        } catch (e) {
-          if (e.name === 'AbortError') return;
-        }
-      }
+          const ctrl = new AbortController();
+          const timer = setTimeout(() => ctrl.abort(), 125000);
+          try {
+            const r = await _apiFetch('/open-folder-dialog', { signal: ctrl.signal });
+            const d = await r.json();
+            if (d.path) {
+              document.getElementById('outFolder').value = d.path;
+              document.getElementById('batchOutFolder').value = d.path;
+              _niptDirHandle = null;
+              saveSettings();
+              return;
+            }
+            if (d.error) throw new Error(d.error);
+            // Empty path with no error means the user cancelled the dialog — stop here.
+            if (r.ok) return;
+          } finally {
+            clearTimeout(timer);
+          }
+        } catch { /* native dialog unavailable — fall back below */ }
 
-      
-      const el = document.getElementById(isBatch ? 'batchOutFolder' : 'outFolder');
-      el.focus(); el.select();
+        if (typeof window.showDirectoryPicker === 'function') {
+          try {
+            const handle = await window.showDirectoryPicker({ mode: 'readwrite' });
+            _niptDirHandle = handle;
+            document.getElementById('outFolder').value = handle.name;
+            document.getElementById('batchOutFolder').value = handle.name;
+            saveSettings();
+            showToast(`Output folder set: ${handle.name}`, 'success');
+            return;
+          } catch (e) {
+            if (e.name === 'AbortError') return;
+          }
+        }
+
+        const el = document.getElementById(isBatch ? 'batchOutFolder' : 'outFolder');
+        el.focus(); el.select();
+      } finally {
+        if (btn) { btn.disabled = false; btn.innerHTML = btnHtml; }
+      }
     }
 
     

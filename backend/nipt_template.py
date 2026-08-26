@@ -23,7 +23,7 @@ from reportlab.pdfbase.pdfmetrics import registerFontFamily
 
 from nipt_assets import (
     HEADER_LOGO_B64, FOOTER_BANNER_B64, GENQA_LOGO_B64,
-    ALGO_CHART_B64, SACHIN_SIGN_B64, DIRECTOR_SIGN_B64,
+    ALGO_CHART_B64, SUDHA_SIGN_B64, SACHIN_SIGN_B64, DIRECTOR_SIGN_B64,
 )
 
 _FONTS_REGISTERED = False
@@ -31,6 +31,7 @@ _IMG_HEADER:   bytes = None
 _IMG_FOOTER:   bytes = None
 _IMG_GENQA:    bytes = None
 _IMG_ALGO:     bytes = None
+_IMG_SUDHA:    bytes = None
 _IMG_SACHIN:   bytes = None
 _IMG_DIRECTOR: bytes = None
 
@@ -71,11 +72,12 @@ def _ensure_fonts_registered():
     _FONTS_REGISTERED = True
 
 def _ensure_images_decoded():
-    global _IMG_HEADER, _IMG_FOOTER, _IMG_GENQA, _IMG_ALGO, _IMG_SACHIN, _IMG_DIRECTOR
+    global _IMG_HEADER, _IMG_FOOTER, _IMG_GENQA, _IMG_ALGO, _IMG_SUDHA, _IMG_SACHIN, _IMG_DIRECTOR
     if _IMG_HEADER   is None: _IMG_HEADER   = base64.b64decode(HEADER_LOGO_B64)
     if _IMG_FOOTER   is None: _IMG_FOOTER   = base64.b64decode(FOOTER_BANNER_B64)
     if _IMG_GENQA    is None: _IMG_GENQA    = base64.b64decode(GENQA_LOGO_B64)
     if _IMG_ALGO     is None: _IMG_ALGO     = base64.b64decode(ALGO_CHART_B64)
+    if _IMG_SUDHA    is None: _IMG_SUDHA    = base64.b64decode(SUDHA_SIGN_B64)
     if _IMG_SACHIN   is None: _IMG_SACHIN   = base64.b64decode(SACHIN_SIGN_B64)
     if _IMG_DIRECTOR is None: _IMG_DIRECTOR = base64.b64decode(DIRECTOR_SIGN_B64)
 
@@ -129,6 +131,7 @@ class NIPTReportTemplate:
     ]
     
     SIGNATURES = [
+        {"name": "Sudha. D, Ph.D", "title": "Molecular Biologist"},
         {"name": "Dr. Sachin D. Honguntikar", "title": "Head – Anderson Clinical Genetics"},
         {"name": "Dr. Suriyakumar.G", "title": "Director"}
     ]
@@ -637,20 +640,19 @@ class NIPTReportTemplate:
 
     def _create_signature_row(self):
         try:
+            img_sudha    = Image(BytesIO(_IMG_SUDHA),    width=100, height=40)
             img_sachin   = Image(BytesIO(_IMG_SACHIN),   width=100, height=40)
             img_director = Image(BytesIO(_IMG_DIRECTOR), width=100, height=40)
-            table_data = [
-                [img_sachin, img_director],
-                [Paragraph(self.SIGNATURES[0]['name'], self.styles['Sig_Name']), Paragraph(self.SIGNATURES[1]['name'], self.styles['Sig_Name'])],
-                [Paragraph(self.SIGNATURES[0]['title'], self.styles['Sig_Title']), Paragraph(self.SIGNATURES[1]['title'], self.styles['Sig_Title'])]
-            ]
+            img_row = [img_sudha, img_sachin, img_director]
         except:
-            table_data = [
-                [Paragraph("", self.styles['Sig_Name']), Paragraph("", self.styles['Sig_Name'])],
-                [Paragraph(self.SIGNATURES[0]['name'], self.styles['Sig_Name']), Paragraph(self.SIGNATURES[1]['name'], self.styles['Sig_Name'])],
-                [Paragraph(self.SIGNATURES[0]['title'], self.styles['Sig_Title']), Paragraph(self.SIGNATURES[1]['title'], self.styles['Sig_Title'])]
-            ]
-        t = Table(table_data, colWidths=[self.CONTENT_WIDTH*0.5, self.CONTENT_WIDTH*0.5])
+            img_row = [Paragraph("", self.styles['Sig_Name'])] * 3
+        table_data = [
+            img_row,
+            [Paragraph(s['name'], self.styles['Sig_Name']) for s in self.SIGNATURES],
+            [Paragraph(s['title'], self.styles['Sig_Title']) for s in self.SIGNATURES]
+        ]
+        col_width = self.CONTENT_WIDTH / 3
+        t = Table(table_data, colWidths=[col_width, col_width, col_width])
         t.setStyle(TableStyle([
             ('VALIGN', (0,0), (-1,-1), 'TOP'),
             ('ALIGN', (0,0), (-1,-1), 'CENTER'),
