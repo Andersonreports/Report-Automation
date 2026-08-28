@@ -671,6 +671,11 @@
         return { fields: manualFields, nameKey: 'patient_name' };
       }
 
+      // LIS values arrive with stray inner/trailing spaces ("KARISHMA  DAFLE ").
+      function tidySpaces(value) {
+        return String(value ?? '').replace(/\s+/g, ' ').trim();
+      }
+
       function applyPatient(p) {
         const target = getPatientFieldTarget();
         const fields = target.fields || {};
@@ -687,8 +692,8 @@
         }
         fillField('sample_number', p.lab_no);
         fillField('pin', p.patient_no);
-        fillField('hospital_clinic', p.client_name);
-        fillField('referred_by', p.referring_doctor);
+        fillField('referred_by', tidySpaces(p.referring_doctor));
+        fillField('hospital_clinic', tidySpaces(p.client_name));
         const isoDate = (p.sample_receipt_date || '').split(' ')[0];
         const [y, m, d] = isoDate.split('-');
         const displayDate = (y && m && d) ? `${d}-${m}-${y}` : '';
@@ -731,8 +736,8 @@
         if (p.age != null && p.gender) fillDonorField('gender_age', `${p.gender} / ${p.age}`);
         fillDonorField('sample_number', p.lab_no);
         fillDonorField('pin', p.patient_no);
-        fillDonorField('hospital_clinic', p.client_name);
-        fillDonorField('referred_by', p.referring_doctor);
+        fillDonorField('referred_by', tidySpaces(p.referring_doctor));
+        fillDonorField('hospital_clinic', tidySpaces(p.client_name));
         const isoDate = (p.sample_receipt_date || '').split(' ')[0];
         const [y, m, d] = isoDate.split('-');
         const displayDate = (y && m && d) ? `${d}-${m}-${y}` : '';
@@ -842,8 +847,8 @@
           p.lab_no || '',
           (p.sample_receipt_date || '').split(' ')[0],
           '',
-          p.referring_doctor || '',
-          p.client_name || '',
+          tidySpaces(p.referring_doctor),
+          tidySpaces(p.client_name),
           '', '', '', '',
           (p.sample_receipt_date || '').split(' ')[0],
           '',
