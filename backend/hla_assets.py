@@ -9185,7 +9185,7 @@ def get_default_signatories(report_type: str, nabl: bool) -> list:
         return SIGNATORIES_RPL
 
 
-    elif report_type == "loci11":
+    elif report_type in ("loci11", "loci11_photo"):
 
 
         return SIGNATORIES_LOCI11

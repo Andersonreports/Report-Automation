@@ -984,7 +984,7 @@ def _qr_reserve(report_type: str) -> float:
     content-frame bottom both move down with the reduced reservation so
     nothing overlaps.
     """
-    return (QR_ZONE / 2 if report_type in ("ngs_photo", "transplant_donor", "loci11")
+    return (QR_ZONE / 2 if report_type in ("ngs_photo", "transplant_donor", "loci11", "loci11_photo")
             else QR_ZONE)
 
 
@@ -1276,12 +1276,66 @@ def _hla_table(person: dict, S: dict, compact: bool = False, separate_drb: bool 
     return t
 
 
+def _ngs_photo_box(person: dict, is_donor: bool) -> Table:
+    """
+    Small "PATIENT DETAILS" / "DONOR DETAILS" box (photo + Sample Type +
+    Date of Collection) inserted between the info table and the HLA table
+    for the loci11_photo report type.
+    """
+    F_BOLD = _f("Calibri-Bold", "Helvetica-Bold")
+    F_REG  = _f("Calibri", "Helvetica")
+    label  = "DONOR DETAILS" if is_donor else "PATIENT DETAILS"
+    _ph_w, _ph_h = 30 * mm, 32 * mm
+
+    photo_bytes = person.get("photo_bytes")
+    if photo_bytes:
+        try:
+            photo_cell = Image(io.BytesIO(photo_bytes), width=_ph_w, height=_ph_h)
+        except Exception:
+            photo_cell = Spacer(1, _ph_h)
+    else:
+        photo_cell = Spacer(1, _ph_h)
+
+    sample_type  = _clean_display(person.get("sample_type") or person.get("specimen") or "EDTA Blood")
+    collect_date = _clean_display(person.get("collection_date", ""))
+
+    _hdr_s = ParagraphStyle("pb_hdr", fontName=F_BOLD, fontSize=10, textColor=BLACK, alignment=TA_CENTER)
+    _lbl_s = ParagraphStyle("pb_lbl", fontName=F_BOLD, fontSize=9.5, textColor=BLACK, alignment=TA_LEFT)
+    _val_s = ParagraphStyle("pb_val", fontName=F_REG,  fontSize=9.5, textColor=BLACK, alignment=TA_LEFT)
+
+    col_w = [34 * mm, 40 * mm]
+    rows = [
+        [Paragraph(f"<b>{label}</b>", _hdr_s), ""],
+        [photo_cell, ""],
+        [Paragraph("Sample Type:", _lbl_s), Paragraph(sample_type, _val_s)],
+        [Paragraph("Date of Collection:", _lbl_s), Paragraph(collect_date, _val_s)],
+    ]
+    t = Table(rows, colWidths=col_w)
+    t.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, -1), C_INFO_BG),
+        ("BOX",           (0, 0), (-1, -1), 1.0, colors.white),
+        ("INNERGRID",     (0, 0), (-1, -1), 1.0, colors.white),
+        ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+        ("SPAN",          (0, 0), (1, 0)),
+        ("SPAN",          (0, 1), (1, 1)),
+        ("ALIGN",         (0, 0), (1, 0), "CENTER"),
+        ("ALIGN",         (0, 1), (1, 1), "CENTER"),
+        ("TOPPADDING",    (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 6),
+    ]))
+    t.hAlign = "CENTER"
+    return t
+
+
 def _ngs_person_block(person: dict, is_donor: bool, match_str: str, S: dict,
                       patient_name: str = "", force_compact: bool = False,
                       spacing_scale: float = 1.0, extra_inner_gap: float = 0.0,
                       extra_post_hla_gap: float = 0.0, extra_inter_block_gap: float = 0.0,
                       no_compact: bool = False, nabl: bool = False,
-                      show_relationship: bool = False, separate_drb: bool = False) -> list:
+                      show_relationship: bool = False, separate_drb: bool = False,
+                      with_photo: bool = False) -> list:
     _raw_remarks = person.get("remarks", "")
     _remarks_display = _clean_display(_raw_remarks) if _raw_remarks else ""
     _remarks_display = _normalize_hla_alleles(_remarks_display) if _remarks_display else ""
@@ -1344,6 +1398,9 @@ def _ngs_person_block(person: dict, is_donor: bool, match_str: str, S: dict,
                                       show_relationship=show_relationship)]),
         Spacer(1, inner_gap),
     ]
+    if with_photo:
+        elems.append(_ngs_photo_box(person, is_donor))
+        elems.append(Spacer(1, inner_gap))
 
     tail = []
     if has_remarks:
@@ -1595,7 +1652,7 @@ def _methodology_block(case: dict, S: dict, merge: bool = False) -> list:
     status = case.get("typing_status", "") or "Complete"
 
     coverage_lines = COVERAGE_LINES
-    if case.get("report_type") == "loci11":
+    if case.get("report_type") in ("loci11", "loci11_photo"):
         coverage_lines = COVERAGE_LINES + EXTRA_COVERAGE_LINES_11LOCI
 
     cov_label = Paragraph("<b>Coverage</b>", S["body"])
@@ -1611,7 +1668,7 @@ def _methodology_block(case: dict, S: dict, merge: bool = False) -> list:
     ]))
 
     coverage_block = [Paragraph(f"<b>IMGT/HLA Release</b> {imgt}", S["body"]), cov_table]
-    if case.get("report_type") == "loci11":
+    if case.get("report_type") in ("loci11", "loci11_photo"):
         methodology_para = Paragraph(f"<b>Methodology:</b><br/>{method}", S["body"])
     else:
         methodology_para = Paragraph(f"<b>Methodology:</b>  {method}", S["body"])
@@ -1733,7 +1790,8 @@ def _build_ngs_transplant(case: dict, S: dict) -> list:
     def _person_has_content(p):
         return bool((p.get("remarks") or "").strip()) or bool((p.get("match") or "").strip())
     any_remarks = _person_has_content(patient) or any(_person_has_content(d) for d in donors)
-    _is_loci11 = case.get("report_type") == "loci11"
+    _is_loci11 = case.get("report_type") in ("loci11", "loci11_photo")
+    _with_photo = case.get("report_type") == "loci11_photo"
     _post_extra, _inter_extra = 0.0, 0.0
     if _is_loci11:
         _scale, _extra = 1.5, 0.0
@@ -1744,20 +1802,20 @@ def _build_ngs_transplant(case: dict, S: dict) -> list:
     else:
         _scale, _extra = 2.0, 4.0
 
-    _sep_drb = case.get("report_type") != "loci11"
+    _sep_drb = case.get("report_type") not in ("loci11", "loci11_photo")
 
     elems = []
     elems.extend(_ngs_person_block(patient, is_donor=False, match_str="", S=S,
                                    spacing_scale=_scale, extra_inner_gap=_extra,
                                    extra_post_hla_gap=_post_extra, extra_inter_block_gap=_inter_extra,
-                                   no_compact=True,
+                                   no_compact=True, with_photo=_with_photo,
                                    nabl=case.get("nabl", True), separate_drb=_sep_drb))
 
     _p_name = patient.get("name", "")
     for d in donors:
         elems.extend(_ngs_person_block(d, is_donor=True, match_str=d.get("match", ""), S=S,
                                        extra_post_hla_gap=_post_extra, extra_inter_block_gap=_inter_extra,
-                                       patient_name=_p_name,
+                                       patient_name=_p_name, with_photo=_with_photo,
                                        spacing_scale=_scale, extra_inner_gap=_extra, no_compact=True,
                                        nabl=case.get("nabl", True), separate_drb=_sep_drb))
 
@@ -4837,6 +4895,7 @@ def generate_pdf(case: dict, output_path: str) -> str:
         "transplant_donor": "HLA Typing High Resolution",
         "ngs_photo":        "HLA Typing High Resolution",
         "loci11":           "HLA Typing High Resolution",
+        "loci11_photo":     "HLA Typing High Resolution",
         "rpl_couple":       "HLA Typing \u2013 NGS High Resolution Typing",
         "single_rpl":       "HLA Typing \u2013 NGS High Resolution Typing",
         "cdc_crossmatch":   "Complement Dependent Cytotoxicity (CDC) Cross match",
@@ -4905,7 +4964,7 @@ def generate_pdf(case: dict, output_path: str) -> str:
         body = _build_ngs_transplant(case, S)
     elif report_type == "ngs_photo":
         body = _build_ngs_photo(case, S)
-    elif report_type == "loci11":
+    elif report_type in ("loci11", "loci11_photo"):
         body = _build_ngs_transplant(case, S)
     elif report_type == "rpl_couple":
         body = _build_rpl_couple(case, S)
@@ -4982,6 +5041,7 @@ def make_filename(case: dict) -> str:
     )
     rtype = {"single_hla": "HLA_NGS", "transplant_donor": "HLA_NGS",
              "ngs_photo": "HLA_NGS_PHOTO", "loci11": "HLA_NGS",
+             "loci11_photo": "HLA_NGS_PHOTO",
              "rpl_couple": "RPL", "single_rpl": "RPL_SINGLE", "cdc_crossmatch": "CDC",
              "dsa_crossmatch": "DSA", "sab_class1": "SAB_C1", "sab_class2": "SAB_C2",
              "flow_crossmatch": "FLOW", "luminex_typing": "HLA_LUMINEX",
@@ -4990,7 +5050,7 @@ def make_filename(case: dict) -> str:
              "hla_c": "HLA_C", "mixed_pra": "PRA_MIXED"}.get(report_type, "HLA")
     logo  = "WITH_LOGO" if case.get("with_logo", True) else "WITHOUT_LOGO"
     parts = [p] + ([donors] if donors else []) + [rtype, logo]
-    if report_type == "loci11":
+    if report_type in ("loci11", "loci11_photo"):
         parts.append("11_loci")
     return "_".join(parts) + ".pdf"
 
