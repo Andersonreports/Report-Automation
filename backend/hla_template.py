@@ -174,11 +174,11 @@ SINGLE_LOCUS_DISCLAIMER = (
 )
 SINGLE_LOCUS_REFERENCES = [
     "1. Terasaki, PI, Bernoco, F, Park MS, Ozturk G, Iwaki Y. Microdroplet testing for HLA-A, -B, -C, "
-    "and âD antigens. American Journal of Clinical Pathology 69:103-120, 1978.",
+    "and -D antigens. American Journal of Clinical Pathology 69:103-120, 1978.",
     "2. Slater RD, Parham P. Mutually exclusive public epitomes of HLA-A, B, C Molecules. Human "
     "Immunology 26: 85-89, 1989.",
-    "3. The LuminexÂ® 100 Userâs Manual, Luminex Corporation, PN 89-00002-00-005 Rev. B.",
-    "4. LuminexÂ® FLEXMAP 3DÂ® Hardware User Manual, Luminex Corporation PN 89-00002-00-187.",
+    "3. The Luminex® 100 User's Manual, Luminex Corporation, PN 89-00002-00-005 Rev. B.",
+    "4. Luminex® FLEXMAP 3D® Hardware User Manual, Luminex Corporation PN 89-00002-00-187.",
     "5. Ng J, Hurley CK, Baxter-Lowe LA, et al. Large-scale oligonucleotide typing for HLA-DRB1/3/4 and "
     "HLA-DQB1 is highly accurate, specific, and reliable. Tissue Antigens. 1993; 42: 473-479.",
     "6. Bodmer JG, Marsh SGE, Albert E, Bodmer WF, Bontrop RE, Dupont B, Erlich HA, Hansen JA, Mach B, "
@@ -2379,7 +2379,7 @@ def _sl_info_table(patient: dict, S: dict) -> Table:
          L("Sample Number"),          C(), R(patient.get("sample_number", ""))],
         [L("Age"),            C(), V(_age),
          L("Sample collection date"), C(), V(patient.get("collection_date", ""))],
-        [L("Specimen"),       C(), R(patient.get("specimen") or "NA"),
+        [L("Specimen"),       C(), R(patient.get("specimen") or "Blood - EDTA"),
          L("Sample receipt date"),    C(), V(patient.get("receipt_date", ""))],
         [L("Hospital/Clinic"), C(), V(patient.get("hospital_clinic", "")),
          L("Report date"),            C(), V(patient.get("report_date", ""))],
@@ -2838,12 +2838,12 @@ LUMINEX_DISCLAIMER = (
 )
 LUMINEX_REFERENCES = [
     "Terasaki, PI, Bernoco, F, Park MS, Ozturk G, Iwaki Y. Microdroplet testing for "
-    "HLA-A, -B, -C, and âD antigens. American Journal of Clinical Pathology "
+    "HLA-A, -B, -C, and -D antigens. American Journal of Clinical Pathology "
     "69:103-120, 1978.",
     "Slater RD, Parham P. Mutually exclusive public epitomes of HLA-A, B, C Molecules. "
     "Human Immunology 26: 85-89, 1989.",
-    "The LuminexÂ® 100 User's Manual, Luminex Corporation, PN 89-00002-00-005 Rev. B.",
-    "LuminexÂ® FLEXMAP 3DÂ® Hardware User Manual, Luminex Corporation "
+    "The Luminex® 100 User's Manual, Luminex Corporation, PN 89-00002-00-005 Rev. B.",
+    "Luminex® FLEXMAP 3D® Hardware User Manual, Luminex Corporation "
     "PN 89-00002-00-187.",
     "Ng J, Hurley CK, Baxter-Lowe LA, et al. Large-scale oligonucleotide typing for "
     "HLA-DRB1/3/4 and HLA-DQB1 is highly accurate, specific, and reliable. Tissue "

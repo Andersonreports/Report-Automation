@@ -469,7 +469,7 @@ const PAT_FIELDS = [
 
 
 
-const HLA_C_SPECIMEN_OPTIONS = ["Peripheral Blood", "DNA (POC)"];
+const HLA_C_SPECIMEN_OPTIONS = ["Peripheral Blood", "EDTA Blood", "DNA (POC)"];
 
 function buildPatientInfoCard(prefix, fieldsRef, rtype) {
   const card = el("div", { class: "card" }, [
