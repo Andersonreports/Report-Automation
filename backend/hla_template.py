@@ -29,7 +29,7 @@ class _BorderedTable(Table):
     *final* fragment of a split table, so a long table that spills onto the next
     page leaves the page-ending fragment open at the bottom. Drawing the border
     rectangle ourselves in ``draw`` (which runs once per fragment) guarantees a
-    fully closed border on each page â without adding any inner row lines.
+    fully closed border on each page without adding any inner row lines.
     """
 
     _border_width = 0.5
@@ -610,6 +610,46 @@ def _fit_one_line(text: str, avail_pts: float, base_style: ParagraphStyle,
     return Paragraph("<br/>".join(lines), base_style)
 
 
+def _count_wrap_lines(text: str, avail_pts: float, font_name: str, font_size: float) -> int:
+    """Count the lines *text* needs when greedily word-wrapped to avail_pts
+    (same algorithm as _fit_one_line, without the truncation)."""
+    s = (text or "").strip()
+    if not s:
+        return 0
+
+    def _w(t):
+        return pdfmetrics.stringWidth(t, font_name, font_size)
+
+    words = s.split()
+    lines = 0
+    i = 0
+    while i < len(words):
+        line = words[i]
+        i += 1
+        while i < len(words) and _w(line + " " + words[i]) <= avail_pts:
+            line += " " + words[i]
+            i += 1
+        lines += 1
+    return lines
+
+
+def _min_width_for_lines(text: str, max_lines: int, font_name: str, font_size: float,
+                          hi: float = 400.0) -> float:
+    """Smallest width at which greedily wrapping *text* fits within *max_lines* lines."""
+    if not (text or "").strip():
+        return 0.0
+    if _count_wrap_lines(text, hi, font_name, font_size) > max_lines:
+        return hi
+    lo = 1.0
+    while hi - lo > 1.0:
+        mid = (lo + hi) / 2
+        if _count_wrap_lines(text, mid, font_name, font_size) <= max_lines:
+            hi = mid
+        else:
+            lo = mid
+    return hi
+
+
 def _demography_col_widths(patient: dict, donor: dict, nabl: bool = False, extra_w: float = 0.0) -> list:
     """Compute the 7 column widths for the patient/donor demography table.
 
@@ -651,6 +691,68 @@ def _demography_col_widths(patient: dict, donor: dict, nabl: bool = False, extra
     return [f0 * cw, f1 * cw, col2, gap_w, f4 * cw, f5 * cw, col6]
 
 
+def _demography_col_widths_wide_name(patient: dict, donor: dict, nabl: bool = False,
+                                      max_lines: int = 2, max_extra_w: float = 20 * mm,
+                                      min_extra_w: float = 0.0, step: float = 1 * mm) -> tuple:
+    """Fallback for `_demography_col_widths`, used only when the patient name
+    would otherwise wrap onto 3+ lines in the demography table's value column.
+
+    `_demography_col_widths` sizes the donor value column (val_R) to fit the
+    donor's widest entry -- including the donor name -- on a *single* line,
+    handing everything else to the patient value column (val_L). When the
+    donor name is itself long, that single-line requirement can eat most of
+    the shared width budget, leaving val_L too narrow for a long patient name
+    even though the donor name would happily wrap onto 2 lines instead.
+
+    Here the donor name is allowed to wrap up to *max_lines* lines too (never
+    wider than its own single-line width, so this never *shrinks* val_R
+    relative to the default), freeing width for val_L. If that alone still
+    isn't enough, the table is widened by up to *max_extra_w* (split across
+    both page margins by the caller via Indenter).
+
+    Returns (col_widths, extra_w).
+    """
+    cw = CONTENT_W
+    F_BOLD = _f("SegoeUI-Bold", "Helvetica-Bold")
+    f0, f1, f3, f4, f5 = 0.176, 0.016, 0.012, 0.196, 0.016
+    gap_w = _NABL_GAP_LOGO_W if nabl else (f3 * cw)
+    fixed = (f0 + f1 + f4 + f5) * cw + gap_w
+    MIN2 = 120.0
+    PAD = 8.0        # matches the +8 padding allowance used in _demography_col_widths
+    VAL_PAD = 6.0     # LEFTPADDING(4) + RIGHTPADDING(2) applied to the value columns
+
+    def _w(s):
+        return pdfmetrics.stringWidth(s or "", F_BOLD, 10)
+
+    donor_name = _title_case(_clean_display(donor.get("name", "")), is_name=True)
+    other_vals = [
+        _w(_normalize_age(donor.get("gender_age", ""))),
+        _w(_clean_display(donor.get("pin", "")) or "NA"),
+        _w(_clean_display(donor.get("sample_number", "")) or "NA"),
+        _w(_clean_display(donor.get("receipt_date", ""))),
+        _w(_clean_display(donor.get("report_date", ""))),
+    ]
+    other_max = max(other_vals) + PAD if other_vals else 0.0
+    donor_1line_w = _w(donor_name) + PAD
+    donor_2line_w = _min_width_for_lines(donor_name, max_lines, F_BOLD, 10) + PAD
+    need6 = max(other_max, min(donor_1line_w, donor_2line_w))
+    col6 = max(58.0, min(need6, 280.0))
+
+    patient_name = _title_case(_clean_display(patient.get("name", "")), is_name=True)
+
+    extra_w = min_extra_w
+    while True:
+        pool = cw - fixed + extra_w
+        col2 = max(MIN2, pool - col6)
+        lines = _count_wrap_lines(patient_name, col2 - VAL_PAD, F_BOLD, 10)
+        if lines <= max_lines or extra_w >= max_extra_w:
+            break
+        extra_w += step
+    pool = cw - fixed + extra_w
+    col2 = max(MIN2, pool - col6)
+    return [f0 * cw, f1 * cw, col2, gap_w, f4 * cw, f5 * cw, col6], extra_w
+
+
 def _append_match_pct(match_str: str) -> str:
     """Append (X%) to 'N of M' match strings when no % is already present."""
     if not match_str or "%" in match_str:
@@ -687,7 +789,10 @@ _DEGREE_MAP = {
     "dnb": "DNB", "phd": "PhD", "dgo": "DGO", "frcs": "FRCS", "mrcp": "MRCP",
 }
 _ABBREV_SET = {"edta", "dna", "rna", "pcr", "bmt", "hla", "rpl", "rif", "nips", "poc", "ngs", "wbc", "rbc", "idd",
-               "esic", "aiims", "kims", "ivf", "iui", "icsi", "imsi", "na"}
+               "esic", "aiims", "kims", "ivf", "iui", "icsi", "imsi", "na",
+               # Referring-centre acronyms. LIS values arrive ALL-CAPS, so casing
+               # alone cannot mark them as acronyms - add new ones here.
+               "seait"}
 _PREFIX_MAP_TC = {"mr": "Mr", "mrs": "Mrs", "ms": "Ms", "master": "Master", "dr": "Dr"}
 # Common no-vowel words that are ordinary English/legal terms, not abbreviations
 # (e.g. "Pvt Ltd" in a clinic name) -- exempt from the no-vowel uppercase rule.
@@ -754,6 +859,18 @@ def _title_case(text: str, is_name: bool = False) -> str:
         7. Short word (â¤4 chars, alpha-only) â uppercase (catches BMT, CKD, HD, IDD, etc.).
         8. Default â title-case.
         """
+        # Peel off bracketing/quoting punctuation first, so an opening bracket
+        # does not swallow the rule that should apply to the word itself
+        # ("(SOUTH" -> "(South", not "(south").
+        _lead  = re.match(r'^[(\[\{"\']+', token)
+        _trail = re.search(r'[)\]\}"\']+$', token)
+        lead   = _lead.group(0) if _lead else ""
+        trail  = _trail.group(0) if _trail else ""
+        if lead or trail:
+            core = token[len(lead):len(token) - len(trail)] if trail else token[len(lead):]
+            if core:
+                return lead + _process_base(core) + trail
+
         has_digit = any(c.isdigit() for c in token)
         if (len(token) > 1 and token == token.upper() and (not is_name or has_digit)
                 and any(c.isalpha() for c in token) and token.isalnum()):
@@ -810,6 +927,23 @@ def _title_case(text: str, is_name: bool = False) -> str:
     result = re.sub(r'(?<!\w)(Mr|Mrs|Ms|Miss|Master|Dr|Prof)\.?\s+(?=[A-Za-z])', r'\1. ', result)
     result = re.sub(r'(?<!\w)(Mr|Mrs|Ms|Miss|Master|Dr|Prof)\.?\s+(?=\d)', r'\1. ', result)
     return result
+
+
+def _norm_referred_by(val) -> str:
+    """Normalize a referring-doctor name for display.
+
+    Values pulled from the LIS API arrive ALL-CAPS and often carry stray inner
+    or trailing spaces (e.g. "KARISHMA  DAFLE "). Collapse the whitespace and
+    title-case as a person name, so an all-caps name renders "Karishma Dafle"
+    while genuine acronyms (KMCH) and prefixes (DR. -> Dr.) keep their form.
+    """
+    s = re.sub(r"\s+", " ", str(val or "")).strip()
+    if not s:
+        return ""
+    out = _title_case(s, is_name=True)
+    # "DR.SURESH KUMAR" title-cases to "Dr.Suresh Kumar"; space the prefix off
+    # the name, but leave run-together initials ("Dr. S.K.Gupta") alone.
+    return re.sub(r"^(Dr|Mr|Mrs|Ms|Prof)\.(?=[A-Za-z]{2})", r"\1. ", out)
 
 
 _nabl_seal_bytes_cache: bytes | None = None
@@ -965,7 +1099,7 @@ def _ngs_info_table(person: dict, S: dict, is_donor: bool = False, patient_name:
         left_rows.append([L("Diagnosis"), C(), V(person.get("diagnosis") or "NA")])
 
     left_rows.extend([
-        [L("Referred By"), C(), V(person.get("referred_by", ""))],
+        [L("Referred By"), C(), V(_norm_referred_by(person.get("referred_by", "")))],
         [L("Hospital/Clinic"), C(), VN(person.get("hospital_clinic", ""))],
     ])
     hosp_idx     = len(left_rows) - 1
@@ -1277,7 +1411,7 @@ def _rpl_couple_table(patient: dict, donor: dict, S: dict, comment_text: str = "
         _normalize_age(patient.get("gender_age", "")),
         patient.get("hospital_mr_no", "") or "NA",
         patient.get("diagnosis") or "NA",
-        patient.get("referred_by", ""), patient.get("hospital_clinic", ""),
+        _norm_referred_by(patient.get("referred_by", "")), patient.get("hospital_clinic", ""),
         patient.get("pin", ""), patient.get("sample_number", ""),
         patient.get("specimen") or "Blood - EDTA",
         patient.get("collection_date", ""), patient.get("receipt_date", ""),
@@ -1296,7 +1430,7 @@ def _rpl_couple_table(patient: dict, donor: dict, S: dict, comment_text: str = "
         _normalize_age(donor.get("gender_age", "")),
         donor.get("hospital_mr_no", "") or "NA",
         donor.get("diagnosis") or "NA",
-        donor.get("referred_by", ""), donor.get("hospital_clinic", ""),
+        _norm_referred_by(donor.get("referred_by", "")), donor.get("hospital_clinic", ""),
         donor.get("pin", ""), donor.get("sample_number", ""),
         donor.get("specimen") or "Blood - EDTA",
         donor.get("collection_date", ""), donor.get("receipt_date", ""),
@@ -1719,6 +1853,14 @@ def _build_ngs_photo(case: dict, S: dict) -> list:
     def E():   return Paragraph("", info_lbl_style)
 
     info_col_w = _demography_col_widths(patient, donor, nabl=nabl)
+    _demo_extra_w = 0.0
+    _patient_name_disp = _norm_name(patient.get("name", ""))
+    if _count_wrap_lines(_patient_name_disp, info_col_w[2] - 6, F_BOLD, 10) >= 3:
+        # A patient name this long would wrap onto 3+ lines and grow the row tall
+        # enough to push the typing-result table onto a fresh, mostly-empty page.
+        # Widen the demography table (both sides, via Indenter below) so the name
+        # fits within 2 lines instead.
+        info_col_w, _demo_extra_w = _demography_col_widths_wide_name(patient, donor, nabl=nabl)
 
     def IV_name(text, col_w_pts):
         return Paragraph(_norm_name(text), info_val_style)
@@ -1758,13 +1900,25 @@ def _build_ngs_photo(case: dict, S: dict) -> list:
         ("LEFTPADDING",   (5, 0), (5, -1), 0),
         ("RIGHTPADDING",  (5, 0), (5, -1), 2),
     ] + _gap_span_style))
+    if _demo_extra_w:
+        elems.append(Indenter(left=-_demo_extra_w / 2, right=-_demo_extra_w / 2))
     elems.append(info_t)
+    if _demo_extra_w:
+        elems.append(Indenter(left=_demo_extra_w / 2, right=_demo_extra_w / 2))
     elems.append(Spacer(1, 1 * mm))
 
     _ph_w  = 28 * mm
     _ph_h  = 30 * mm
     _pc_w  = 54 * mm
     _lbl_w = 38 * mm
+    # Likewise widen the photo header's name columns (within the page's existing
+    # margins -- this table is narrower than CONTENT_W already, so there's slack
+    # to grow into without an Indenter) so a long patient/donor name fits within
+    # 2 lines here too instead of ballooning the row height.
+    _pc_max_w = (CONTENT_W - _lbl_w) / 2
+    for _nm in (_patient_name_disp, _norm_name(donor.get("name", ""))):
+        _need_pc_w = _min_width_for_lines(_nm, 2, F_BOLD, 11) + 12  # LEFT+RIGHTPADDING (6+6)
+        _pc_w = min(max(_pc_w, _need_pc_w), _pc_max_w)
     col_w_photo = [_lbl_w, _pc_w, _pc_w]
 
     def _photo_cell(photo_bytes):
@@ -2067,7 +2221,7 @@ def _rpl_single_patient_table(patient: dict, S: dict, comment_text: str = "") ->
         _normalize_age(patient.get("gender_age", "")),
         patient.get("hospital_mr_no", "") or "NA",
         patient.get("diagnosis") or "NA",
-        patient.get("referred_by", ""),
+        _norm_referred_by(patient.get("referred_by", "")),
         patient.get("hospital_clinic", ""),
         patient.get("pin", ""),
         patient.get("sample_number", ""),
@@ -2835,6 +2989,13 @@ def _build_cdc_report(case: dict, S: dict) -> list:
 
     cw = CONTENT_W
     info_col_w = _demography_col_widths(patient, donor)
+    _demo_extra_w = 0.0
+    _patient_name_disp = _norm_name(patient.get("name", ""))
+    if _count_wrap_lines(_patient_name_disp, info_col_w[2] - 6, F_BOLD, 10) >= 3:
+        # A patient name this long would wrap onto 3+ lines and grow the row tall
+        # enough to push later content onto a fresh page. Widen the demography
+        # table (both sides, via Indenter below) so the name fits within 2 lines.
+        info_col_w, _demo_extra_w = _demography_col_widths_wide_name(patient, donor)
 
     def E(): return Paragraph("", info_lbl_style)
 
@@ -2864,7 +3025,11 @@ def _build_cdc_report(case: dict, S: dict) -> list:
         ("LEFTPADDING",   (5, 0), (5, -1), 0),
         ("RIGHTPADDING",  (5, 0), (5, -1), 2),
     ]))
+    if _demo_extra_w:
+        elems.append(Indenter(left=-_demo_extra_w / 2, right=-_demo_extra_w / 2))
     elems.append(info_t)
+    if _demo_extra_w:
+        elems.append(Indenter(left=_demo_extra_w / 2, right=_demo_extra_w / 2))
     elems.append(Spacer(1, 1 * mm))
 
     _ph_w   = 28 * mm
@@ -3146,6 +3311,13 @@ def _build_dsa_report(case: dict, S: dict) -> list:
 
     cw = CONTENT_W
     info_col_w = _demography_col_widths(patient, donor)
+    _demo_extra_w = 0.0
+    _patient_name_disp = _norm_name(patient.get("name", ""))
+    if _count_wrap_lines(_patient_name_disp, info_col_w[2] - 6, F_BOLD, 10) >= 3:
+        # A patient name this long would wrap onto 3+ lines and grow the row tall
+        # enough to push later content onto a fresh page. Widen the demography
+        # table (both sides, via Indenter below) so the name fits within 2 lines.
+        info_col_w, _demo_extra_w = _demography_col_widths_wide_name(patient, donor)
 
     def E(): return Paragraph("", info_lbl_style)
 
@@ -3175,7 +3347,11 @@ def _build_dsa_report(case: dict, S: dict) -> list:
         ("LEFTPADDING",   (5, 0), (5, -1), 0),
         ("RIGHTPADDING",  (5, 0), (5, -1), 2),
     ]))
+    if _demo_extra_w:
+        elems.append(Indenter(left=-_demo_extra_w / 2, right=-_demo_extra_w / 2))
     elems.append(info_t)
+    if _demo_extra_w:
+        elems.append(Indenter(left=_demo_extra_w / 2, right=_demo_extra_w / 2))
     elems.append(Spacer(1, 2.5 * mm))
 
     _ph_w   = 28 * mm
@@ -4232,6 +4408,16 @@ def _build_flow_report(case: dict, S: dict) -> list:
     # Flowcytometry title+table block onto page 2 (see _hosp_extra_h clawback).
     _DEMO_EXTRA_W = 16 * mm
     info_col_w = _demography_col_widths(patient, donor, extra_w=_DEMO_EXTRA_W)
+
+    _patient_name_disp = _norm_name(patient.get("name", ""))
+    if _count_wrap_lines(_patient_name_disp, info_col_w[2] - 6, F_BOLD, 10) >= 3:
+        # Even the usual +16mm widen isn't enough for a patient name this long
+        # (typically because the donor name is also long and is eating most of
+        # the shared budget) -- fall back to letting the donor name wrap onto 2
+        # lines too and widening further if still needed, same as the other
+        # side-by-side demography tables (_build_ngs_photo, CDC/DSA crossmatch).
+        info_col_w, _DEMO_EXTRA_W = _demography_col_widths_wide_name(
+            patient, donor, min_extra_w=_DEMO_EXTRA_W, max_extra_w=28 * mm)
 
     def IV_name(text, col_w_pts):
         return Paragraph(_norm_name(text), val_s)
