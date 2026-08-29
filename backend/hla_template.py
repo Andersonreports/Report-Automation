@@ -984,7 +984,8 @@ def _qr_reserve(report_type: str) -> float:
     content-frame bottom both move down with the reduced reservation so
     nothing overlaps.
     """
-    return (QR_ZONE / 2 if report_type in ("ngs_photo", "transplant_donor", "loci11", "loci11_photo")
+    return (QR_ZONE / 2 if report_type in ("ngs_photo", "transplant_donor", "loci11",
+                                            "loci11_photo", "single_luminex", "single_hla_photo")
             else QR_ZONE)
 
 
@@ -1285,7 +1286,12 @@ def _ngs_photo_box(person: dict, is_donor: bool) -> Table:
     F_BOLD = _f("Calibri-Bold", "Helvetica-Bold")
     F_REG  = _f("Calibri", "Helvetica")
     label  = "DONOR DETAILS" if is_donor else "PATIENT DETAILS"
-    _ph_w, _ph_h = 30 * mm, 32 * mm
+    # Merged with the header into one row (no divider) to match the one-page
+    # reference layout -- the vertical room this needs is instead reclaimed
+    # by running the IMGT/Coverage/Methodology text smaller for this report
+    # type (see _methodology_block), so the photo itself can stay a normal,
+    # legible size rather than being shrunk to fit.
+    _ph_w, _ph_h = 20 * mm, 24 * mm
 
     photo_bytes = person.get("photo_bytes")
     if photo_bytes:
@@ -1305,8 +1311,7 @@ def _ngs_photo_box(person: dict, is_donor: bool) -> Table:
 
     col_w = [34 * mm, 40 * mm]
     rows = [
-        [Paragraph(f"<b>{label}</b>", _hdr_s), ""],
-        [photo_cell, ""],
+        [[Paragraph(f"<b>{label}</b>", _hdr_s), Spacer(1, 2), photo_cell], ""],
         [Paragraph("Sample Type:", _lbl_s), Paragraph(sample_type, _val_s)],
         [Paragraph("Date of Collection:", _lbl_s), Paragraph(collect_date, _val_s)],
     ]
@@ -1317,11 +1322,9 @@ def _ngs_photo_box(person: dict, is_donor: bool) -> Table:
         ("INNERGRID",     (0, 0), (-1, -1), 1.0, colors.white),
         ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
         ("SPAN",          (0, 0), (1, 0)),
-        ("SPAN",          (0, 1), (1, 1)),
         ("ALIGN",         (0, 0), (1, 0), "CENTER"),
-        ("ALIGN",         (0, 1), (1, 1), "CENTER"),
-        ("TOPPADDING",    (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("TOPPADDING",    (0, 0), (-1, -1), 2),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 2),
         ("LEFTPADDING",   (0, 0), (-1, -1), 6),
         ("RIGHTPADDING",  (0, 0), (-1, -1), 6),
     ]))
@@ -1391,6 +1394,16 @@ def _ngs_person_block(person: dict, is_donor: bool, match_str: str, S: dict,
     inner_gap       += extra_inner_gap * mm
     post_hla_spacer += extra_post_hla_gap * mm
     inter_block_gap += extra_inter_block_gap * mm
+
+    if with_photo:
+        # The photo box adds a whole extra block of content between the
+        # demography table and the locus table, which is what the reference
+        # one-page layout budgets for by using tighter demography-table row
+        # padding and gaps -- without this the added box pushes the
+        # methodology/signature block onto a second page even with no donors.
+        compact_info     = True
+        inner_gap        = min(inner_gap, 0.75 * mm)
+        post_hla_spacer  = min(post_hla_spacer, 0.75 * mm)
 
     elems = [
         KeepTogether([_ngs_info_table(person, S, is_donor=is_donor, patient_name=patient_name,
@@ -1655,8 +1668,20 @@ def _methodology_block(case: dict, S: dict, merge: bool = False) -> list:
     if case.get("report_type") in ("loci11", "loci11_photo"):
         coverage_lines = COVERAGE_LINES + EXTRA_COVERAGE_LINES_11LOCI
 
-    cov_label = Paragraph("<b>Coverage</b>", S["body"])
-    cov_lines = Paragraph("<br/>".join(coverage_lines), S["coverage"])
+    # loci11_photo shares its page with a patient/donor photo box, so this
+    # whole IMGT/Coverage/Methodology/Typing-Status section runs a size
+    # smaller here -- reclaiming the space this way (instead of shrinking the
+    # photo further) is what keeps the one-page layout without making the
+    # photo box look cramped.
+    if case.get("report_type") == "loci11_photo":
+        _body_s = ParagraphStyle("body_11p", parent=S["body"], fontSize=9.5, leading=11)
+        _cov_s  = ParagraphStyle("coverage_11p", parent=S["coverage"], fontSize=9.5, leading=11)
+    else:
+        _body_s = S["body"]
+        _cov_s  = S["coverage"]
+
+    cov_label = Paragraph("<b>Coverage</b>", _body_s)
+    cov_lines = Paragraph("<br/>".join(coverage_lines), _cov_s)
     cov_table = Table([[cov_label, cov_lines]], colWidths=[60, CONTENT_W - 60])
     cov_table.hAlign = "LEFT"
     cov_table.setStyle(TableStyle([
@@ -1667,18 +1692,24 @@ def _methodology_block(case: dict, S: dict, merge: bool = False) -> list:
         ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
     ]))
 
-    coverage_block = [Paragraph(f"<b>IMGT/HLA Release</b> {imgt}", S["body"]), cov_table]
-    if case.get("report_type") in ("loci11", "loci11_photo"):
-        methodology_para = Paragraph(f"<b>Methodology:</b><br/>{method}", S["body"])
+    coverage_block = [Paragraph(f"<b>IMGT/HLA Release</b> {imgt}", _body_s), cov_table]
+    if case.get("report_type") == "loci11":
+        methodology_para = Paragraph(f"<b>Methodology:</b><br/>{method}", _body_s)
     else:
-        methodology_para = Paragraph(f"<b>Methodology:</b>  {method}", S["body"])
+        # loci11_photo's one-page reference layout runs the label and text on
+        # a single line (like the non-11-loci reports) -- the forced break
+        # above was budget loci11 didn't have to share with a photo box, and
+        # keeping it here was one more thing pushing the methodology/
+        # signature block onto a second page.
+        methodology_para = Paragraph(f"<b>Methodology:</b>  {method}", _body_s)
+    _mgap = 0.5 * mm if case.get("report_type") == "loci11_photo" else 1 * mm
     method_block = [
-        Spacer(1, 1 * mm),
+        Spacer(1, _mgap),
         methodology_para,
-        Spacer(1, 1 * mm),
+        Spacer(1, _mgap),
         HRFlowable(width="100%", thickness=0.5, color=BLACK),
-        Spacer(1, 1 * mm),
-        Paragraph(f"<b>Typing Status:</b>  {status}", S["body"]),
+        Spacer(1, _mgap),
+        Paragraph(f"<b>Typing Status:</b>  {status}", _body_s),
     ]
 
     if merge:
@@ -1757,13 +1788,15 @@ def _build_ngs_single(case: dict, S: dict) -> list:
       The signature outer table is a single row so it won't split mid-row.
     """
     patient     = case["patient"]
+    _with_photo = case.get("report_type") == "single_hla_photo"
     signatories = case.get("signatories") or hla_assets.get_default_signatories(
-        "single_hla", case.get("nabl", True))
+        case.get("report_type", "single_hla"), case.get("nabl", True))
 
     elems = []
 
     elems.extend(_ngs_person_block(patient, is_donor=False, match_str="", S=S,
-                                   nabl=case.get("nabl", True), separate_drb=True))
+                                   nabl=case.get("nabl", True), separate_drb=True,
+                                   with_photo=_with_photo))
 
     elems.extend(_methodology_block(case, S))
     sig_items = _signature_block(signatories, S)
@@ -1794,7 +1827,11 @@ def _build_ngs_transplant(case: dict, S: dict) -> list:
     _with_photo = case.get("report_type") == "loci11_photo"
     _post_extra, _inter_extra = 0.0, 0.0
     if _is_loci11:
-        _scale, _extra = 1.5, 0.0
+        # loci11_photo's photo box already fills the vertical space the 1.5x
+        # gap scaling was spreading out for plain loci11 -- keeping it on top
+        # of the photo box is what pushed the methodology/signature block to
+        # a second page even with no donors.
+        _scale, _extra = (1.0 if _with_photo else 1.5), 0.0
     elif any_remarks or not donors or len(donors) >= 2:
         _scale, _extra = 1.0, 0.0
         if donors:
@@ -1849,7 +1886,8 @@ def _build_ngs_transplant(case: dict, S: dict) -> list:
     # even when it would have fit -- i.e. it would silently behave like the
     # forced break it replaces.
     if len(donors) >= 2 or _is_loci11:
-        block = [Spacer(1, 3 * mm)] + list(_methodology_block(case, S, merge=True)) + list(sig_items)
+        _pre_gap = 0.75 if _with_photo else 3
+        block = [Spacer(1, _pre_gap * mm)] + list(_methodology_block(case, S, merge=True)) + list(sig_items)
         elems.append(KeepTogether(block))
     else:
         elems.append(PageBreakIfNotEmpty())
@@ -2877,7 +2915,7 @@ FLOW_DISCLAIMER = [
 ]
 
 LUMINEX_TEST_DETAILS = [
-    "HLA Typing by Luminex technology applies SSO DNA typing method. Target DNA is "
+    "HLA Typing by Luminex technology applies reverse SSO DNA typing method. Target DNA is "
     "PCR-amplified using a group-specific primer and the PCR product is biotinylated, "
     "which allows it to be detected using R-Phycoerythrin conjugated Streptavidin (SAPE).",
     "The PCR product is denatured and allowed to rehybridize complementary DNA probes "
@@ -3865,6 +3903,139 @@ def _build_luminex_report(case: dict, S: dict) -> list:
 
     elems.append(Spacer(1, 1.5*mm))
     sig_items = _signature_block(case.get("signatories", []), S)
+    if sig_items:
+        elems.append(KeepTogether(sig_items))
+
+    return elems
+
+
+def _build_single_luminex(case: dict, S: dict) -> list:
+    """
+    single_luminex — "Single Luminex": single-patient HLA typing by Luminex/SSO.
+
+    Reuses the standard single-patient demography table (_ngs_info_table) and
+    "PATIENT DETAILS" photo box (_ngs_photo_box) from the 11-Loci-with-Photo
+    report, followed by a fixed 5-locus (A/B/C/DRB1/DQB1) typing table at
+    serological/low resolution (e.g. "03:XX") -- unlike _build_luminex_report,
+    there is no donor block and the locus columns are never extended. Page 2
+    carries the same Test Details / Disclaimer / Reference boilerplate and
+    signature block as the patient+donor Luminex crossmatch report.
+    """
+    patient = case.get("patient", {})
+    nabl    = case.get("nabl", True)
+
+    F_BOLD = _f("SegoeUI-Bold", "Helvetica-Bold")
+    F_REG  = _f("SegoeUI",      "Helvetica")
+
+    elems = []
+
+    # Page 1 ends with a hard PageBreak after the typing table (Test Details /
+    # Disclaimer / Reference / signatures always start fresh on page 2), which
+    # otherwise leaves a large empty gap below a short single-patient table --
+    # these gaps are stretched out (vs. the tight 3mm loci11_photo uses) to
+    # spread the demography/photo/typing blocks down the page instead.
+    _ttl_s = ParagraphStyle("_slx_ttl", fontName=F_BOLD, fontSize=20,
+                             textColor=C_NGS_TITLE, alignment=TA_CENTER, leading=26)
+    elems.append(Paragraph("<b>HLA Typing</b>", _ttl_s))
+    elems.append(Spacer(1, 6 * mm))
+
+    elems.append(KeepTogether([_ngs_info_table(patient, S, is_donor=False, nabl=nabl)]))
+    elems.append(Spacer(1, 15 * mm))
+    elems.append(_ngs_photo_box(patient, is_donor=False))
+    elems.append(Spacer(1, 15 * mm))
+
+    _rslt_hdr_s = ParagraphStyle("_slx_rh", fontName=F_BOLD, fontSize=13,
+                                  textColor=C_NGS_TITLE, leading=16, spaceAfter=3)
+    elems.append(Paragraph("<b>Typing Result</b>", _rslt_hdr_s))
+    elems.append(Spacer(1, 1 * mm))
+
+    hla  = patient.get("hla", {})
+    LOCI = ["A", "B", "C", "DRB1", "DQB1"]
+    _th_s  = ParagraphStyle("_slx_th", fontName=F_BOLD, fontSize=10,
+                             textColor=BLACK, alignment=TA_CENTER, leading=13)
+    _td_s  = ParagraphStyle("_slx_td", fontName=F_REG,  fontSize=10,
+                             textColor=BLACK, alignment=TA_CENTER, leading=13)
+    _tsp_s = ParagraphStyle("_slx_ts", fontName=F_BOLD, fontSize=10,
+                             textColor=BLACK, alignment=TA_CENTER, leading=13)
+
+    _label_w  = 0.155
+    _loc_w    = (1.0 - _label_w) / len(LOCI)
+    tbl_col_w = [CONTENT_W * _label_w] + [CONTENT_W * _loc_w] * len(LOCI)
+    hdr_row   = ([Paragraph("<b>LOCUS</b>", _th_s)]
+                 + [Paragraph(f"<b>HLA-{l}*</b>", _th_s) for l in LOCI])
+
+    def _pair(l):
+        a  = hla.get(l, ["", ""]) or ["", ""]
+        v1 = _clean_display(a[0]) if a[0] else ""
+        v2 = _clean_display(a[1]) if len(a) > 1 and a[1] else ""
+        return (v1 or MISSING, v2 or MISSING)
+
+    pat_name_d = _title_case(_clean_display(patient.get("name", "")), is_name=True) or "Patient"
+    pairs      = [_pair(l) for l in LOCI]
+    pat_span_row = [Paragraph(f"<b>{pat_name_d} (Patient)</b>", _tsp_s)] + [""] * len(LOCI)
+    row1 = ([Paragraph("<b>HLA-CLASS\nI &amp; II</b>", _th_s)]
+            + [Paragraph(p[0], _td_s) for p in pairs])
+    row2 = ([Paragraph("", _td_s)]
+            + [Paragraph(p[1], _td_s) for p in pairs])
+
+    tbl_data = [hdr_row, pat_span_row, row1, row2]
+    typing_t = Table(tbl_data, colWidths=tbl_col_w)
+    typing_t.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1,  0), C_HLA_HDR),
+        ("BACKGROUND",    (0, 1), (-1,  1), C_HLA_ROW),
+        ("SPAN",          (0, 1), (-1,  1)),
+        ("BACKGROUND",    (0, 2), (-1,  3), C_HLA_ROW),
+        ("SPAN",          (0, 2), (0,   3)),
+        ("INNERGRID",     (0, 0), (-1, -1), 1.0, colors.white),
+        ("BOX",           (0, 0), (-1, -1), 1.0, colors.white),
+        ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN",         (0, 0), (-1, -1), "CENTER"),
+        ("TOPPADDING",    (0, 0), (-1, -1), 3),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+    ]))
+    elems.append(KeepTogether([typing_t]))
+
+    elems.append(PageBreak())
+
+    # Page 2 also carries a Reference section (absent from the patient+donor
+    # Luminex report), so text/gaps here run tighter than that report's to
+    # keep everything -- Test Details, Disclaimer, Reference, signatures --
+    # on this one page instead of spilling the signature block to a page 3.
+    _sec_s  = ParagraphStyle("_slx_sec", fontName=F_BOLD, fontSize=13,
+                              textColor=C_NGS_TITLE, leading=16,
+                              spaceBefore=2, spaceAfter=2)
+    _body_s = ParagraphStyle("_slx_bdy", fontName=F_REG,  fontSize=10,
+                              leading=13, spaceAfter=1, alignment=TA_JUSTIFY)
+    _rule_gap    = 2
+    _section_gap = 1.5 * mm
+
+    _remarks = (patient.get("remarks", "") or "").strip()
+    if _remarks:
+        elems.append(Paragraph("<b>Remarks</b>", _sec_s))
+        elems.append(HRFlowable(width=CONTENT_W, thickness=0.8, color=colors.grey, spaceAfter=_rule_gap))
+        elems.append(Paragraph(_remarks, _body_s))
+        elems.append(Spacer(1, _section_gap))
+
+    elems.append(Paragraph("<b>Test Details</b>", _sec_s))
+    elems.append(HRFlowable(width=CONTENT_W, thickness=0.8, color=colors.grey, spaceAfter=_rule_gap))
+    for _para in LUMINEX_TEST_DETAILS:
+        elems.append(Paragraph(_para, _body_s))
+    elems.append(Spacer(1, _section_gap))
+
+    elems.append(Paragraph("<b>Disclaimer</b>", _sec_s))
+    elems.append(HRFlowable(width=CONTENT_W, thickness=0.8, color=colors.grey, spaceAfter=_rule_gap))
+    elems.append(Paragraph(LUMINEX_DISCLAIMER, _body_s))
+    elems.append(Spacer(1, _section_gap))
+
+    elems.append(Paragraph("<b>Reference</b>", _sec_s))
+    elems.append(HRFlowable(width=CONTENT_W, thickness=0.8, color=colors.grey, spaceAfter=_rule_gap))
+    for _i, _ref in enumerate(LUMINEX_REFERENCES, 1):
+        elems.append(Paragraph(f"{_i}. {_ref}", _body_s))
+    elems.append(Spacer(1, _section_gap))
+
+    elems.append(Spacer(1, 1.5 * mm))
+    signatories = case.get("signatories") or hla_assets.get_default_signatories("single_luminex", nabl)
+    sig_items = _signature_block(signatories, S)
     if sig_items:
         elems.append(KeepTogether(sig_items))
 
@@ -4892,6 +5063,7 @@ def generate_pdf(case: dict, output_path: str) -> str:
 
     TITLES = {
         "single_hla":       "HLA Typing High Resolution",
+        "single_hla_photo": "HLA Typing High Resolution",
         "transplant_donor": "HLA Typing High Resolution",
         "ngs_photo":        "HLA Typing High Resolution",
         "loci11":           "HLA Typing High Resolution",
@@ -4904,6 +5076,7 @@ def generate_pdf(case: dict, output_path: str) -> str:
         "sab_class2":       "",
         "flow_crossmatch":  "Flow Cytometry Cross match",
         "luminex_typing":   "",
+        "single_luminex":   "",
         "kir_genotyping":   "KIR Genotyping",
         "pra_class1":       "Panel Reactive Antibodies (PRA) Class I Quantitative",
         "pra_class2":       "Panel Reactive Antibodies (PRA) Class II Quantitative",
@@ -4928,7 +5101,8 @@ def generate_pdf(case: dict, output_path: str) -> str:
     fw, fh   = pil_f.size
     footer_h = (fh / fw) * CONTENT_W
 
-    _top_gap      = 1.5 * mm if report_type in ("luminex_typing", "single_locus", "hla_c") else 4 * mm
+    _top_gap      = (1.5 * mm if report_type in ("luminex_typing", "single_luminex", "single_locus", "hla_c")
+                     else 4 * mm)
     top_margin    = MARGIN_T + banner_h + _top_gap
 
     _is_sab = report_type in ("sab_class1", "sab_class2")
@@ -4958,7 +5132,7 @@ def generate_pdf(case: dict, output_path: str) -> str:
         bottomMargin=bottom_margin,
     )
 
-    if report_type == "single_hla":
+    if report_type in ("single_hla", "single_hla_photo"):
         body = _build_ngs_single(case, S)
     elif report_type == "transplant_donor":
         body = _build_ngs_transplant(case, S)
@@ -4980,6 +5154,8 @@ def generate_pdf(case: dict, output_path: str) -> str:
         body = _build_flow_report(case, S)
     elif report_type == "luminex_typing":
         body = _build_luminex_report(case, S)
+    elif report_type == "single_luminex":
+        body = _build_single_luminex(case, S)
     elif report_type == "kir_genotyping":
         body = _build_kir_report(case, S)
     elif report_type in ("pra_class1", "pra_class2"):
@@ -5041,10 +5217,11 @@ def make_filename(case: dict) -> str:
     )
     rtype = {"single_hla": "HLA_NGS", "transplant_donor": "HLA_NGS",
              "ngs_photo": "HLA_NGS_PHOTO", "loci11": "HLA_NGS",
-             "loci11_photo": "HLA_NGS_PHOTO",
+             "loci11_photo": "HLA_NGS_PHOTO", "single_hla_photo": "HLA_NGS_PHOTO",
              "rpl_couple": "RPL", "single_rpl": "RPL_SINGLE", "cdc_crossmatch": "CDC",
              "dsa_crossmatch": "DSA", "sab_class1": "SAB_C1", "sab_class2": "SAB_C2",
              "flow_crossmatch": "FLOW", "luminex_typing": "HLA_LUMINEX",
+             "single_luminex": "HLA_LUMINEX_SINGLE",
              "kir_genotyping": "KIR", "pra_class1": "PRA_C1",
              "pra_class2": "PRA_C2", "single_locus": "SINGLE_LOCUS",
              "hla_c": "HLA_C", "mixed_pra": "PRA_MIXED"}.get(report_type, "HLA")

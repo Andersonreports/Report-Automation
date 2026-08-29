@@ -39,6 +39,7 @@ router = APIRouter(prefix="/hla", tags=["hla"])
 
 REPORT_TEMPLATES = [
     {"name": "With CL",                                    "report_type": "single_hla"},
+    {"name": "With CL with Photo",                         "report_type": "single_hla_photo"},
     {"name": "RPL",                                        "report_type": "rpl_couple"},
     {"name": "Single RPL",                                 "report_type": "single_rpl"},
     {"name": "Single Locus",                               "report_type": "single_locus"},
@@ -53,6 +54,7 @@ REPORT_TEMPLATES = [
     {"name": "SAB Class II",                               "report_type": "sab_class2"},
     {"name": "Flow",                                       "report_type": "flow_crossmatch"},
     {"name": "HLA Typing (Luminex)",                       "report_type": "luminex_typing"},
+    {"name": "Single Luminex",                             "report_type": "single_luminex"},
     {"name": "KIR Genotyping",                             "report_type": "kir_genotyping"},
     {"name": "PRA Class I",                                "report_type": "pra_class1"},
     {"name": "PRA Class II",                               "report_type": "pra_class2"},
@@ -64,6 +66,7 @@ RTYPE_TO_TEMPLATE = {t["report_type"]: t["name"]        for t in REPORT_TEMPLATE
 
 DEFAULT_SIG_COUNTS = {
     "single_hla":       3,
+    "single_hla_photo": 2,
     "rpl_couple":       2,
     "single_rpl":       2,
     "single_locus":     2,
@@ -78,6 +81,7 @@ DEFAULT_SIG_COUNTS = {
     "sab_class2":       2,
     "flow_crossmatch":  2,
     "luminex_typing":   2,
+    "single_luminex":   2,
     "kir_genotyping":   2,
     "pra_class1":       2,
     "pra_class2":       2,

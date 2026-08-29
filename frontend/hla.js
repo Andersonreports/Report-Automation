@@ -5,6 +5,7 @@ const API = "";
 
 const REPORT_TEMPLATES = [
   { name: "With CL", report_type: "single_hla" },
+  { name: "With CL with Photo", report_type: "single_hla_photo" },
   { name: "RPL", report_type: "rpl_couple" },
   { name: "Single RPL", report_type: "single_rpl" },
   { name: "Single Locus", report_type: "single_locus" },
@@ -19,6 +20,7 @@ const REPORT_TEMPLATES = [
   { name: "SAB Class II", report_type: "sab_class2" },
   { name: "Flow", report_type: "flow_crossmatch" },
   { name: "HLA Typing (Luminex)", report_type: "luminex_typing" },
+  { name: "Single Luminex", report_type: "single_luminex" },
   { name: "KIR Genotyping", report_type: "kir_genotyping" },
   { name: "PRA Class I", report_type: "pra_class1" },
   { name: "PRA Class II", report_type: "pra_class2" },
@@ -33,6 +35,7 @@ REPORT_TEMPLATES.forEach(t => RTYPE_TO_TEMPLATE_NAME[t.report_type] = t.name);
 
 const RTYPE_COLORS = {
   single_hla:        "#1f497d",
+  single_hla_photo:  "#3f6da3",
   rpl_couple:         "#8e44ad",
   single_rpl:         "#9b59b6",
   single_locus:       "#16a085",
@@ -47,6 +50,7 @@ const RTYPE_COLORS = {
   sab_class2:         "#1e8449",
   flow_crossmatch:    "#117a65",
   luminex_typing:     "#b7950b",
+  single_luminex:     "#af7ac5",
   kir_genotyping:     "#7d3c98",
   pra_class1:         "#a04000",
   pra_class2:         "#ba4a00",
@@ -56,16 +60,21 @@ function rtypeColor(rtype) { return RTYPE_COLORS[rtype] || "#7f8c8d"; }
 
 const HLA_LOCI = ["A", "B", "C", "DRB1", "DQB1", "DPB1", "DRB3", "DPA1", "DQA1"];
 const HLA_LOCUS_LABELS = { DRB3: "DRB3/4/5" };
+// Single Luminex's fixed-5-locus typing table (serological/low resolution,
+// e.g. "03:XX") never grows the way the NGS reports' 9-locus grid does, so
+// its allele card only offers these fields -- entering DPB1/DRB3/DQA1/DPA1
+// here would silently be dropped by the PDF builder.
+const SINGLE_LUMINEX_LOCI = ["A", "B", "C", "DRB1", "DQB1"];
 
 
 const SEPARATE_DRB_RTYPES = ["ngs_photo", "transplant_donor"]; 
 function isSeparateDrb(rtype) { return rtype !== "loci11" && rtype !== "loci11_photo"; }
 
 const DEFAULT_SIG_COUNTS = {
-  single_hla: 3, rpl_couple: 2, single_rpl: 2, single_locus: 2, hla_c: 2,
+  single_hla: 3, single_hla_photo: 2, rpl_couple: 2, single_rpl: 2, single_locus: 2, hla_c: 2,
   transplant_donor: 2, ngs_photo: 2, loci11: 3, loci11_photo: 3, cdc_crossmatch: 2, dsa_crossmatch: 2,
   sab_class1: 2, sab_class2: 2,
-  flow_crossmatch: 2, luminex_typing: 2, kir_genotyping: 2, pra_class1: 2,
+  flow_crossmatch: 2, luminex_typing: 2, single_luminex: 2, kir_genotyping: 2, pra_class1: 2,
   pra_class2: 2, mixed_pra: 2,
 };
 
@@ -496,7 +505,7 @@ function buildPatientInfoCard(prefix, fieldsRef, rtype) {
   return card;
 }
 
-function buildHlaAlleleCard(prefix, hlaFieldsRef, separateDrb = false) {
+function buildHlaAlleleCard(prefix, hlaFieldsRef, separateDrb = false, lociList = HLA_LOCI) {
   const card = el("div", { class: "card" }, [
     el("h3", {}, [el("i", { class: "fas fa-dna" }), " HLA Results"]),
   ]);
@@ -511,7 +520,7 @@ function buildHlaAlleleCard(prefix, hlaFieldsRef, separateDrb = false) {
     hlaFieldsRef[locus] = [a1, a2];
     grid.appendChild(el("div", { class: "allele-row" }, [el("span", { class: "locus-lbl" }, label), a1, a2]));
   }
-  HLA_LOCI.forEach(locus => {
+  lociList.forEach(locus => {
     if (locus === "DRB3" && separateDrb) {
       addRow("DRB3", "DRB3");
       addRow("DRB4", "DRB4");
@@ -742,7 +751,7 @@ const CROSSMATCH_RTYPES = ["cdc_crossmatch", "dsa_crossmatch", "flow_crossmatch"
 const MULTI_DONOR_RTYPES = ["transplant_donor", "rpl_couple", "ngs_photo", "loci11", "loci11_photo"];
 
 
-const PHOTO_RTYPES = ["ngs_photo", "cdc_crossmatch", "dsa_crossmatch", "flow_crossmatch", "luminex_typing", "loci11_photo"];
+const PHOTO_RTYPES = ["ngs_photo", "cdc_crossmatch", "dsa_crossmatch", "flow_crossmatch", "luminex_typing", "loci11_photo", "single_luminex", "single_hla_photo"];
 
 function buildPhotoUploadField(label, onChange, existingB64 = null) {
   const fileInput = el("input", { type: "file", accept: "image/png,image/jpeg,image/bmp,image/tiff", class: "hidden" });
@@ -859,15 +868,18 @@ function renderManualForm() {
     col.appendChild(buildPatientInfoCard("man", manualFields, rtype));
   }
 
-  if (rtype === "ngs_photo" || rtype === "loci11_photo") {
+  if (rtype === "ngs_photo" || rtype === "loci11_photo" || rtype === "single_luminex" || rtype === "single_hla_photo") {
     const photoCard = el("div", { class: "card" });
     photoCard.appendChild(el("h3", {}, [el("i", { class: "fas fa-camera" }), " Patient Photo"]));
     photoCard.appendChild(buildPhotoUploadField("Patient Photo", b64 => { manualPatientPhoto.bytes = b64; }));
     col.appendChild(photoCard);
   }
 
-  if (["single_hla", "transplant_donor", "ngs_photo", "loci11", "loci11_photo", "rpl_couple", "single_rpl"].includes(rtype)) {
+  if (["single_hla", "single_hla_photo", "transplant_donor", "ngs_photo", "loci11", "loci11_photo", "rpl_couple", "single_rpl"].includes(rtype)) {
     col.appendChild(buildHlaAlleleCard("man_pat", manualHlaFields, isSeparateDrb(rtype)));
+  }
+  if (rtype === "single_luminex") {
+    col.appendChild(buildHlaAlleleCard("man_pat", manualHlaFields, false, SINGLE_LUMINEX_LOCI));
   }
 
   if (MULTI_DONOR_RTYPES.includes(rtype)) {
@@ -967,7 +979,7 @@ function renderManualForm() {
     buildSabSection(col, rtype);
   }
 
-  if (["single_hla", "transplant_donor", "ngs_photo", "loci11", "loci11_photo", "rpl_couple", "single_rpl"].includes(rtype)) {
+  if (["single_hla", "single_hla_photo", "transplant_donor", "ngs_photo", "loci11", "loci11_photo", "rpl_couple", "single_rpl"].includes(rtype)) {
     const imgtInput = el("input", { type: "text", placeholder: "e.g. 3.56.0", oninput: scheduleManualPreview });
     manualSpecialFields.imgt_release = imgtInput;
 
@@ -1601,7 +1613,8 @@ function collectManualCase() {
     receipt_date: val(manualFields.receipt_date), report_date: val(manualFields.report_date),
     remarks: val(manualFields.remarks),
     hla: Object.keys(manualHlaFields).length ? collectAlleles(manualHlaFields) : emptyHla(),
-    photo_bytes: (rtype === "ngs_photo" || rtype === "loci11_photo") ? (manualPatientPhoto.bytes || null) : null,
+    photo_bytes: (rtype === "ngs_photo" || rtype === "loci11_photo" || rtype === "single_luminex" || rtype === "single_hla_photo")
+      ? (manualPatientPhoto.bytes || null) : null,
   });
 
   if (MULTI_DONOR_RTYPES.includes(rtype) && manualDonorFields.length) {
@@ -2008,7 +2021,7 @@ function populateManualForm(c) {
       a1.value = pair[0] || ""; a2.value = pair[1] || "";
     });
   }
-  if ((rtype === "ngs_photo" || rtype === "loci11_photo") && p.photo_bytes) manualPatientPhoto.bytes = p.photo_bytes;
+  if ((rtype === "ngs_photo" || rtype === "loci11_photo" || rtype === "single_luminex" || rtype === "single_hla_photo") && p.photo_bytes) manualPatientPhoto.bytes = p.photo_bytes;
 
   if (MULTI_DONOR_RTYPES.includes(rtype) && Array.isArray(c.donors)) {
     const sectionTitle = rtype === "rpl_couple" ? "Spouse / Donor" : "Donor";
@@ -3085,7 +3098,7 @@ function renderBulkEditor(i) {
   }
   editCol.appendChild(card);
 
-  const _hlaRtypes = ["single_hla","transplant_donor","ngs_photo","loci11","loci11_photo","rpl_couple","single_rpl","hla_c","single_locus"];
+  const _hlaRtypes = ["single_hla","single_hla_photo","transplant_donor","ngs_photo","loci11","loci11_photo","rpl_couple","single_rpl","hla_c","single_locus","single_luminex"];
   if (p.hla && _hlaRtypes.includes(c.report_type)) {
     const hlaCard = el("div", { class: "card" }, [el("h3", {}, "HLA Results")]);
     hlaCard.appendChild(buildHlaGrid(p.hla));
@@ -3255,7 +3268,7 @@ function renderBulkEditor(i) {
     editCol.appendChild(interpCard);
   }
 
-  if (["single_hla", "transplant_donor", "ngs_photo", "loci11", "loci11_photo", "rpl_couple", "single_rpl"].includes(c.report_type)) {
+  if (["single_hla", "single_hla_photo", "transplant_donor", "ngs_photo", "loci11", "loci11_photo", "rpl_couple", "single_rpl"].includes(c.report_type)) {
     const imgtInput = el("input", { type: "text", placeholder: "e.g. 3.56.0" });
     imgtInput.value = c.imgt_release || "";
     imgtInput.addEventListener("input", () => { c.imgt_release = imgtInput.value; scheduleBulkPreview(i); });

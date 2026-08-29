@@ -589,9 +589,11 @@
         <table>
           <tr><th>Template</th><th>How it's created / detected</th><th>Pages</th></tr>
           <tr><td>With CL <i>(Single HLA)</i></td><td>Bulk: HLA typing file with no donor rows</td><td>1-2</td></tr>
+          <tr><td>With CL with Photo</td><td>Single Entry only (adds a Patient Details photo box)</td><td>1</td></tr>
           <tr><td>RPL</td><td>Bulk: Diagnosis = RPL, or wife/husband relationship</td><td>3</td></tr>
           <tr><td>HLA Typing High Resolution <i>(Transplant Donor)</i></td><td>Bulk: donor present, non-RPL</td><td>2+</td></tr>
           <tr><td>HLA Typing (Luminex)</td><td>Bulk: file name contains <code>LUMINEX</code>, or sheet headed <code>SampleName</code></td><td>2+</td></tr>
+          <tr><td>Single Luminex</td><td>Single Entry only (no donor; 5-locus low-resolution typing)</td><td>2</td></tr>
           <tr><td>CDC Crossmatch</td><td>Bulk: file name has <code>CDC</code></td><td>2</td></tr>
           <tr><td>DSA Crossmatch</td><td>Bulk: file name has <code>DSA</code></td><td>2</td></tr>
           <tr><td>Flow Crossmatch</td><td>Bulk: file name has <code>FLOW</code></td><td>2</td></tr>
