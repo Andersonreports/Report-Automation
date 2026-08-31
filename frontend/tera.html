@@ -1245,7 +1245,7 @@
   <script>
     const _h = window.location.hostname;
     const API = (_h === "127.0.0.1" || _h === "localhost")
-        ? "http://127.0.0.1:8000"          
+        ? "http://127.0.0.1:8010"
         : (_h === ""
             ? "https://tera-report-automation.onrender.com"  
             : "");                          
@@ -2145,6 +2145,28 @@ ${d.html_diff || '<p>No differences found.</p>'}
     const _dirHandles = {};
 
     async function selectOutputFolder(inputId) {
+        // Native OS folder dialog runs server-side and gives back a real absolute
+        // path (unlike the browser's File System Access API, which only exposes
+        // the bare folder name) — try it first.
+        try {
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 125000);
+            try {
+                const r = await fetch(API + "/open-folder-dialog", { signal: ctrl.signal });
+                const d = await r.json();
+                if (d.path) {
+                    const inp = document.getElementById(inputId);
+                    if (inp) { inp.value = d.path; inp.classList.remove("placeholder"); }
+                    delete _dirHandles[inputId];
+                    return;
+                }
+                if (d.error) throw new Error(d.error);
+                if (r.ok) return; // user cancelled the native dialog
+            } finally {
+                clearTimeout(timer);
+            }
+        } catch { /* native dialog unavailable — fall back below */ }
+
         if (!window.showDirectoryPicker) {
             const inp = document.getElementById(inputId);
             if (inp) { inp.removeAttribute("readonly"); inp.placeholder = "Type folder path (e.g. C:\\Reports)"; inp.focus(); }

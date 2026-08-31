@@ -635,9 +635,9 @@
   
   var API = (window.location.protocol === "file:" ||
              ((window.location.hostname === "127.0.0.1" || window.location.hostname === "localhost") &&
-              window.location.port !== "8000"))
-      ? "http://127.0.0.1:8000"
-      : "";  
+              window.location.port !== "8010"))
+      ? "http://127.0.0.1:8010"
+      : "";
   function apiUrl(path){
     if(!path) return "";
     if(/^https?:\/\//i.test(path) || /^data:/i.test(path)) return path;
@@ -649,6 +649,30 @@
   
   var _dirHandles = {};
   function selectOutputFolder(inputId, btnId){
+    // Native OS folder dialog runs server-side and gives back a real absolute
+    // path (unlike the browser's File System Access API, which only exposes
+    // the bare folder name) — try it first.
+    var ctrl = new AbortController();
+    var timer = setTimeout(function(){ ctrl.abort(); }, 125000);
+    fetch(apiUrl("/open-folder-dialog"), {signal: ctrl.signal}).then(function(r){
+      return r.json().then(function(d){ return {r:r, d:d}; });
+    }).then(function(res){
+      clearTimeout(timer);
+      if(res.d.path){
+        var inp=$(inputId);
+        inp.value=res.d.path;
+        inp.classList.remove("placeholder");
+        delete _dirHandles[inputId];
+        return;
+      }
+      if(!res.d.error && res.r.ok) return; // user cancelled the native dialog
+      selectOutputFolderBrowser(inputId);
+    }).catch(function(){
+      clearTimeout(timer);
+      selectOutputFolderBrowser(inputId);
+    });
+  }
+  function selectOutputFolderBrowser(inputId){
     if(!window.showDirectoryPicker){
       var inp=$(inputId);
       inp.removeAttribute("readonly");

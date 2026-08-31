@@ -560,27 +560,43 @@ function buildDonorCard(prefix, fieldsRef, hlaFieldsRef, title = "Donor Informat
 }
 
 async function browseOutputFolder(inputEl, btnEl) {
-  if (window.showDirectoryPicker) {
-    try {
-      const handle = await window.showDirectoryPicker({ mode: "readwrite" });
-      _dirHandles[inputEl.id] = handle;
-      inputEl.value = handle.name;
-    } catch (e) {
-      if (e.name !== "AbortError") showToast("Could not open folder picker.", "error");
-    }
-    return;
-  }
-  
   const originalHtml = btnEl.innerHTML;
   btnEl.disabled = true;
   btnEl.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Waiting…';
   try {
-    const r = await fetch(API + "/open-folder-dialog");
-    const d = await r.json();
-    if (d.path) { inputEl.value = d.path; delete _dirHandles[inputEl.id]; }
-    else { inputEl.focus(); }
-  } catch (e) {
-    showToast("Could not open the folder dialog. Type the path manually.", "error");
+    // Native OS folder dialog runs server-side and gives back a real absolute
+    // path (unlike the browser's File System Access API, which only exposes
+    // the bare folder name) — try it first, same headroom as the backend's
+    // subprocess timeout instead of aborting early.
+    let backendError = null;
+    try {
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 125000);
+      try {
+        const r = await fetch(API + "/open-folder-dialog", { signal: ctrl.signal });
+        const d = await r.json();
+        if (d.path) { inputEl.value = d.path; delete _dirHandles[inputEl.id]; return; }
+        if (d.error) throw new Error(d.error);
+        if (r.ok) return; // user cancelled the native dialog
+        throw new Error("HTTP " + r.status);
+      } finally {
+        clearTimeout(timer);
+      }
+    } catch (e) { backendError = e && e.message; }
+
+    if (window.showDirectoryPicker) {
+      try {
+        const handle = await window.showDirectoryPicker({ mode: "readwrite" });
+        _dirHandles[inputEl.id] = handle;
+        inputEl.value = handle.name;
+        showToast(`Output folder set: ${handle.name}`, "success");
+      } catch (e) {
+        if (e.name !== "AbortError") showToast("Could not open folder picker: " + e.message, "error");
+      }
+      return;
+    }
+
+    showToast("Could not open the folder dialog" + (backendError ? " (" + backendError + ")" : "") + ". Type the path manually.", "error");
     inputEl.focus();
   } finally {
     btnEl.disabled = false;

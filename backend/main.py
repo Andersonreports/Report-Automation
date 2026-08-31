@@ -970,8 +970,13 @@ async def pgta_compare(manual: UploadFile = File(...), automated: UploadFile = F
 @app.get("/open-folder-dialog")
 async def open_folder_dialog():
     import asyncio
-    try:
-        import subprocess
+    import platform
+    import shutil
+    import subprocess
+
+    system = platform.system()
+
+    def _run_windows():
         ps = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
         script = (
             "Add-Type -AssemblyName System.Windows.Forms;"
@@ -990,10 +995,47 @@ async def open_folder_dialog():
             "if ($d.ShowDialog($owner) -eq 'OK') { Write-Output $d.SelectedPath };"
             "$owner.Dispose();"
         )
-        res = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: subprocess.run([ps, "-NoProfile", "-Command", script],
-                                         capture_output=True, text=True, timeout=120))
-        return {"path": res.stdout.strip()}
+        res = subprocess.run([ps, "-NoProfile", "-Command", script],
+                              capture_output=True, text=True, timeout=120)
+        return res.stdout.strip()
+
+    def _run_macos():
+        script = 'POSIX path of (choose folder with prompt "Select Output Folder")'
+        res = subprocess.run(["osascript", "-e", script],
+                              capture_output=True, text=True, timeout=120)
+        if res.returncode != 0:
+            return ""
+        return res.stdout.strip()
+
+    def _run_linux():
+        if shutil.which("zenity"):
+            res = subprocess.run(
+                ["zenity", "--file-selection", "--directory",
+                 "--title=Select Output Folder"],
+                capture_output=True, text=True, timeout=120)
+        elif shutil.which("kdialog"):
+            res = subprocess.run(
+                ["kdialog", "--getexistingdirectory", os.path.expanduser("~"),
+                 "--title", "Select Output Folder"],
+                capture_output=True, text=True, timeout=120)
+        else:
+            raise RuntimeError(
+                "No folder-dialog tool found (install 'zenity' or 'kdialog')")
+        if res.returncode != 0:
+            return ""
+        return res.stdout.strip()
+
+    try:
+        if system == "Windows":
+            runner = _run_windows
+        elif system == "Darwin":
+            runner = _run_macos
+        elif system == "Linux":
+            runner = _run_linux
+        else:
+            return {"error": f"Unsupported OS: {system}"}
+        path = await asyncio.get_event_loop().run_in_executor(None, runner)
+        return {"path": path}
     except Exception as e:
         return {"error": str(e)}
 

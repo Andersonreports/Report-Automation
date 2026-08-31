@@ -26,9 +26,9 @@ mkdir -p reports reports-pgta temp drafts/TERA drafts/PGTA uploads/pgta_cnv
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo " Anderson Report Automation"
-echo " Server starting at http://0.0.0.0:8000"
+echo " Server starting at http://0.0.0.0:8010"
 echo " Press Ctrl+C to stop"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-uvicorn main:app --host 0.0.0.0 --port 8000
+uvicorn main:app --host 0.0.0.0 --port 8010
