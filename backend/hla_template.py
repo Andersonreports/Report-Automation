@@ -1147,6 +1147,18 @@ def _ngs_info_table(person: dict, S: dict, is_donor: bool = False, patient_name:
             mid = logo_cell if i == logo_row_start else [E()]
             rows.append(lr + [mid] + rr)
 
+        # When the seal is taller than the rows it spans naturally add up to
+        # (e.g. only 3 short rows when Referred By is blank), reportlab pads
+        # the LAST spanned row alone to make up the shortfall -- which looked
+        # like a stray gap wedged in right above the next label instead of
+        # even spacing. Spreading that same shortfall evenly across every
+        # spanned row's own padding heads that off before reportlab has to.
+        _span_rows = logo_row_end - logo_row_start + 1
+        _label_leading = S["lbl"].leading
+        _natural_span_h = _span_rows * (_label_leading + 2 * _vpad)
+        _shortfall = max(0.0, _LOGO_H - _natural_span_h)
+        _span_vpad = _vpad + (_shortfall / _span_rows) / 2 if _shortfall else _vpad
+
         t = Table(rows, colWidths=col_w)
         t.setStyle(TableStyle([
             ("BACKGROUND",    (0, 0), (-1, -1), C_INFO_BG),
@@ -1157,6 +1169,10 @@ def _ngs_info_table(person: dict, S: dict, is_donor: bool = False, patient_name:
             ("RIGHTPADDING",  (0, 0), (-1, -1), 0),
             ("LEFTPADDING",   (1, 0), (1, -1), 0),
             ("RIGHTPADDING",  (1, 0), (1, -1), 2),
+            ("TOPPADDING",    (0, logo_row_start), (2, logo_row_end), _span_vpad),
+            ("BOTTOMPADDING", (0, logo_row_start), (2, logo_row_end), _span_vpad),
+            ("TOPPADDING",    (4, logo_row_start), (6, logo_row_end), _span_vpad),
+            ("BOTTOMPADDING", (4, logo_row_start), (6, logo_row_end), _span_vpad),
             ("SPAN",          (3, logo_row_start), (3, logo_row_end)),
             ("ALIGN",         (3, logo_row_start), (3, logo_row_start), "CENTER"),
             ("VALIGN",        (3, logo_row_start), (3, logo_row_start), "MIDDLE"),
@@ -1277,7 +1293,7 @@ def _hla_table(person: dict, S: dict, compact: bool = False, separate_drb: bool 
     return t
 
 
-def _ngs_photo_box(person: dict, is_donor: bool) -> Table:
+def _ngs_photo_box(person: dict, is_donor: bool, photo_wh: tuple = None) -> Table:
     """
     Small "PATIENT DETAILS" / "DONOR DETAILS" box (photo + Sample Type +
     Date of Collection) inserted between the info table and the HLA table
@@ -1291,7 +1307,7 @@ def _ngs_photo_box(person: dict, is_donor: bool) -> Table:
     # by running the IMGT/Coverage/Methodology text smaller for this report
     # type (see _methodology_block), so the photo itself can stay a normal,
     # legible size rather than being shrunk to fit.
-    _ph_w, _ph_h = 20 * mm, 24 * mm
+    _ph_w, _ph_h = photo_wh if photo_wh else (20 * mm, 24 * mm)
 
     photo_bytes = person.get("photo_bytes")
     if photo_bytes:
@@ -1338,7 +1354,7 @@ def _ngs_person_block(person: dict, is_donor: bool, match_str: str, S: dict,
                       extra_post_hla_gap: float = 0.0, extra_inter_block_gap: float = 0.0,
                       no_compact: bool = False, nabl: bool = False,
                       show_relationship: bool = False, separate_drb: bool = False,
-                      with_photo: bool = False) -> list:
+                      with_photo: bool = False, photo_wh: tuple = None) -> list:
     _raw_remarks = person.get("remarks", "")
     _remarks_display = _clean_display(_raw_remarks) if _raw_remarks else ""
     _remarks_display = _normalize_hla_alleles(_remarks_display) if _remarks_display else ""
@@ -1412,12 +1428,17 @@ def _ngs_person_block(person: dict, is_donor: bool, match_str: str, S: dict,
         Spacer(1, inner_gap),
     ]
     if with_photo:
-        elems.append(_ngs_photo_box(person, is_donor))
+        elems.append(_ngs_photo_box(person, is_donor, photo_wh=photo_wh))
         elems.append(Spacer(1, inner_gap))
 
     tail = []
     if has_remarks:
-        _remarks_size = 11 if no_compact else 10
+        # Matches the fixed 11pt body size Coverage/Methodology/Typing Status
+        # render at everywhere _ngs_person_block is used -- shrinking this to
+        # 10pt in the non-transplant (no_compact=False) callers left Remarks
+        # visibly smaller than the text right below it for no space-saving
+        # reason, since those single-patient layouts already have slack.
+        _remarks_size = 11
         tail.append(Paragraph(f"<b>Remarks:</b> {_remarks_display}",
                               ParagraphStyle("remarks_j", parent=S["body_small"],
                                              fontSize=_remarks_size, leading=_remarks_size + 2,
@@ -1794,9 +1815,16 @@ def _build_ngs_single(case: dict, S: dict) -> list:
 
     elems = []
 
+    # single_hla_photo is always exactly 1 page with no donor blocks competing
+    # for room, which leaves visible slack below the signatures at the
+    # default (loci11_photo-sized) photo -- so this report type alone gets a
+    # slightly larger photo to use that space, unlike loci11_photo where the
+    # smaller size is load-bearing for the 1-2 donor page budget.
+    _photo_wh = (24 * mm, 28.8 * mm) if _with_photo else None
+
     elems.extend(_ngs_person_block(patient, is_donor=False, match_str="", S=S,
                                    nabl=case.get("nabl", True), separate_drb=True,
-                                   with_photo=_with_photo))
+                                   with_photo=_with_photo, photo_wh=_photo_wh))
 
     elems.extend(_methodology_block(case, S))
     sig_items = _signature_block(signatories, S)
@@ -1886,9 +1914,20 @@ def _build_ngs_transplant(case: dict, S: dict) -> list:
     # even when it would have fit -- i.e. it would silently behave like the
     # forced break it replaces.
     if len(donors) >= 2 or _is_loci11:
+        # Coverage and Methodology each stay internally atomic (via
+        # _methodology_block's default two-KeepTogether return), but unlike
+        # the giant single-block version this replaced, they are NOT fused
+        # with the signature block into one all-or-nothing KeepTogether.
+        # Bundling everything meant that if the combined chunk didn't fit
+        # the space left below the last donor, the whole thing -- including
+        # signatures -- got dumped onto a fresh page, wasting whatever room
+        # was left and, with 2+ donors, sometimes forcing a 3rd page even
+        # though each piece individually would have fit where it landed.
         _pre_gap = 0.75 if _with_photo else 3
-        block = [Spacer(1, _pre_gap * mm)] + list(_methodology_block(case, S, merge=True)) + list(sig_items)
-        elems.append(KeepTogether(block))
+        elems.append(Spacer(1, _pre_gap * mm))
+        elems.extend(_methodology_block(case, S))
+        if sig_items:
+            elems.append(KeepTogether(sig_items))
     else:
         elems.append(PageBreakIfNotEmpty())
         elems.extend(_methodology_block(case, S, merge=True))
@@ -3929,34 +3968,35 @@ def _build_single_luminex(case: dict, S: dict) -> list:
 
     elems = []
 
-    # Page 1 ends with a hard PageBreak after the typing table (Test Details /
-    # Disclaimer / Reference / signatures always start fresh on page 2), which
-    # otherwise leaves a large empty gap below a short single-patient table --
-    # these gaps are stretched out (vs. the tight 3mm loci11_photo uses) to
-    # spread the demography/photo/typing blocks down the page instead.
+    # Test Details / Disclaimer / Reference / signatures used to always start
+    # fresh on page 2 behind a hard PageBreak, with the demography/photo/
+    # typing blocks on page 1 stretched out with large gaps to fill the page
+    # they had entirely to themselves. Letting that boilerplate flow onto
+    # page 1's leftover space instead (below) needed those gaps reclaimed
+    # too, so they're back down near the tight 3mm loci11_photo uses.
     _ttl_s = ParagraphStyle("_slx_ttl", fontName=F_BOLD, fontSize=20,
                              textColor=C_NGS_TITLE, alignment=TA_CENTER, leading=26)
     elems.append(Paragraph("<b>HLA Typing</b>", _ttl_s))
     elems.append(Spacer(1, 6 * mm))
 
     elems.append(KeepTogether([_ngs_info_table(patient, S, is_donor=False, nabl=nabl)]))
-    elems.append(Spacer(1, 15 * mm))
-    elems.append(_ngs_photo_box(patient, is_donor=False))
-    elems.append(Spacer(1, 15 * mm))
+    elems.append(Spacer(1, 4))
+    elems.append(_ngs_photo_box(patient, is_donor=False, photo_wh=(24 * mm, 28.8 * mm)))
+    elems.append(Spacer(1, 1))
 
     _rslt_hdr_s = ParagraphStyle("_slx_rh", fontName=F_BOLD, fontSize=13,
                                   textColor=C_NGS_TITLE, leading=16, spaceAfter=3)
     elems.append(Paragraph("<b>Typing Result</b>", _rslt_hdr_s))
-    elems.append(Spacer(1, 1 * mm))
+    elems.append(Spacer(1, 1))
 
     hla  = patient.get("hla", {})
     LOCI = ["A", "B", "C", "DRB1", "DQB1"]
-    _th_s  = ParagraphStyle("_slx_th", fontName=F_BOLD, fontSize=10,
-                             textColor=BLACK, alignment=TA_CENTER, leading=13)
-    _td_s  = ParagraphStyle("_slx_td", fontName=F_REG,  fontSize=10,
-                             textColor=BLACK, alignment=TA_CENTER, leading=13)
-    _tsp_s = ParagraphStyle("_slx_ts", fontName=F_BOLD, fontSize=10,
-                             textColor=BLACK, alignment=TA_CENTER, leading=13)
+    _th_s  = ParagraphStyle("_slx_th", fontName=F_BOLD, fontSize=12,
+                             textColor=BLACK, alignment=TA_CENTER, leading=15)
+    _td_s  = ParagraphStyle("_slx_td", fontName=F_REG,  fontSize=12,
+                             textColor=BLACK, alignment=TA_CENTER, leading=15)
+    _tsp_s = ParagraphStyle("_slx_ts", fontName=F_BOLD, fontSize=12,
+                             textColor=BLACK, alignment=TA_CENTER, leading=15)
 
     _label_w  = 0.155
     _loc_w    = (1.0 - _label_w) / len(LOCI)
@@ -3990,50 +4030,71 @@ def _build_single_luminex(case: dict, S: dict) -> list:
         ("BOX",           (0, 0), (-1, -1), 1.0, colors.white),
         ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
         ("ALIGN",         (0, 0), (-1, -1), "CENTER"),
-        ("TOPPADDING",    (0, 0), (-1, -1), 3),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+        ("TOPPADDING",    (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
     ]))
     elems.append(KeepTogether([typing_t]))
+    elems.append(Spacer(1, 1))
 
-    elems.append(PageBreak())
-
-    # Page 2 also carries a Reference section (absent from the patient+donor
-    # Luminex report), so text/gaps here run tighter than that report's to
-    # keep everything -- Test Details, Disclaimer, Reference, signatures --
-    # on this one page instead of spilling the signature block to a page 3.
+    # No more forced break here -- Remarks/Test Details/Disclaimer/Reference
+    # now flow straight on, filling whatever's left of page 1 below the
+    # typing table before spilling to page 2, instead of always starting a
+    # fresh page while page 1 sat mostly empty below the (now much smaller)
+    # gaps above. Each section's heading+rule is kept together with at least
+    # its first line so a page break can't strand a bare heading at the
+    # bottom of a page; the Reference list itself (7 entries) is left free
+    # to split across the page boundary like any other running text.
     _sec_s  = ParagraphStyle("_slx_sec", fontName=F_BOLD, fontSize=13,
                               textColor=C_NGS_TITLE, leading=16,
-                              spaceBefore=2, spaceAfter=2)
+                              spaceBefore=1, spaceAfter=1)
+    # allowWidows=0 makes reportlab pull an extra line back across the page
+    # break instead of leaving a lone final line stranded by itself (like
+    # "number of mismatches." sitting alone at the top of the next page) --
+    # allowOrphans=1 is what lets it do that pull-back by moving 2 lines
+    # together onto the next page rather than forcing the entire paragraph
+    # over when it's short (exactly 3 lines): reportlab otherwise treats a
+    # 3-line paragraph as having no room for the adjustment.
     _body_s = ParagraphStyle("_slx_bdy", fontName=F_REG,  fontSize=10,
-                              leading=13, spaceAfter=1, alignment=TA_JUSTIFY)
-    _rule_gap    = 2
-    _section_gap = 1.5 * mm
+                              leading=13, spaceAfter=1, alignment=TA_JUSTIFY,
+                              allowWidows=0, allowOrphans=1)
+    _rule_gap    = 1.5
+    _section_gap = 1 * mm
 
     _remarks = (patient.get("remarks", "") or "").strip()
     if _remarks:
-        elems.append(Paragraph("<b>Remarks</b>", _sec_s))
-        elems.append(HRFlowable(width=CONTENT_W, thickness=0.8, color=colors.grey, spaceAfter=_rule_gap))
-        elems.append(Paragraph(_remarks, _body_s))
+        elems.append(KeepTogether([
+            Paragraph("<b>Remarks</b>", _sec_s),
+            HRFlowable(width=CONTENT_W, thickness=0.8, color=colors.grey, spaceAfter=_rule_gap),
+            Paragraph(_remarks, _body_s),
+        ]))
         elems.append(Spacer(1, _section_gap))
 
-    elems.append(Paragraph("<b>Test Details</b>", _sec_s))
-    elems.append(HRFlowable(width=CONTENT_W, thickness=0.8, color=colors.grey, spaceAfter=_rule_gap))
-    for _para in LUMINEX_TEST_DETAILS:
+    elems.append(KeepTogether([
+        Paragraph("<b>Test Details</b>", _sec_s),
+        HRFlowable(width=CONTENT_W, thickness=0.8, color=colors.grey, spaceAfter=_rule_gap),
+        Paragraph(LUMINEX_TEST_DETAILS[0], _body_s),
+    ]))
+    for _para in LUMINEX_TEST_DETAILS[1:]:
         elems.append(Paragraph(_para, _body_s))
     elems.append(Spacer(1, _section_gap))
 
-    elems.append(Paragraph("<b>Disclaimer</b>", _sec_s))
-    elems.append(HRFlowable(width=CONTENT_W, thickness=0.8, color=colors.grey, spaceAfter=_rule_gap))
-    elems.append(Paragraph(LUMINEX_DISCLAIMER, _body_s))
+    elems.append(KeepTogether([
+        Paragraph("<b>Disclaimer</b>", _sec_s),
+        HRFlowable(width=CONTENT_W, thickness=0.8, color=colors.grey, spaceAfter=_rule_gap),
+        Paragraph(LUMINEX_DISCLAIMER, _body_s),
+    ]))
     elems.append(Spacer(1, _section_gap))
 
-    elems.append(Paragraph("<b>Reference</b>", _sec_s))
-    elems.append(HRFlowable(width=CONTENT_W, thickness=0.8, color=colors.grey, spaceAfter=_rule_gap))
-    for _i, _ref in enumerate(LUMINEX_REFERENCES, 1):
+    elems.append(KeepTogether([
+        Paragraph("<b>Reference</b>", _sec_s),
+        HRFlowable(width=CONTENT_W, thickness=0.8, color=colors.grey, spaceAfter=_rule_gap),
+        Paragraph(f"1. {LUMINEX_REFERENCES[0]}", _body_s),
+    ]))
+    for _i, _ref in enumerate(LUMINEX_REFERENCES[1:], 2):
         elems.append(Paragraph(f"{_i}. {_ref}", _body_s))
     elems.append(Spacer(1, _section_gap))
 
-    elems.append(Spacer(1, 1.5 * mm))
+    elems.append(Spacer(1, 0.5 * mm))
     signatories = case.get("signatories") or hla_assets.get_default_signatories("single_luminex", nabl)
     sig_items = _signature_block(signatories, S)
     if sig_items:
