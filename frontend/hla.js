@@ -3139,7 +3139,14 @@ function renderBulkEditor(i) {
       d.name = patient.name || d.name;
       d.gender_age = patient.gender_age || d.gender_age;
       d.pin = patient.pin || d.pin;
+      d.sample_number = patient.sample_number || d.sample_number;
+      d.hospital_clinic = patient.hospital_clinic || d.hospital_clinic;
+      d.referred_by = patient.referred_by || d.referred_by;
+      d.diagnosis = patient.diagnosis || d.diagnosis;
+      d.specimen = patient.specimen || d.specimen;
+      d.collection_date = patient.collection_date || d.collection_date;
       d.receipt_date = patient.receipt_date || d.receipt_date;
+      d.report_date = patient.report_date || d.report_date;
       if (patient.hla) d.hla = { ...patient.hla };
       renderBulkEditor(i);
       scheduleBulkPreview(i);
@@ -3204,8 +3211,14 @@ function renderBulkEditor(i) {
         name: patient.name || "",
         gender_age: patient.gender_age || "",
         pin: patient.pin || "NA",
+        sample_number: patient.sample_number || "NA",
+        hospital_clinic: patient.hospital_clinic || "",
+        referred_by: patient.referred_by || "",
+        diagnosis: patient.diagnosis || "",
+        specimen: patient.specimen || "",
+        collection_date: patient.collection_date || "",
         receipt_date: patient.receipt_date || "",
-        sample_number: "NA",
+        report_date: patient.report_date || "",
         hla: patient.hla ? { ...patient.hla } : emptyHla(),
       }));
       renderBulkEditor(i);

@@ -1512,9 +1512,7 @@ def _parse_patient_list_csv(filepath: str, nabl: bool = True) -> list:
             "remarks":         _plc_getv(row, ["remarks", "comment", "comments"]),
             "hospital_mr_no":  _plc_getv(row, ["hospital mr no", "hospital mrn", "mr no", "mrn"]),
             "pin":             _clean_str(row.get("patient no", "")),
-            "sample_number":   _clean_str(
-                row.get("sample number", row.get("sample no", row.get("barcode", "")))
-            ),
+            "sample_number":   _plc_getv(row, ["sample number", "sample no", "lab number", "lab no", "barcode"]),
             "collection_date": _fmt_date(_plc_getv(row, ["collection date", "sample collection date"])),
             "receipt_date":    _fmt_date(row.get("sample receipt date", "")),
             "report_date":     _fmt_date(_plc_getv(row, ["report date"])),

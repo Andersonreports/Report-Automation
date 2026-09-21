@@ -1,10 +1,22 @@
 
+import builtins
+
 from fastapi import APIRouter, HTTPException
 
 import genetics_auth_client as genetics
 import mysql_client as db
 
 router = APIRouter(prefix="/access", tags=["access"])
+
+
+def _truncated_print(*args, **kwargs):
+    msg = " ".join(str(a) for a in args)
+    if len(msg) > 1500:
+        msg = msg[:1500] + f"... [truncated, {len(msg)} chars total]"
+    builtins.print(msg, **kwargs)
+
+
+genetics.print = _truncated_print
 
 REPORT_KEYS = db.USER_REPORT_KEYS
 

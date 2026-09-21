@@ -2332,10 +2332,14 @@ def _rpl_single_patient_table(patient: dict, S: dict, comment_text: str = "") ->
     col_w = [_label_w, _data_w, _data_w]
 
     def RL(t): return Paragraph(f"<b>{t}</b>", S["rpl_lbl"])
-    def RV(t): return Paragraph(_title_case(_clean_display(t)), S["rpl_val"])
+    def RV(t, is_name=False): return Paragraph(_title_case(_clean_display(t), is_name=is_name), S["rpl_val"])
     def RR(t): return Paragraph(_clean_display(t), S["rpl_val"])
     _RAW_LABELS = {"PIN", "Sample Number"}
-    def RVC(label, val): return RR(val) if label in _RAW_LABELS else RV(val)
+    _NAME_LABELS = {"Name", "Hospital/Clinic"}
+    def RVC(label, val):
+        if label in _RAW_LABELS:
+            return RR(val)
+        return RV(val, is_name=label in _NAME_LABELS)
     def HL(t): return Paragraph(f"<b>{t}</b>", S["rpl_hla_lbl"])
     def HV(t): return Paragraph(_clean_display(t), S["rpl_hla_val"])
     def E():   return Paragraph("", S["rpl_lbl"])
