@@ -144,7 +144,7 @@ class PGTAReportTemplate:
         "This technique cannot detect point mutations, balanced translocations, inversions, triploidy, uniparental disomy and epigenetic modifications.",
         "NGS-based PGT-SR diagnosis of biopsied material from cleavage stage or blastocyst embryos does not allow for a distinction between embryos with a normal or a balanced karyotype.",
         "Probes used do not cover the p arm of acrocentric chromosomes as they are rich in repeat regions and RNA markers and devoid of genes. Changes in this region will not be detected. However, these regions have less clinical significance due to the absence of genes.",
-        "Deletions and duplications with the size of < 10 Mb cannot be detected.",
+        "Deletions and duplications with the size of < 4 Mb cannot be detected.",
         "Risk of misinterpretation of the actual embryo karyotype due to the presence of chromosomal mosaicism, either at cleavage-stage or at blastocyst stage may exist.",
         "This technique cannot detect variants of polyploidy and haploidy",
         "NGS without genotyping cannot identify the nature (meiotic or mitotic) nor the parental origin of aneuploidies",
@@ -152,7 +152,7 @@ class PGTAReportTemplate:
     ]
 
     RECOMMENDATIONS_PGTSR = [
-        "Balanced translocations and unbalanced translocation with size of < 10 Mb cannot be ruled out, hence invasive prenatal testing by chromosomal microarray and karyotyping is recommended.",
+        "Balanced translocations and unbalanced translocation with size of < 4 Mb cannot be ruled out, hence invasive prenatal testing by chromosomal microarray and karyotyping is recommended.",
         "Genetic counselling is recommended."
     ]
 
