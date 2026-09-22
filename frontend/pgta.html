@@ -1264,6 +1264,12 @@
       white-space: nowrap;
     }
 
+    .fast-report-controls-row .fr-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
     .fast-report-controls-row .fr-check {
       display: flex;
       align-items: center;
@@ -2967,23 +2973,29 @@
                   <label class="fr-check"><input type="checkbox" id="fmtPdf" checked> PDF</label>
                   <label class="fr-check"><input type="checkbox" id="fmtDocx" checked> DOCX</label>
 
-                  <span class="fr-label" style="margin-left:8px;">Report Type:</span>
-                  <select id="f_report_template">
-                    <option value="pgta">PGT-A (Aneuploidy)</option>
-                    <option value="pgtsr">PGT-SR (Structural Rearrangement)</option>
-                  </select>
+                  <span class="fr-group" style="margin-left:8px;">
+                    <span class="fr-label">Report Type:</span>
+                    <select id="f_report_template">
+                      <option value="pgta">PGT-A (Aneuploid)</option>
+                      <option value="pgtsr">PGT-SR (Structural Rearrangement)</option>
+                    </select>
+                  </span>
 
-                  <span class="fr-label" style="margin-left:8px;">Branding:</span>
-                  <select id="logoOption">
-                    <option value="with_logo">With Logo</option>
-                    <option value="without_logo">Without Logo</option>
-                  </select>
+                  <span class="fr-group" style="margin-left:8px;">
+                    <span class="fr-label">Branding:</span>
+                    <select id="logoOption">
+                      <option value="with_logo">With Logo</option>
+                      <option value="without_logo">Without Logo</option>
+                    </select>
+                  </span>
 
-                  <span class="fr-label">Grid lines:</span>
-                  <select id="gridOption">
-                    <option value="without_grid">No Grid</option>
-                    <option value="with_grid">With Grid</option>
-                  </select>
+                  <span class="fr-group">
+                    <span class="fr-label">Grid lines:</span>
+                    <select id="gridOption">
+                      <option value="without_grid">No Grid</option>
+                      <option value="with_grid">With Grid</option>
+                    </select>
+                  </span>
 
                   <button class="btn-generate-fast" id="generateBtn" onclick="generateReport()">
                      Generate Report(s)
@@ -3116,7 +3128,7 @@
                   <div class="opt-field" style="min-width:170px;">
                     <label>Report Type (all):</label>
                     <select id="bulkReportTemplateOption" onchange="applyBulkReportTemplateToAll(this.value)" title="Sets the Report Type for every loaded patient. Override an individual patient from its own editor panel.">
-                      <option value="pgta">PGT-A (Aneuploidy)</option>
+                      <option value="pgta">PGT-A (Aneuploid)</option>
                       <option value="pgtsr">PGT-SR (Structural Rearrangement)</option>
                     </select>
                   </div>
@@ -3497,7 +3509,7 @@
     const INTERP_OPTIONS = ["Euploid", "Aneuploid", "(-)", "Chaotic embryo", "NA", "Low level mosaic", "High level mosaic", "Complex mosaic", "Inconclusive", "Low DNA concentration"];
     // Extra Interpretation choices specific to the PGT-SR (Structural
     // Rearrangement) report -- only offered when that template is selected.
-    const PGTSR_INTERP_OPTIONS = ["Euploid/Carrier of Balanced translocation", "Euploid/Carrier of Inversion", "Aneuploid by Unbalanced translocation"];
+    const PGTSR_INTERP_OPTIONS = ["Euploid/Carrier of Balanced translocation", "Euploid/Carrier of Inversion", "Aneuploid by Unbalanced translocation", "Aneuploid by Unbalanced translocation and other aneuploid"];
     function interpOptionsFor(reportTemplate) {
       return reportTemplate === "pgtsr" ? INTERP_OPTIONS.concat(PGTSR_INTERP_OPTIONS) : INTERP_OPTIONS;
     }
@@ -6007,7 +6019,7 @@
     <div class="bulk-editor-field"><label>Report Date:</label><input value="${esc(p.report_date || todayStr())}" oninput="state.bulkPatients[${i}].report_date=this.value;scheduleBulkPreview()"></div>
     <div class="bulk-editor-field"><label>Report Type:</label>
       <select onchange="state.bulkPatients[${i}].report_template=this.value; if(this.value==='pgtsr' && !(state.bulkPatients[${i}].indication||'').trim()){state.bulkPatients[${i}].indication=PGTSR_DEFAULT_INDICATION;} renderBulkEditor(${i}); scheduleBulkPreview()">
-        <option value="pgta" ${(p.report_template || "pgta") === "pgta" ? "selected" : ""}>PGT-A (Aneuploidy)</option>
+        <option value="pgta" ${(p.report_template || "pgta") === "pgta" ? "selected" : ""}>PGT-A (Aneuploid)</option>
         <option value="pgtsr" ${p.report_template === "pgtsr" ? "selected" : ""}>PGT-SR (Structural Rearrangement)</option>
       </select>
     </div>

@@ -87,6 +87,14 @@ EXTRA_COVERAGE_LINES_11LOCI = [
     ": Class II (HLA-DQA1) - Whole gene",
     ": Class II (HLA-DPA1) - Upto Exon 4",
 ]
+
+# loci11_photo_v2's reference PDF drops the "(HLA-...)" wrapper on these three
+# lines that the original loci11/loci11_photo layout carries.
+EXTRA_COVERAGE_LINES_11LOCI_V2 = [
+    ": Class II DRB3/4/5 - Whole gene except Intron 1",
+    ": Class II DQA1 - Whole gene",
+    ": Class II DPA1 - Upto Exon 4",
+]
 METHODOLOGY_MINISEQ = "Typing by NGS illumina MiniSeq using MIA FORA NGS Kits from IMMUCOR"
 METHODOLOGY_SURFSEQ  = "Typing by NGS Surfseq using GENDx Kit"
 
@@ -419,19 +427,26 @@ def _strip_prefix(allele: str) -> str:
 
 
 def _merged_drb345(hla: dict) -> list:
-    """Return [a1, a2] for whichever of DRB3/DRB4/DRB5 has data.
+    """Return [a1, a2] merging DRB3/DRB4/DRB5 into the shared "DRB3/4/5" column.
 
-    Only one of the three is biologically present per genotype (it depends on
-    the DRB1 allele group), so the report shows them as a single "DRB3/4/5"
-    column rather than three mostly-empty columns. The allele value keeps its
-    locus prefix (e.g. "DRB5*01:01:01") since the shared column header alone
-    can't say which of the three it is.
+    Each haplotype's DRB1 allele group determines which of DRB3/DRB4/DRB5 rides
+    with it, so a heterozygous person can carry one gene on one haplotype and a
+    *different* one on the other (e.g. DRB3 at position 1, DRB5 at position 2).
+    The two allele positions are therefore picked independently rather than
+    returning whichever single gene's pair is found first -- that earlier
+    approach silently dropped the second haplotype's value whenever the two
+    genes differed. The allele value keeps its locus prefix (e.g.
+    "DRB5*01:01:01") since the shared column header alone can't say which of
+    the three it is.
     """
-    for k in ("DRB3", "DRB4", "DRB5"):
-        v = hla.get(k)
-        if v and any(str(x).strip() for x in v if x is not None):
-            return v
-    return [None, None]
+    result = [None, None]
+    for i in range(2):
+        for k in ("DRB3", "DRB4", "DRB5"):
+            v = hla.get(k)
+            if v and len(v) > i and v[i] and str(v[i]).strip():
+                result[i] = v[i]
+                break
+    return result
 
 
 def _split_drb345(hla: dict) -> dict:
@@ -985,7 +1000,8 @@ def _qr_reserve(report_type: str) -> float:
     nothing overlaps.
     """
     return (QR_ZONE / 2 if report_type in ("ngs_photo", "transplant_donor", "loci11",
-                                            "loci11_photo", "single_luminex", "single_hla_photo")
+                                            "loci11_photo", "loci11_photo_v2",
+                                            "single_luminex", "single_hla_photo")
             else QR_ZONE)
 
 
@@ -1428,7 +1444,7 @@ def _ngs_person_block(person: dict, is_donor: bool, match_str: str, S: dict,
         Spacer(1, inner_gap),
     ]
     if with_photo:
-        elems.append(_ngs_photo_box(person, is_donor, photo_wh=photo_wh))
+        elems.append(KeepTogether([_ngs_photo_box(person, is_donor, photo_wh=photo_wh)]))
         elems.append(Spacer(1, inner_gap))
 
     tail = []
@@ -1688,6 +1704,8 @@ def _methodology_block(case: dict, S: dict, merge: bool = False) -> list:
     coverage_lines = COVERAGE_LINES
     if case.get("report_type") in ("loci11", "loci11_photo"):
         coverage_lines = COVERAGE_LINES + EXTRA_COVERAGE_LINES_11LOCI
+    elif case.get("report_type") == "loci11_photo_v2":
+        coverage_lines = COVERAGE_LINES + EXTRA_COVERAGE_LINES_11LOCI_V2
 
     # loci11_photo shares its page with a patient/donor photo box, so this
     # whole IMGT/Coverage/Methodology/Typing-Status section runs a size
@@ -2210,6 +2228,317 @@ def _build_ngs_photo(case: dict, S: dict) -> list:
                 sentence = (f"The Patient ({p_name}) had showed about {MISSING} match "
                             f"with the Donor ({d_name}).")
             interp_block.append(Paragraph(sentence, S["body"]))
+    elems.append(KeepTogether(interp_block + _methodology_block(case, S, merge=True)))
+
+    sig_items = _signature_block(signatories, S)
+    if sig_items:
+        elems.append(KeepTogether(sig_items))
+
+    return elems
+
+
+def _build_loci11_photo_v2(case: dict, S: dict) -> list:
+    """
+    loci11_photo_v2 -- "11 Loci with Photo (New Template)".
+
+    Same 11-locus (9-locus, merged DRB3/4/5) high-resolution typing data as
+    loci11/loci11_photo, but arranged like the reference PDF supplied for
+    this variant: a single combined patient|donor demography table, a single
+    combined PATIENT DETAILS / DONOR DETAILS photo box, and one Typing
+    Result table (patient rows, then donor rows) -- instead of the two
+    separate, stacked per-person blocks loci11_photo uses.
+    """
+    patient     = case.get("patient", {})
+    donors      = case.get("donors", [])
+    donor       = donors[0] if donors else {}
+    nabl        = case.get("nabl", True)
+    signatories = case.get("signatories") or hla_assets.get_default_signatories(
+        "loci11_photo_v2", nabl)
+
+    F_BOLD = _f("SegoeUI-Bold", "Helvetica-Bold")
+    F_REG  = _f("SegoeUI",      "Helvetica")
+
+    def _P(text, font=F_BOLD, size=10, color=BLACK, align=TA_LEFT, leading=None):
+        return Paragraph(text, ParagraphStyle("_lp", fontName=font, fontSize=size,
+            textColor=color, alignment=align, leading=leading or size + 2))
+
+    def _clean(val):
+        s = str(val).strip() if val else ""
+        return s if s and s.lower() not in ("nan", "none", "") else "NA"
+
+    def _norm(val):
+        return _title_case(_clean_display(val)) or "NA"
+
+    def _norm_name(val):
+        return _title_case(_clean_display(val), is_name=True) or "NA"
+
+    def _raw(val):
+        return _clean_display(val) or "NA"
+
+    elems = []
+
+    info_lbl_style = ParagraphStyle("_lp_lbl", fontName=F_BOLD, fontSize=10,
+                                    textColor=BLACK, leading=12)
+    info_val_style = ParagraphStyle("_lp_val", fontName=F_BOLD, fontSize=10,
+                                    textColor=BLACK, leading=12)
+
+    def IL(t): return Paragraph(f"<b>{t}</b>", info_lbl_style)
+    def IV(t): return Paragraph(_norm(t), info_val_style)
+    def IR(t): return Paragraph(_raw(t),  info_val_style)
+    def IC():  return Paragraph("<b>:</b>", info_lbl_style)
+    def E():   return Paragraph("", info_lbl_style)
+
+    info_col_w = _demography_col_widths(patient, donor, nabl=nabl)
+    _demo_extra_w = 0.0
+    _patient_name_disp = _norm_name(patient.get("name", ""))
+    if _count_wrap_lines(_patient_name_disp, info_col_w[2] - 6, F_BOLD, 10) >= 3:
+        info_col_w, _demo_extra_w = _demography_col_widths_wide_name(patient, donor, nabl=nabl)
+
+    def IV_name(text):
+        return Paragraph(_norm_name(text), info_val_style)
+
+    if nabl:
+        _logo_w = 21 * mm
+        _logo_h = _logo_w * (1265 / 1080)
+        gap_cell = Image(io.BytesIO(_get_nabl_seal_bytes()), width=_logo_w, height=_logo_h)
+    else:
+        gap_cell = E()
+
+    info_rows = [
+        [IL("Patient name"),    IC(), IV_name(patient.get("name", "")), gap_cell, IL("Donor name"),           IC(), IV_name(donor.get("name", ""))],
+        [IL("Gender / Age"),    IC(), IR(_normalize_age(patient.get("gender_age", ""))), E(), IL("Gender / Age"),       IC(), IR(_normalize_age(donor.get("gender_age", "")))],
+        [IL("PIN"),             IC(), IR(patient.get("pin", "")),            E(), IL("PIN"),                 IC(), IR(donor.get("pin", "NA"))],
+        [IL("Sample Number"),   IC(), IR(patient.get("sample_number", "")),  E(), IL("Sample Number"),       IC(), IR(donor.get("sample_number", "NA"))],
+        [IL("Referred By"),     IC(), IR(_norm_referred_by(patient.get("referred_by", ""))), E(), IL("Sample receipt date"), IC(), IR(donor.get("receipt_date", ""))],
+        [IL("Hospital/Clinic"), IC(), _fit_one_line(_norm_name(patient.get("hospital_clinic", "")), info_col_w[2], info_val_style), E(), IL("Report date"), IC(), IR(donor.get("report_date", ""))],
+    ]
+    info_t = Table(info_rows, colWidths=info_col_w)
+    _gap_span_style = [
+        ("SPAN",   (3, 0), (3, len(info_rows) - 1)),
+        ("ALIGN",  (3, 0), (3, 0), "CENTER"),
+        ("VALIGN", (3, 0), (3, 0), "MIDDLE"),
+    ] if nabl else []
+    info_t.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, -1), C_INFO_BG),
+        ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+        ("TOPPADDING",    (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 4),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 2),
+        ("LEFTPADDING",   (1, 0), (1, -1), 0),
+        ("RIGHTPADDING",  (1, 0), (1, -1), 2),
+        ("LEFTPADDING",   (3, 0), (3, -1), 0),
+        ("RIGHTPADDING",  (3, 0), (3, -1), 0),
+        ("LEFTPADDING",   (5, 0), (5, -1), 0),
+        ("RIGHTPADDING",  (5, 0), (5, -1), 2),
+    ] + _gap_span_style))
+    if _demo_extra_w:
+        elems.append(Indenter(left=-_demo_extra_w / 2, right=-_demo_extra_w / 2))
+    elems.append(info_t)
+    if _demo_extra_w:
+        elems.append(Indenter(left=_demo_extra_w / 2, right=_demo_extra_w / 2))
+    elems.append(Spacer(1, 2 * mm))
+
+    _ph_w  = 28 * mm
+    _ph_h  = 30 * mm
+    _pc_w  = 54 * mm
+    _lbl_w = 38 * mm
+    col_w_photo = [_lbl_w, _pc_w, _pc_w]
+
+    def _photo_cell(photo_bytes):
+        if photo_bytes:
+            try:
+                return Image(io.BytesIO(photo_bytes), width=_ph_w, height=_ph_h)
+            except Exception:
+                pass
+        return Spacer(1, _ph_h)
+
+    pat_photo   = _photo_cell(patient.get("photo_bytes"))
+    don_photo   = _photo_cell(donor.get("photo_bytes"))
+    rel_display = _norm(_auto_relation_from_gender(donor.get("relationship", ""), donor.get("gender_age", ""))) if donor else "NA"
+    p_sample    = _clean(patient.get("sample_type") or patient.get("specimen") or "EDTA Blood")
+    d_sample    = _clean(donor.get("sample_type") or donor.get("specimen") or "EDTA Blood")
+    p_collect   = _clean(patient.get("collection_date", ""))
+    d_collect   = _clean(donor.get("collection_date", ""))
+    _GREY = C_INFO_BG
+
+    photo_rows = [
+        [E(),
+         _P("PATIENT DETAILS", F_BOLD, 10, BLACK, TA_CENTER),
+         _P("DONOR DETAILS",   F_BOLD, 10, BLACK, TA_CENTER)],
+        [E(), pat_photo, don_photo],
+        [_P("Relation:",           F_BOLD, 10, BLACK, TA_LEFT),
+         _P("Patient",             F_REG, 10, BLACK, TA_CENTER),
+         _P(rel_display,           F_REG, 10, BLACK, TA_CENTER)],
+        [_P("Sample Type:",        F_BOLD, 10, BLACK, TA_LEFT),
+         _P(p_sample,              F_REG, 10, BLACK, TA_CENTER),
+         _P(d_sample,              F_REG, 10, BLACK, TA_CENTER)],
+        [_P("Date of Collection:", F_BOLD, 10, BLACK, TA_LEFT),
+         _P(p_collect,             F_REG, 10, BLACK, TA_CENTER),
+         _P(d_collect,             F_REG, 10, BLACK, TA_CENTER)],
+    ]
+    photo_t = Table(photo_rows, colWidths=col_w_photo)
+    photo_t.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, -1), _GREY),
+        ("BOX",           (0, 0), (-1, -1), 1.0, colors.white),
+        ("INNERGRID",     (0, 0), (-1, -1), 1.0, colors.white),
+        ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN",         (0, 0), (0, -1),  "LEFT"),
+        ("ALIGN",         (1, 0), (2, -1),  "CENTER"),
+        ("TOPPADDING",    (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 6),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 6),
+    ]))
+    photo_t.hAlign = "CENTER"
+    elems.append(photo_t)
+    elems.append(Spacer(1, 2 * mm))
+
+    elems.append(_P("Typing Result", F_BOLD, 13, C_TITLE, TA_LEFT))
+    elems.append(Spacer(1, 1 * mm))
+
+    LOCI       = ["A", "B", "C", "DRB1", "DQB1", "DPB1"]
+    EXTRA_LOCI = ["DRB345", "DQA1", "DPA1"]
+
+    def _allele(h, l):
+        if l == "DRB345":
+            return _merged_drb345(h)
+        return h.get(l, [None, None])
+
+    all_hla = [patient.get("hla", {}), donor.get("hla", {})]
+    loci = [l for l in LOCI if any(any(h.get(l, [None, None])) for h in all_hla)]
+    loci += [l for l in EXTRA_LOCI if any(any(_allele(h, l)) for h in all_hla)]
+    if not loci:
+        loci = LOCI
+
+    def _hdr(l): return "HLA DRB3/4/5*" if l == "DRB345" else f"HLA-{l}*"
+
+    def _disp(l, v):
+        # The merged DRB3/4/5 column keeps its DRB3*/DRB4*/DRB5* prefix --
+        # it's the only way to tell which of the three genes an allele in
+        # that shared column actually belongs to.
+        if l == "DRB345":
+            return _clean_display(str(v)) if v and str(v).strip() else MISSING
+        s = _clean_display(str(v)) if v and str(v).strip() else ""
+        return _strip_prefix(s) if s else MISSING
+
+    F_HDR, F_VAL = S["hla_hdr"].fontName, S["hla_val"].fontName
+    _CELL_PAD = 10
+
+    def _col_min_w(l):
+        vals = []
+        for h in all_hla:
+            al = _allele(h, l)
+            v1 = al[0] if al and al[0] else None
+            v2 = al[1] if al and len(al) > 1 and al[1] else None
+            vals.append(_disp(l, v1))
+            vals.append(_disp(l, v2))
+        return max([pdfmetrics.stringWidth(_hdr(l), F_HDR, 11)] +
+                   [pdfmetrics.stringWidth(v, F_VAL, 10) for v in vals]) + _CELL_PAD
+
+    n = len(loci)
+    lbl_w = max(CONTENT_W * 0.08, pdfmetrics.stringWidth("LOCUS", F_HDR, 11) + _CELL_PAD)
+    natural_w = (CONTENT_W - lbl_w) / n
+    col_data_w = [max(natural_w, _col_min_w(l)) for l in loci]
+    _scale = 1.0
+    _total = lbl_w + sum(col_data_w)
+    if _total > CONTENT_W:
+        _scale = (CONTENT_W - lbl_w) / sum(col_data_w)
+        col_data_w = [w * _scale for w in col_data_w]
+    col_w = [lbl_w] + col_data_w
+
+    _hdr_size = 11.0 if _scale >= 1.0 else max(7.5, 11.0 * _scale)
+    _val_size = 10.0 if _scale >= 1.0 else max(7.0, 10.0 * _scale)
+    hdr_style = S["hla_hdr"] if _scale >= 1.0 else ParagraphStyle(
+        "hdr_fit_11p", parent=S["hla_hdr"], fontSize=_hdr_size, leading=_hdr_size + 2)
+    val_style = S["hla_val"] if _scale >= 1.0 else ParagraphStyle(
+        "val_fit_11p", parent=S["hla_val"], fontSize=_val_size, leading=_val_size + 2)
+
+    def HH(t): return Paragraph(t, hdr_style)
+    def HV(t): return Paragraph(_clean_display(t), val_style)
+
+    def _person_table(name_label, person, include_header):
+        h = person.get("hla", {})
+        rows, extra = [], []
+        r = 0
+        if include_header:
+            rows.append([HH("LOCUS")] + [HH(_hdr(l)) for l in loci])
+            extra += [("BACKGROUND", (0, 0), (-1, 0), C_HLA_HDR),
+                      ("TEXTCOLOR",  (0, 0), (-1, 0), BLACK)]
+            r += 1
+        sec_r = r
+        rows.append([_P(name_label, F_BOLD, 10, BLACK, TA_CENTER)] + [""] * len(loci))
+        extra += [("SPAN",       (0, sec_r), (-1, sec_r)),
+                  ("BACKGROUND", (0, sec_r), (-1, sec_r), C_HLA_ROW)]
+        row1, row2 = [HV("1")], [HV("2")]
+        for l in loci:
+            al = _allele(h, l)
+            v1 = al[0] if al and al[0] else None
+            v2 = al[1] if al and len(al) > 1 and al[1] else None
+            row1.append(HV(_disp(l, v1)))
+            row2.append(HV(_disp(l, v2)))
+        rows.append(row1); rows.append(row2)
+        t = Table(rows, colWidths=col_w)
+        t.setStyle(TableStyle([
+            ("GRID",          (0, 0), (-1, -1), 0.5, WHITE),
+            ("ALIGN",         (0, 0), (-1, -1), "CENTER"),
+            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+            ("TOPPADDING",    (0, 0), (-1, -1), 3),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 3),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 3),
+        ] + extra))
+        return t
+
+    def _remarks_para(person):
+        raw = person.get("remarks", "")
+        disp = _normalize_hla_alleles(_clean_display(raw)) if raw else ""
+        if not disp or disp == MISSING:
+            return None
+        para = Paragraph(f"<b>Remarks:</b> {disp}",
+                         ParagraphStyle("_lp_rmk", parent=S["body_small"],
+                                        fontSize=10, leading=12, wordWrap="CJK",
+                                        alignment=TA_LEFT, spaceBefore=0, spaceAfter=0))
+        rmk_t = Table([[para]], colWidths=[CONTENT_W])
+        rmk_t.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, -1), C_HLA_ROW),
+            ("BOX",           (0, 0), (-1, -1), 0.5, WHITE),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 6),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 6),
+            ("TOPPADDING",    (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ]))
+        return rmk_t
+
+    combined = [_person_table(f"{_norm_name(patient.get('name', ''))} (Patient)", patient, True)]
+    _rp = _remarks_para(patient)
+    if _rp:
+        combined.append(_rp)
+    if donors:
+        combined.append(_person_table(f"{_norm_name(donor.get('name', ''))} (Donor)", donor, False))
+        _rd = _remarks_para(donor)
+        if _rd:
+            combined.append(_rd)
+    elems.append(KeepTogether(combined))
+
+    elems.append(Spacer(1, 3 * mm))
+    interp_block = [_P("Interpretation", F_BOLD, 13, C_TITLE, TA_LEFT),
+                    HRFlowable(width="100%", thickness=0.75, color=C_TITLE, spaceBefore=1, spaceAfter=3),
+                    Spacer(1, 0.5 * mm)]
+    interp_override = (case.get("ngs_photo_interpretation") or "").strip()
+    if interp_override:
+        interp_block.append(Paragraph(interp_override, S["body"]))
+    elif donors:
+        p_name = _norm_name(patient.get("name", ""))
+        d_name = _norm_name(donor.get("name", ""))
+        match  = re.sub(r"\s*\(\d+%\)", "", _clean_display(donor.get("match", "")).strip()).strip()
+        if match and match != MISSING:
+            sentence = (f"The Patient ({p_name}) had showed about {match} match "
+                        f"with the Donor ({d_name}).")
+        else:
+            sentence = (f"The Patient ({p_name}) had showed about {MISSING} match "
+                        f"with the Donor ({d_name}).")
+        interp_block.append(Paragraph(sentence, S["body"]))
     elems.append(KeepTogether(interp_block + _methodology_block(case, S, merge=True)))
 
     sig_items = _signature_block(signatories, S)
@@ -5133,6 +5462,7 @@ def generate_pdf(case: dict, output_path: str) -> str:
         "ngs_photo":        "HLA Typing High Resolution",
         "loci11":           "HLA Typing High Resolution",
         "loci11_photo":     "HLA Typing High Resolution",
+        "loci11_photo_v2":  "HLA Typing High Resolution",
         "rpl_couple":       "HLA Typing \u2013 NGS High Resolution Typing",
         "single_rpl":       "HLA Typing \u2013 NGS High Resolution Typing",
         "cdc_crossmatch":   "Complement Dependent Cytotoxicity (CDC) Cross match",
@@ -5205,6 +5535,8 @@ def generate_pdf(case: dict, output_path: str) -> str:
         body = _build_ngs_photo(case, S)
     elif report_type in ("loci11", "loci11_photo"):
         body = _build_ngs_transplant(case, S)
+    elif report_type == "loci11_photo_v2":
+        body = _build_loci11_photo_v2(case, S)
     elif report_type == "rpl_couple":
         body = _build_rpl_couple(case, S)
     elif report_type == "single_rpl":
@@ -5282,7 +5614,8 @@ def make_filename(case: dict) -> str:
     )
     rtype = {"single_hla": "HLA_NGS", "transplant_donor": "HLA_NGS",
              "ngs_photo": "HLA_NGS_PHOTO", "loci11": "HLA_NGS",
-             "loci11_photo": "HLA_NGS_PHOTO", "single_hla_photo": "HLA_NGS_PHOTO",
+             "loci11_photo": "HLA_NGS_PHOTO", "loci11_photo_v2": "HLA_NGS_PHOTO",
+             "single_hla_photo": "HLA_NGS_PHOTO",
              "rpl_couple": "RPL", "single_rpl": "RPL_SINGLE", "cdc_crossmatch": "CDC",
              "dsa_crossmatch": "DSA", "sab_class1": "SAB_C1", "sab_class2": "SAB_C2",
              "flow_crossmatch": "FLOW", "luminex_typing": "HLA_LUMINEX",
@@ -5292,7 +5625,7 @@ def make_filename(case: dict) -> str:
              "hla_c": "HLA_C", "mixed_pra": "PRA_MIXED"}.get(report_type, "HLA")
     logo  = "WITH_LOGO" if case.get("with_logo", True) else "WITHOUT_LOGO"
     parts = [p] + ([donors] if donors else []) + [rtype, logo]
-    if report_type in ("loci11", "loci11_photo"):
+    if report_type in ("loci11", "loci11_photo", "loci11_photo_v2"):
         parts.append("11_loci")
     return "_".join(parts) + ".pdf"
 

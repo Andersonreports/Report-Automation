@@ -1251,6 +1251,9 @@
         
         const STORAGE_KEY = 'anderson_billing_data';
 
+        const RECIPIENT_FIELDS = ['toLabel', 'toName', 'toDesig', 'toDept', 'toSchool', 'toInst', 'toCity', 'toPin'];
+        const RECIPIENT_SESSION_KEY = 'anderson_billing_recipient_session';
+
         function saveData() {
             const data = {
                 meta: {
@@ -1288,6 +1291,11 @@
                 extraRows: getExtraRows()
             };
             localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+
+
+            const recipient = {};
+            RECIPIENT_FIELDS.forEach(id => { recipient[id] = $(id).value; });
+            sessionStorage.setItem(RECIPIENT_SESSION_KEY, JSON.stringify(recipient));
         }
 
         function loadData() {
@@ -1297,9 +1305,20 @@
                 const data = JSON.parse(raw);
                 if (data.meta) {
                     Object.keys(data.meta).forEach(id => {
+                        if (RECIPIENT_FIELDS.includes(id)) return;
                         if ($(id)) $(id).value = data.meta[id];
                     });
                 }
+
+                try {
+                    const sessRaw = sessionStorage.getItem(RECIPIENT_SESSION_KEY);
+                    if (sessRaw) {
+                        const recipient = JSON.parse(sessRaw);
+                        RECIPIENT_FIELDS.forEach(id => {
+                            if ($(id) && recipient[id] !== undefined) $(id).value = recipient[id];
+                        });
+                    }
+                } catch (e) { }
                 $('poNoteEnabled').checked = data.poNoteEnabled !== false;
                 if (data.settings) {
                     $('cfgName').value = data.settings.name || 'Anderson Diagnostic Services Private Limited';
@@ -1969,6 +1988,10 @@ ${hasB2B ? `<td>${r.b2b ? inr(r.b2b) : '—'}</td>` : ''}
         document.addEventListener('DOMContentLoaded', () => {
             if (!loadData()) {
                 $('quoteDate').valueAsDate = new Date();
+                $('cfgName').value = 'Anderson Diagnostic Services Private Limited';
+                $('cfgAddr1').value = 'No.26, Rajaratnam Street, Kilpauk';
+                $('cfgAddr2').value = '';
+                $('cfgCity').value = 'Chennai  600 010';
                 addRow();
             }
         });

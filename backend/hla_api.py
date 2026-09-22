@@ -48,6 +48,7 @@ REPORT_TEMPLATES = [
     {"name": "HLA (NGS with Photo)",                       "report_type": "ngs_photo"},
     {"name": "HLA Typing High Resolution (11 Loci)",       "report_type": "loci11"},
     {"name": "HLA Typing High Resolution (11 Loci with Photo)", "report_type": "loci11_photo"},
+    {"name": "HLA Typing High Resolution (11 Loci with Photo - New Template)", "report_type": "loci11_photo_v2"},
     {"name": "CDC",                                        "report_type": "cdc_crossmatch"},
     {"name": "DSA",                                        "report_type": "dsa_crossmatch"},
     {"name": "SAB Class I",                                "report_type": "sab_class1"},
@@ -75,6 +76,7 @@ DEFAULT_SIG_COUNTS = {
     "ngs_photo":        2,
     "loci11":           3,
     "loci11_photo":     3,
+    "loci11_photo_v2":  2,
     "cdc_crossmatch":   2,
     "dsa_crossmatch":   2,
     "sab_class1":       2,
@@ -217,7 +219,7 @@ def _build_signatories(report_type: str, nabl: bool, sig_counts: dict,
                        signatories: list, sig_name_overrides: dict = None) -> list:
     n = sig_counts.get(report_type, DEFAULT_SIG_COUNTS.get(report_type, 2))
     sig_source = (hla_assets.get_default_signatories(report_type, nabl)
-                  if report_type in ("loci11", "loci11_photo")
+                  if report_type in ("loci11", "loci11_photo", "loci11_photo_v2")
                   else signatories)
     out = []
     for sig in sig_source[:n]:

@@ -32,14 +32,14 @@ if not exist "uploads\pgta_cnv"     mkdir uploads\pgta_cnv
 echo.
 echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 echo  Anderson Report Automation
-echo  Server starting at http://localhost:8000
+echo  Server starting at http://localhost:8010
 echo  Press Ctrl+C to stop
 echo ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 echo.
 
 REM Open browser after 3-second delay (runs in background so server can start)
-start /B cmd /C "timeout /t 3 /nobreak >nul && start http://localhost:8000"
+start /B cmd /C "timeout /t 3 /nobreak >nul && start http://localhost:8010"
 
-uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+uvicorn main:app --host 0.0.0.0 --port 8010 --reload
 
 pause

@@ -595,7 +595,7 @@ class TERAReportGenerator:
         "Achache H, Revel A. Hum Reprod Update, 2006, 12(6):731-46.",
         "Teh W T, Mcbain J, Rogers P. Journal of Assisted Reproduction & Genetics, 2016, 33(11):1-12.",
         "Mahajan N. Journal of Human Reproductive Sciences, 2015, 8(3):121-129.",
-        "Ruiz-Alonso M, Blesa D, DÃ­az-Gimeno, Patricia, et al. Fertility and Sterility, 2013, 100(3):818-824.",
+        "Ruiz-Alonso M, Blesa D, Díaz-Gimeno, Patricia, et al. Fertility and Sterility, 2013, 100(3):818-824.",
     ]
 
     def _page3(self, c):

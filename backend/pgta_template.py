@@ -718,9 +718,11 @@ class PGTAReportTemplate:
         """Build methodology and static content page - sections flow continuously"""
         elements = []
 
-        elements.append(self._create_section_header("Methodology"))
-        elements.append(Spacer(1, 8))
-        elements.append(Paragraph(self.METHODOLOGY_TEXT, self.styles['PGTABodyText']))
+        elements.append(KeepTogether([
+            self._section_header_flowable("Methodology"),
+            Spacer(1, 8),
+            Paragraph(self.METHODOLOGY_TEXT, self.styles['PGTABodyText']),
+        ]))
         elements.append(Spacer(1, 12))
 
         elements.append(KeepTogether([

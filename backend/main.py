@@ -977,24 +977,132 @@ async def open_folder_dialog():
     system = platform.system()
 
     def _run_windows():
+        # The browser sandbox has no API that hands back a real filesystem
+        # path for a chosen folder, so this shells out to Windows for a
+        # native picker. System.Windows.Forms.FolderBrowserDialog (even with
+        # AutoUpgradeEnabled) renders the old Windows-XP-era tree-view
+        # dialog when hosted from a plain PowerShell process instead of the
+        # modern Explorer-style picker, so this calls the Win32
+        # IFileOpenDialog COM API directly (FOS_PICKFOLDERS) -- the same
+        # picker every modern Windows app uses -- falling back to the
+        # classic dialog only if that COM call fails for some reason.
         ps = r"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
-        script = (
-            "Add-Type -AssemblyName System.Windows.Forms;"
-            "Add-Type -AssemblyName System.Drawing;"
-            "[System.Windows.Forms.Application]::EnableVisualStyles();"
-            "$owner = New-Object System.Windows.Forms.Form;"
-            "$owner.TopMost = $true;"
-            "$owner.Size = New-Object System.Drawing.Size(1,1);"
-            "$owner.StartPosition = 'CenterScreen';"
-            "$owner.Show();"
-            "$owner.Activate();"
-            "$d = New-Object System.Windows.Forms.FolderBrowserDialog;"
-            "$d.Description = 'Select Output Folder';"
-            "$d.ShowNewFolderButton = $true;"
-            "$d.AutoUpgradeEnabled = $true;"
-            "if ($d.ShowDialog($owner) -eq 'OK') { Write-Output $d.SelectedPath };"
-            "$owner.Dispose();"
-        )
+        script = r'''
+$code = @"
+using System;
+using System.Runtime.InteropServices;
+
+namespace NativeFolderPicker
+{
+    [ComImport, Guid("d57c7288-d4ad-4768-be02-9d969532d960"),
+     InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    internal interface IFileOpenDialog
+    {
+        [PreserveSig] int Show(IntPtr parent);
+        void SetFileTypes(uint cFileTypes, IntPtr rgFilterSpec);
+        void SetFileTypeIndex(uint iFileType);
+        void GetFileTypeIndex(out uint piFileType);
+        void Advise(IntPtr pfde, out uint pdwCookie);
+        void Unadvise(uint dwCookie);
+        void SetOptions(uint fos);
+        void GetOptions(out uint pfos);
+        void SetDefaultFolder(IShellItem psi);
+        void SetFolder(IShellItem psi);
+        void GetFolder(out IShellItem ppsi);
+        void GetCurrentSelection(out IShellItem ppsi);
+        void SetFileName(string pszName);
+        void GetFileName(out IntPtr pszName);
+        void SetTitle(string pszTitle);
+        void SetOkButtonLabel(string pszText);
+        void SetFileNameLabel(string pszLabel);
+        void GetResult(out IShellItem ppsi);
+        void AddPlace(IShellItem psi, uint alignment);
+        void SetDefaultExtension(string pszDefaultExtension);
+        void Close(int hr);
+        void SetClientGuid(ref Guid guid);
+        void ClearClientData();
+        void SetFilter(IntPtr pFilter);
+        void GetResults(out IntPtr ppenum);
+        void GetSelectedItems(out IntPtr ppsai);
+    }
+
+    [ComImport, Guid("43826d1e-e718-42ee-bc55-a1e261c37bfe"),
+     InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    internal interface IShellItem
+    {
+        void BindToHandler(IntPtr pbc, ref Guid bhid, ref Guid riid, out IntPtr ppv);
+        void GetParent(out IShellItem ppsi);
+        void GetDisplayName(int sigdnName, out IntPtr ppszName);
+        void GetAttributes(uint sfgaoMask, out uint psfgaoAttribs);
+        void Compare(IShellItem psi, uint hint, out int piOrder);
+    }
+
+    [ComImport, Guid("DC1C5A9C-E88A-4dde-A5A1-60F82A20AEF7")]
+    internal class FileOpenDialogRCW { }
+
+    public static class FolderPicker
+    {
+        private const uint FOS_PICKFOLDERS = 0x00000020;
+        private const uint FOS_FORCEFILESYSTEM = 0x00000040;
+        private const int SIGDN_FILESYSPATH = unchecked((int)0x80058000);
+
+        public static string Pick(string title)
+        {
+            var dialog = (IFileOpenDialog)new FileOpenDialogRCW();
+            try
+            {
+                dialog.SetOptions(FOS_PICKFOLDERS | FOS_FORCEFILESYSTEM);
+                if (!string.IsNullOrEmpty(title)) dialog.SetTitle(title);
+                int hr = dialog.Show(IntPtr.Zero);
+                if (hr != 0) return null;
+                IShellItem item;
+                dialog.GetResult(out item);
+                IntPtr pathPtr;
+                item.GetDisplayName(SIGDN_FILESYSPATH, out pathPtr);
+                string path = Marshal.PtrToStringAuto(pathPtr);
+                Marshal.FreeCoTaskMem(pathPtr);
+                Marshal.ReleaseComObject(item);
+                return path;
+            }
+            finally
+            {
+                Marshal.ReleaseComObject(dialog);
+            }
+        }
+    }
+}
+"@
+
+try {
+    Add-Type -TypeDefinition $code -Language CSharp -ErrorAction Stop
+    # A bare powershell.exe process has no manifest opting into themed
+    # (ComCtl32 v6) controls, so the dialog's buttons/edit box -- and its
+    # window chrome -- render in the flat, square-cornered, unthemed style
+    # instead of matching the rest of Windows. EnableVisualStyles() applies
+    # that manifest's activation context to this process before the dialog
+    # is created, which is what gives it the normal Fluent/rounded look.
+    Add-Type -AssemblyName System.Windows.Forms
+    [System.Windows.Forms.Application]::EnableVisualStyles()
+    $result = [NativeFolderPicker.FolderPicker]::Pick("Select Output Folder")
+    if ($result) { Write-Output $result }
+} catch {
+    Add-Type -AssemblyName System.Windows.Forms
+    Add-Type -AssemblyName System.Drawing
+    [System.Windows.Forms.Application]::EnableVisualStyles()
+    $owner = New-Object System.Windows.Forms.Form
+    $owner.TopMost = $true
+    $owner.Size = New-Object System.Drawing.Size(1,1)
+    $owner.StartPosition = 'CenterScreen'
+    $owner.Show()
+    $owner.Activate()
+    $d = New-Object System.Windows.Forms.FolderBrowserDialog
+    $d.Description = 'Select Output Folder'
+    $d.ShowNewFolderButton = $true
+    $d.AutoUpgradeEnabled = $true
+    if ($d.ShowDialog($owner) -eq 'OK') { Write-Output $d.SelectedPath }
+    $owner.Dispose()
+}
+'''
         res = subprocess.run([ps, "-NoProfile", "-Command", script],
                               capture_output=True, text=True, timeout=120)
         return res.stdout.strip()
