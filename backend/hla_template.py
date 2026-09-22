@@ -2470,6 +2470,9 @@ def _build_loci11_photo_v2(case: dict, S: dict) -> list:
         rows.append([_P(name_label, F_BOLD, 10, BLACK, TA_CENTER)] + [""] * len(loci))
         extra += [("SPAN",       (0, sec_r), (-1, sec_r)),
                   ("BACKGROUND", (0, sec_r), (-1, sec_r), C_HLA_ROW)]
+        row1_r, row2_r = sec_r + 1, sec_r + 2
+        extra += [("BACKGROUND", (0, row1_r), (-1, row1_r), C_HLA_ROW),
+                  ("BACKGROUND", (0, row2_r), (-1, row2_r), C_HLA_ROW)]
         row1, row2 = [HV("1")], [HV("2")]
         for l in loci:
             al = _allele(h, l)
