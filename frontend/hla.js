@@ -1058,6 +1058,27 @@ function renderManualForm() {
 }
 
 
+const _XM_RELATIONS = ["Brother", "Sister", "Father", "Mother", "Son", "Daughter", "Husband", "Wife",
+  "Spouse", "Uncle", "Aunt", "Cousin", "Nephew", "Niece", "Grandfather", "Grandmother"];
+
+// Crossmatch donors: "brother" -> "Related as Brother" (suggested while typing, applied on leaving the field).
+function _attachRelatedAs(input) {
+  let dl = document.getElementById("xm-related-as-list");
+  if (!dl) {
+    dl = el("datalist", { id: "xm-related-as-list" },
+      _XM_RELATIONS.map(r => el("option", { value: "Related as " + r })));
+    document.body.appendChild(dl);
+  }
+  input.setAttribute("list", dl.id);
+  input.addEventListener("change", () => {
+    const v = input.value.trim();
+    if (!v || /^related\s+as\b/i.test(v) || /^(na|n\/a)$/i.test(v)) return;
+    const word = v.charAt(0).toUpperCase() + v.slice(1).toLowerCase();
+    input.value = "Related as " + word;
+    scheduleManualPreview();
+  });
+}
+
 function buildCrossmatchSection(col, rtype) {
   const patCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-user" }), " Patient (Crossmatch)"])]);
   const patGrid = el("div", { class: "field-grid" });
@@ -1086,6 +1107,7 @@ function buildCrossmatchSection(col, rtype) {
     const input = isRemarks
       ? el("textarea", { oninput: scheduleManualPreview })
       : el("input", { type: "text", oninput: scheduleManualPreview });
+    if (k === "relationship") _attachRelatedAs(input);
     xf.donor[k] = input;
     donGrid.appendChild(el("div", { class: "field" + (isRemarks ? " full" : "") }, [el("label", {}, l), input]));
   });
