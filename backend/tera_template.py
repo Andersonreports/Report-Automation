@@ -174,20 +174,44 @@ def _divider(c, y):
     c.setLineWidth(0.48)
     c.line(DIV_X0, y, DIV_X1, y)
 
+# The bundled DengXian is a subset whose accented glyphs (e.g. the "í" in
+# "Díaz-Gimeno") are blank, leaving a gap; draw non-ASCII chars in this instead.
+F_ACCENT = "Calibri" if _font_ok("Calibri") else "Helvetica"
+
+def _runs(s, font):
+    runs = []
+    for ch in s:
+        f = font if ord(ch) < 128 else F_ACCENT
+        if runs and runs[-1][0] == f:
+            runs[-1][1] += ch
+        else:
+            runs.append([f, ch])
+    return runs
+
+def _mixed_w(c, s, font, size):
+    return sum(c.stringWidth(t, f, size) for f, t in _runs(s, font))
+
+def _draw_mixed(c, x, y, s, font, size):
+    for f, t in _runs(s, font):
+        c.setFont(f, size)
+        c.drawString(x, y, t)
+        x += c.stringWidth(t, f, size)
+    c.setFont(font, size)
+
 def _wrap(c, text, x, y, max_w, font, size, leading):
     words = text.split()
     line  = ""
     for w in words:
         trial = line + w + " "
-        if c.stringWidth(trial, font, size) <= max_w:
+        if _mixed_w(c, trial, font, size) <= max_w:
             line = trial
         else:
             if line:
-                c.drawString(x, y, line.rstrip())
+                _draw_mixed(c, x, y, line.rstrip(), font, size)
                 y -= leading
             line = w + " "
     if line.strip():
-        c.drawString(x, y, line.rstrip())
+        _draw_mixed(c, x, y, line.rstrip(), font, size)
         y -= leading
     return y
 
@@ -718,7 +742,7 @@ class TERAReportGenerator:
         """
         if not text:
             return text
-        return re.sub(r'[\(\[][^\)\]]*[\)\]]', lambda m: m.group().upper(), text)
+        return re.sub(r'[\(\[][^\)\]]*(?:[\)\]]|$)', lambda m: m.group().upper(), text)
 
     @staticmethod
     def _int(val):
