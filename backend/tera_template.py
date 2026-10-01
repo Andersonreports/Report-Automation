@@ -678,13 +678,15 @@ class TERAReportGenerator:
     def _patient_rows(self):
         d     = self.d
         name  = self._fix_relation_case(
-            self._upper_bracketed(self._s(d.get("Patient Name", "")).title()))
+            self._title_keep_bracketed(self._s(d.get("Patient Name", ""))))
         pin   = self._s(d.get("Sample ID", "")) or "Not Provided"
         sid   = self._s(d.get("Lab No.", ""))
         age_r = self._s(d.get("Age", ""))
         age   = f"{age_r} Years" if age_r else "Not Provided"
         doc   = self._s(d.get("Doctor Name", "")) or "Not Provided"
-        hosp  = _title_case(self._s(d.get("Center name", d.get("Hospital", d.get("Hospital ", "")))), is_name=True)
+        hosp  = self._title_keep_bracketed(
+            self._s(d.get("Center name", d.get("Hospital", d.get("Hospital ", "")))),
+            lambda t: _title_case(t, is_name=True))
         cyc_raw     = self._s(d.get("Cycle Type", d.get("Cycle type", "HRT")))
         biopsy_days = self._int(d.get("Biopsy", ""))
         cyc_upper   = cyc_raw.upper()
@@ -732,17 +734,17 @@ class TERAReportGenerator:
         return re.sub(r'\b([WSD])/O\b', lambda m: m.group(1).lower() + '/o', name)
 
     @staticmethod
-    def _upper_bracketed(text: str) -> str:
-        """Force anything inside (...) or [...] to full caps.
+    def _title_keep_bracketed(text: str, case=str.title) -> str:
+        """Title-case the text but keep anything in (...) or [...] as typed.
 
         Patient names carry a centre/reference code in brackets (e.g.
-        "Mrs. Sravani (EIC-8096)"). Plain .title() lowercases it to "(Eic-8096)",
-        so the bracketed span is re-uppercased after title-casing. Mirrors the
-        parenthesised-short-form rule in hla_template._title_case.
+        "Mrs. Sravani (EIC-8096)", "Jacy(dbuch)"); the bracketed span -- even
+        when the closing bracket is missing -- is reproduced exactly as entered.
         """
         if not text:
             return text
-        return re.sub(r'[\(\[][^\)\]]*(?:[\)\]]|$)', lambda m: m.group().upper(), text)
+        parts = re.split(r'([\(\[][^\)\]]*(?:[\)\]]|$))', text)
+        return "".join(p if i % 2 else case(p) for i, p in enumerate(parts))
 
     @staticmethod
     def _int(val):
