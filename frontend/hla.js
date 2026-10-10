@@ -1230,7 +1230,7 @@ function buildLuminexSection(col) {
 }
 
 
-const KIR_GENES = ["2DL1","2DL2","2DL3","2DL4","2DL5","2DS1","2DS2","2DS3","2DS4","2DS5","2DP1","3DL1","3DL2","3DL3","3DP1","3DS1"];
+const KIR_GENES = ["2DL1","2DL2","2DL3","2DL4","2DL5","2DS1","2DS2","2DS3","2DS4","2DS5","3DL1","3DL2","3DL3","3DS1","2DP1","3DP1"];
 
 function _normalizeKirGeneVal(v) {
   if (v === "Present") return "+";
