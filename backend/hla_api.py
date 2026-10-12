@@ -555,6 +555,17 @@ async def parse_excel_file(
                 sheet_names = pd.ExcelFile(tmp_path).sheet_names
             except Exception:
                 sheet_names = []
+            try:
+                is_result_file = bool(parse_result_csv(tmp_path))
+            except Exception:
+                is_result_file = False
+            if is_result_file:
+                raise HTTPException(
+                    400,
+                    "This looks like an allele Result file (Table export), not a Patient "
+                    "List. Upload your Patient List in the first box and drop this file in "
+                    "the Result file box (second box) to cross-match them.",
+                )
             raise HTTPException(
                 400,
                 "No HLA cases could be recognised in this file. Sheets found: "

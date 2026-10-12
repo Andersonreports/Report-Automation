@@ -2247,8 +2247,8 @@ function initBulkTab() {
     e.preventDefault(); rzone.classList.remove("dragover");
     if (e.dataTransfer.files.length) {
       const dt = e.dataTransfer;
-      const fileArr = Array.from(dt.files).filter(f => /\.csv$/i.test(f.name));
-      if (!fileArr.length) { showToast("Please drop a Result CSV file (.csv).", "error"); return; }
+      const fileArr = Array.from(dt.files).filter(f => /\.(csv|xlsx)$/i.test(f.name));
+      if (!fileArr.length) { showToast("Please drop a Result file (.csv / .xlsx).", "error"); return; }
       const dataTransfer = new DataTransfer();
       dataTransfer.items.add(fileArr[0]);
       ri.files = dataTransfer.files;

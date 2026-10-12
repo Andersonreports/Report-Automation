@@ -459,8 +459,111 @@ def _parse_wide_format_result_csv(filepath: str) -> dict:
     return results
 
 
+_XLSX_LOCUS_HEADERS = {
+    "HLA-A": "A", "HLA-B": "B", "HLA-C": "C",
+    "HLA-DRB1": "DRB1", "HLA-DRB3": "DRB3", "HLA-DRB4": "DRB4", "HLA-DRB5": "DRB5",
+    "HLA-DQA1": "DQA1", "HLA-DQB1": "DQB1", "HLA-DPA1": "DPA1", "HLA-DPB1": "DPB1",
+}
+
+# "FBA72819_pass_ANANTHI_d77fed5a_fc258e15_0_2026-10-11_18-15-11" -> "ANANTHI"
+_XLSX_SAMPLE_RE = re.compile(
+    r"^.*?_pass_(.+?)_[0-9a-f]{8}_[0-9a-f]{8}_\d+_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$",
+    re.IGNORECASE,
+)
+
+
+def _clean_xlsx_allele(val) -> Optional[str]:
+    s = _clean_str(val)
+    if s.upper().startswith("HLA-"):
+        s = s[4:]
+    return _clean_allele(s)
+
+
+def _parse_allele_table_xlsx(filepath: str) -> dict:
+    """
+    Parse the "Table export" result workbook (one block of rows per sample, one
+    sub-block per allele):
+        row 1: Sample | Allele | HLA-A (3 cols) | HLA-B | ... | HLA-DPB1
+        row 2:        |        | P group | G group | Allele | ...
+        row 3+: sample (merged) | "Allele 1" (merged) | P | G | full allele | ...
+    Each allele sub-block lists every allele the software could not rule out;
+    only the FIRST row of the block (the reported allele) is used, from the
+    third ("Allele") column of each locus. Handles all 11 loci (A, B, C, DRB1,
+    DRB3/4/5, DQA1, DQB1, DPA1, DPB1); loci absent from the sheet are skipped.
+    Returns: { sample_name: {"hla": {locus: [a1, a2]}, "remarks": "", "sample_ids": [...],
+                             "all_loci": True} }
+    """
+    from openpyxl import load_workbook
+    wb = load_workbook(filepath, read_only=False, data_only=True)
+    ws = wb.worksheets[0]
+    rows = list(ws.iter_rows(values_only=True))
+    if len(rows) < 3:
+        return {}
+
+    # Locate each locus' "Allele" column: the header names the locus over the
+    # first of its 3 columns, the sub-header row labels the columns.
+    locus_col = {}
+    for ci, h in enumerate(rows[0]):
+        locus = _XLSX_LOCUS_HEADERS.get(_clean_str(h).upper())
+        if not locus:
+            continue
+        for off in range(3):
+            sub = rows[1][ci + off] if ci + off < len(rows[1]) else None
+            if _norm_header_cell(sub) == "allele":
+                locus_col[locus] = ci + off
+                break
+        else:
+            locus_col[locus] = ci + 2
+    if not locus_col:
+        return {}
+
+    results = {}
+    sample = None
+    allele_idx = None
+    for row in rows[2:]:
+        name = _clean_str(row[0]) if len(row) > 0 else ""
+        if name and name != "nan":
+            sample = name
+            allele_idx = None
+            results.setdefault(sample, {
+                "hla": {l: [None, None] for l in locus_col},
+                "remarks": "",
+                "all_loci": True,
+            })
+        if sample is None:
+            continue
+        label = _clean_str(row[1]) if len(row) > 1 else ""
+        m = re.search(r"(\d+)", label)
+        if m:
+            allele_idx = int(m.group(1)) - 1
+        else:
+            continue  # continuation row inside an allele block: ignore
+        if allele_idx not in (0, 1):
+            continue
+        for locus, ci in locus_col.items():
+            val = row[ci] if ci < len(row) else None
+            results[sample]["hla"][locus][allele_idx] = _clean_xlsx_allele(val)
+
+    for sample, entry in results.items():
+        for alleles in entry["hla"].values():
+            # A locus present on only one haplotype (e.g. DRB3/4/5) has no second
+            # allele in the sheet -- show "-" there rather than duplicating.
+            if alleles[0] and not alleles[1]:
+                alleles[1] = "-"
+            elif alleles[1] and not alleles[0]:
+                alleles[0] = "-"
+        ids = {sample}
+        m = _XLSX_SAMPLE_RE.match(sample)
+        if m:
+            ids.add(m.group(1))
+        entry["sample_ids"] = sorted(ids)
+    return results
+
+
 def parse_result_csv(filepath: str) -> dict:
-    """Auto-detect and parse a standalone HLA Result CSV file (long-format or wide-format)."""
+    """Auto-detect and parse a standalone HLA Result file (xlsx table export, or CSV long-/wide-format)."""
+    if filepath.lower().endswith((".xlsx", ".xlsm")):
+        return _parse_allele_table_xlsx(filepath)
     with open(filepath, "r", encoding="utf-8-sig", errors="replace") as f:
         first_line = f.readline()
     # Wide-format is comma-delimited with a "SampleName" column (optionally preceded
@@ -508,9 +611,14 @@ def _merge_result_into_person(person: dict, id_to_result: dict) -> bool:
     if not entry:
         return False
     hla = entry.get("hla") or {}
-    for locus in person.get("hla", {}).keys():
-        if locus in hla:
-            person["hla"][locus] = hla[locus]
+    if entry.get("all_loci"):
+        # xlsx table export carries all 11 loci -- add loci the person lacks too
+        for locus, alleles in hla.items():
+            person.setdefault("hla", {})[locus] = alleles
+    else:
+        for locus in person.get("hla", {}).keys():
+            if locus in hla:
+                person["hla"][locus] = hla[locus]
     if entry.get("remarks"):
         person["remarks"] = entry["remarks"]
     return True
@@ -1539,7 +1647,56 @@ def _parse_patient_list_csv(filepath: str, nabl: bool = True) -> list:
     return cases
 
 
+_CONTROL_SAMPLE_RE = re.compile(r"(^|_)(NTC|PTC|NC|PC|NEG|POS)(_|$)|_PTC|_NTC", re.IGNORECASE)
+
+
+def _parse_allele_table_cases(filepath: str, nabl: bool = True) -> list:
+    """
+    The "Table export" result workbook is self-contained: each sample name
+    (e.g. "FBA72819_pass_BORRA_CHIRANJEEVI_<hash>...") carries the patient name,
+    and the alleles cover all 11 loci. Build one single_hla case per sample;
+    controls (NTC/PTC) and samples with no alleles at all are skipped.
+    """
+    if not filepath.lower().endswith((".xlsx", ".xlsm")):
+        return []
+    try:
+        results = _parse_allele_table_xlsx(filepath)
+    except Exception:
+        return []
+    cases = []
+    for sample, entry in results.items():
+        hla = entry["hla"]
+        if not any(a for alleles in hla.values() for a in alleles):
+            continue
+        short = next((s for s in entry["sample_ids"] if s != sample), sample)
+        if _CONTROL_SAMPLE_RE.search(short):
+            continue
+        ct1 = c_supertype(hla["C"][0]) if hla.get("C") and hla["C"][0] else None
+        ct2 = c_supertype(hla["C"][1]) if hla.get("C") and hla["C"][1] else None
+        patient = {
+            "name": short.replace("_", " ").title(),
+            "gender_age": "", "diagnosis": "", "referred_by": "", "hospital_clinic": "",
+            "specimen": "", "relationship": "", "remarks": "", "hospital_mr_no": "",
+            "pin": short, "sample_number": "", "collection_date": "", "receipt_date": "",
+            "report_date": "", "match": "",
+            "hla": hla,
+            "hla_c_type": ",".join(filter(None, [ct1, ct2])),
+            "_join_key": short,
+            "_has_insufficient_hla": False,
+        }
+        cases.append({
+            "report_type": "single_hla", "nabl": nabl, "with_logo": True,
+            "signature_stamp": False, "methodology": "", "imgt_release": "",
+            "coverage": "", "typing_status": "Complete", "reviewer": "",
+            "patient": patient, "donors": [], "rpl_reference": {},
+        })
+    return cases
+
+
 def parse_excel(filepath: str, nabl: bool = True) -> list:
+    table_cases = _parse_allele_table_cases(filepath, nabl)
+    if table_cases:
+        return table_cases
     is_csv = filepath.lower().endswith(".csv")
     if is_csv:
         patient_list_cases = _parse_patient_list_csv(filepath, nabl)

@@ -443,7 +443,7 @@ def _merged_drb345(hla: dict) -> list:
     for i in range(2):
         for k in ("DRB3", "DRB4", "DRB5"):
             v = hla.get(k)
-            if v and len(v) > i and v[i] and str(v[i]).strip():
+            if v and len(v) > i and v[i] and str(v[i]).strip() not in ("", "-"):
                 result[i] = v[i]
                 break
     return result
