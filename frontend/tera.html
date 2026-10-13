@@ -72,7 +72,9 @@
     .home-btn {
       display: inline-flex;
       align-items: center;
-      padding: 6px 14px;
+      gap: 8px;
+      padding: 8px 16px;
+      border: 1px solid transparent;
       background: var(--primary);
       color: #fff;
       border-radius: 7px;
@@ -753,6 +755,7 @@
     ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 </style>
   <script src="/static/idle-logout.js?v=2"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
 </head>
 
 <body>
@@ -787,7 +790,7 @@
     
     <div class="page-hdr">
       <div class="page-hdr-left">
-        <a href="index.html" class="home-btn">&#8592; Home</a>
+        <a href="index.html" class="home-btn"><i class="fas fa-arrow-left"></i> Home</a>
         <h1>TERA Report Generator</h1>
       </div>
       <div class="page-hdr-right">
