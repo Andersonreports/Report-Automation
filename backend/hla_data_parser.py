@@ -520,7 +520,13 @@ def _parse_allele_table_xlsx(filepath: str) -> dict:
     results = {}
     sample = None
     allele_idx = None
-    for row in rows[2:]:
+    # A filtered export (Excel autofilter, e.g. on a HELPER column) hides all but
+    # one row per allele block. Hidden rows are never used for values; the
+    # sample / allele labels still carry forward across them.
+    hidden = {r for r, d in ws.row_dimensions.items() if d.hidden}
+    seen = set()  # (sample, allele_idx) already filled from a visible row
+
+    for ridx, row in enumerate(rows[2:], start=3):
         name = _clean_str(row[0]) if len(row) > 0 else ""
         if name and name != "nan":
             sample = name
@@ -536,10 +542,11 @@ def _parse_allele_table_xlsx(filepath: str) -> dict:
         m = re.search(r"(\d+)", label)
         if m:
             allele_idx = int(m.group(1)) - 1
-        else:
-            continue  # continuation row inside an allele block: ignore
-        if allele_idx not in (0, 1):
+        if allele_idx not in (0, 1) or ridx in hidden:
             continue
+        if (sample, allele_idx) in seen:
+            continue  # only the first visible row of an allele block is used
+        seen.add((sample, allele_idx))
         for locus, ci in locus_col.items():
             val = row[ci] if ci < len(row) else None
             results[sample]["hla"][locus][allele_idx] = _clean_xlsx_allele(val)
