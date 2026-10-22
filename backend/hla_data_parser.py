@@ -481,15 +481,28 @@ def _clean_xlsx_allele(val) -> Optional[str]:
 
 def _parse_allele_table_xlsx(filepath: str) -> dict:
     """
-    Parse the "Table export" result workbook (one block of rows per sample, one
-    sub-block per allele):
-        row 1: Sample | Allele | HLA-A (3 cols) | HLA-B | ... | HLA-DPB1
-        row 2:        |        | P group | G group | Allele | ...
-        row 3+: sample (merged) | "Allele 1" (merged) | P | G | full allele | ...
-    Each allele sub-block lists every allele the software could not rule out;
-    only the FIRST row of the block (the reported allele) is used, from the
-    third ("Allele") column of each locus. Handles all 11 loci (A, B, C, DRB1,
-    DRB3/4/5, DQA1, DQB1, DPA1, DPB1); loci absent from the sheet are skipped.
+    Parse the "Table export" result workbook. Two sheet layouts are in use:
+
+      (a) 3 columns per locus, with a sub-header row naming them:
+          row 1: Sample | Allele | HLA-A (3 cols) | HLA-B | ... | HLA-DPB1
+          row 2:        |        | P group | G group | Allele | ...
+          row 3+: sample (merged) | "Allele 1" (merged) | P | G | full allele | ...
+          Each allele sub-block lists every allele the software could not rule
+          out; only the FIRST row of the block (the reported allele) is used,
+          from the "Allele" column of each locus.
+
+      (b) 1 column per locus, no sub-header row -- the value sits directly
+          under the locus' own header, and row 2 is already the first
+          sample's data:
+          row 1: Sample | Allele | HLA-A | HLA-B | ... | HLA-DRB5
+          row 2+: sample (merged) | "Allele 1" (merged) | HLA-A*02:... | ...
+
+    Layout (b) is detected by the absence of any literal "Allele" sub-header
+    cell under a recognized locus header; mistaking it for (a) would read
+    every locus' value from two columns to its right.
+
+    Handles all 11 loci (A, B, C, DRB1, DRB3/4/5, DQA1, DQB1, DPA1, DPB1);
+    loci absent from the sheet are skipped.
     Returns: { sample_name: {"hla": {locus: [a1, a2]}, "remarks": "", "sample_ids": [...],
                              "all_loci": True} }
     """
@@ -497,25 +510,42 @@ def _parse_allele_table_xlsx(filepath: str) -> dict:
     wb = load_workbook(filepath, read_only=False, data_only=True)
     ws = wb.worksheets[0]
     rows = list(ws.iter_rows(values_only=True))
-    if len(rows) < 3:
+    if len(rows) < 2:
         return {}
 
-    # Locate each locus' "Allele" column: the header names the locus over the
-    # first of its 3 columns, the sub-header row labels the columns.
-    locus_col = {}
+    header_loci = []  # (locus, header_col) pairs recognized in row 0
     for ci, h in enumerate(rows[0]):
         locus = _XLSX_LOCUS_HEADERS.get(_clean_str(h).upper())
-        if not locus:
-            continue
-        for off in range(3):
-            sub = rows[1][ci + off] if ci + off < len(rows[1]) else None
-            if _norm_header_cell(sub) == "allele":
-                locus_col[locus] = ci + off
-                break
-        else:
-            locus_col[locus] = ci + 2
-    if not locus_col:
+        if locus:
+            header_loci.append((locus, ci))
+    if not header_loci:
         return {}
+
+    row1 = rows[1] if len(rows) > 1 else []
+    has_subheader = any(
+        _norm_header_cell(row1[ci + off]) == "allele"
+        for _, ci in header_loci for off in range(3) if ci + off < len(row1)
+    )
+
+    locus_col = {}
+    if has_subheader:
+        # Layout (a): locate each locus' "Allele" column among its 3; a locus
+        # whose own sub-header cell isn't literally "Allele" (e.g. a ragged
+        # sheet) falls back to the historical 3rd-column assumption.
+        for locus, ci in header_loci:
+            for off in range(3):
+                sub = row1[ci + off] if ci + off < len(row1) else None
+                if _norm_header_cell(sub) == "allele":
+                    locus_col[locus] = ci + off
+                    break
+            else:
+                locus_col[locus] = ci + 2
+        data_rows, start_ridx = rows[2:], 3
+    else:
+        # Layout (b): the header's own column holds the value; row 2 is
+        # already the first sample's data, not a sub-header.
+        locus_col = {locus: ci for locus, ci in header_loci}
+        data_rows, start_ridx = rows[1:], 2
 
     results = {}
     sample = None
@@ -526,7 +556,7 @@ def _parse_allele_table_xlsx(filepath: str) -> dict:
     hidden = {r for r, d in ws.row_dimensions.items() if d.hidden}
     seen = set()  # (sample, allele_idx) already filled from a visible row
 
-    for ridx, row in enumerate(rows[2:], start=3):
+    for ridx, row in enumerate(data_rows, start=start_ridx):
         name = _clean_str(row[0]) if len(row) > 0 else ""
         if name and name != "nan":
             sample = name
