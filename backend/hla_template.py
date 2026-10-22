@@ -1222,7 +1222,8 @@ def _ngs_info_table(person: dict, S: dict, is_donor: bool = False, patient_name:
 
 
 
-def _hla_table(person: dict, S: dict, compact: bool = False, separate_drb: bool = False) -> Table:
+def _hla_table(person: dict, S: dict, compact: bool = False, separate_drb: bool = False,
+               show_extra_loci: bool = False) -> Table:
     LOCI       = ["A", "B", "C", "DRB1", "DQB1", "DPB1"]
     EXTRA_LOCI = (["DRB3", "DRB4", "DRB5", "DQA1", "DPA1"]
                   if separate_drb else ["DRB345", "DQA1", "DPA1"])
@@ -1237,7 +1238,13 @@ def _hla_table(person: dict, S: dict, compact: bool = False, separate_drb: bool 
         return hla.get(l, [None, None])
 
     loci = [l for l in LOCI if any(hla.get(l, [None, None]))]
-    loci += [l for l in EXTRA_LOCI if any(_val(l))]
+    # Only the dedicated 11-loci report types (loci11/loci11_photo) ever show
+    # DRB3/4/5, DQA1 or DPA1 -- the 6-loci templates (single_hla,
+    # transplant_donor, ngs_photo, single_rpl, ...) must stay fixed to LOCI
+    # even when the person record happens to carry that extra data (e.g. a
+    # bulk import that captures all 11 loci regardless of the chosen template).
+    if show_extra_loci:
+        loci += [l for l in EXTRA_LOCI if any(_val(l))]
     if not loci:
         loci = LOCI
 
@@ -1370,7 +1377,8 @@ def _ngs_person_block(person: dict, is_donor: bool, match_str: str, S: dict,
                       extra_post_hla_gap: float = 0.0, extra_inter_block_gap: float = 0.0,
                       no_compact: bool = False, nabl: bool = False,
                       show_relationship: bool = False, separate_drb: bool = False,
-                      with_photo: bool = False, photo_wh: tuple = None) -> list:
+                      with_photo: bool = False, photo_wh: tuple = None,
+                      show_extra_loci: bool = False) -> list:
     _raw_remarks = person.get("remarks", "")
     _remarks_display = _clean_display(_raw_remarks) if _raw_remarks else ""
     _remarks_display = _normalize_hla_alleles(_remarks_display) if _remarks_display else ""
@@ -1471,7 +1479,8 @@ def _ngs_person_block(person: dict, is_donor: bool, match_str: str, S: dict,
         ))
         tail.append(HRFlowable(width="100%", thickness=0.5, color=BLACK, spaceBefore=1, spaceAfter=1))
 
-    hla_and_tail = [_hla_table(person, S, compact=compact_info, separate_drb=separate_drb), Spacer(1, post_hla_spacer)] + tail
+    hla_and_tail = [_hla_table(person, S, compact=compact_info, separate_drb=separate_drb,
+                               show_extra_loci=show_extra_loci), Spacer(1, post_hla_spacer)] + tail
     elems.append(KeepTogether(hla_and_tail))
 
 
@@ -1892,7 +1901,8 @@ def _build_ngs_transplant(case: dict, S: dict) -> list:
                                    spacing_scale=_scale, extra_inner_gap=_extra,
                                    extra_post_hla_gap=_post_extra, extra_inter_block_gap=_inter_extra,
                                    no_compact=True, with_photo=_with_photo,
-                                   nabl=case.get("nabl", True), separate_drb=_sep_drb))
+                                   nabl=case.get("nabl", True), separate_drb=_sep_drb,
+                                   show_extra_loci=_is_loci11))
 
     _p_name = patient.get("name", "")
     for d in donors:
@@ -1900,7 +1910,8 @@ def _build_ngs_transplant(case: dict, S: dict) -> list:
                                        extra_post_hla_gap=_post_extra, extra_inter_block_gap=_inter_extra,
                                        patient_name=_p_name, with_photo=_with_photo,
                                        spacing_scale=_scale, extra_inner_gap=_extra, no_compact=True,
-                                       nabl=case.get("nabl", True), separate_drb=_sep_drb))
+                                       nabl=case.get("nabl", True), separate_drb=_sep_drb,
+                                       show_extra_loci=_is_loci11))
 
     while elems and isinstance(elems[-1], Spacer):
         elems.pop()
