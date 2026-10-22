@@ -3595,6 +3595,29 @@
       schedulePreview();
     }
 
+    function deleteEmbryo(e, idx) {
+      e.stopPropagation();
+      if (state.embryoForms.length <= 1) { showToast("At least one embryo is required."); return; }
+      const ef = state.embryoForms[idx];
+      if (!ef || !confirm(`Delete embryo "${ef.embryo_id || "PS" + (idx + 1)}"?`)) return;
+      state.embryoForms.splice(idx, 1);
+      state.summaryRows.splice(idx, 1);
+      const imgs = {};
+      Object.keys(state.cnvImages).forEach(k => {
+        const n = parseInt(k);
+        if (n < idx) imgs[n] = state.cnvImages[k];
+        else if (n > idx) imgs[n - 1] = state.cnvImages[k];
+      });
+      state.cnvImages = imgs;
+      const n = state.embryoForms.length;
+      state.embryoCount = n;
+      document.getElementById("embryoCount").value = n;
+      document.getElementById("embryoCountHint").textContent = `${n} embryo${n > 1 ? "s" : ""}`;
+      renderSummaryTable();
+      renderEmbryoForms();
+      schedulePreview();
+    }
+
     function copyLastEmbryo() {
       const n = state.embryoForms.length;
       if (n === 0) return;
@@ -3891,6 +3914,7 @@
       </div>
       <div style="display:flex;align-items:center;gap:8px;">
         ${idx > 0 ? `<button class="copy-btn" onclick="copyFromPrev(event,${idx})"> Copy from Embryo ${idx}</button>` : ""}
+        ${state.embryoForms.length > 1 ? `<button class="copy-btn" style="background:#fee2e2;color:#b91c1c;" title="Delete this embryo" onclick="deleteEmbryo(event,${idx})"><i class="fas fa-trash"></i> Delete</button>` : ""}
         <span id="chevron-${idx}"></span>
       </div>
     </div>
@@ -6079,7 +6103,8 @@
       }
       embryos.forEach((emb, ei) => {
         html += `<div class="bulk-editor-section">
-      <h4> Embryo: ${esc(emb.embryo_id || ("Embryo " + (ei + 1)))}</h4>
+      <h4 style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span> Embryo: ${esc(emb.embryo_id || ("Embryo " + (ei + 1)))}</span>
+        <button type="button" title="Delete this embryo" style="font-size:10px;padding:2px 8px;background:#fee2e2;color:#b91c1c;border:none;border-radius:4px;cursor:pointer;" onclick="deleteBulkEmbryo(${i},${ei})"><i class="fas fa-trash"></i> Delete</button></h4>
       <div class="bulk-editor-field"><label>Embryo ID:</label><input value="${esc(emb.embryo_id || "")}" oninput="state.bulkPatients[${i}].embryos[${ei}].embryo_id=this.value;scheduleBulkPreview()"></div>
       <div class="bulk-editor-field"><label>Result Summary:</label>
         ${(() => {
@@ -6133,6 +6158,20 @@
       });
       el.innerHTML = html;
       el.scrollTop = 0;
+    }
+
+    function deleteBulkEmbryo(pi, ei) {
+      const p = state.bulkPatients[pi];
+      const emb = p?.embryos?.[ei];
+      if (!emb) return;
+      if (!confirm(`Delete embryo "${emb.embryo_id || "Embryo " + (ei + 1)}"?`)) return;
+      const top = document.getElementById("bulkEditorContent").scrollTop;
+      p.embryos.splice(ei, 1);
+      renderBulkEditor(pi);
+      document.getElementById("bulkEditorContent").scrollTop = top;
+      const nameEl = document.querySelector(`#bulk-patient-${pi} .patient-name`);
+      if (nameEl) nameEl.textContent = `${p.patient_name || "Unknown"} (${p.embryos.length} embryos)`;
+      scheduleBulkPreview();
     }
 
     function updateBulkSummaryResult(pi, ei, value) {
