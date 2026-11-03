@@ -155,6 +155,7 @@ const DEFAULT_SIGNATORIES = [
 const state = {
   rtype: "single_hla",
   withLogo: true,
+  withSheetLink: true,
   manualCase: null,
   manualDonors: [],
   previewTimer: null,
@@ -351,6 +352,7 @@ function restorePatientAfterRender() {
   set(manualFields.receipt_date, p.receipt_date);
   set(manualFields.report_date, p.report_date);
   set(manualFields.remarks, p.remarks);
+  set(manualFields.gsheet_url, p.gsheet_url);
   if (p.hospital_mr_no && p.hospital_mr_no !== "NA") set(manualFields.hospital_mr_no, p.hospital_mr_no);
   set(manualFields.diagnosis, p.diagnosis);
   set(manualFields.referred_by, p.referred_by);
@@ -444,11 +446,14 @@ function initTemplateSelect() {
       state.rtype = newRtype;
       renderManualForm();
       restorePatientAfterRender();
+      const isRpl = newRtype === "rpl_couple" || newRtype === "single_rpl";
+      const slWrap = document.getElementById("sheetLinkChkWrap");
+      if (slWrap) slWrap.style.display = isRpl ? "" : "none";
     }
   });
   document.getElementById("logoSelect").addEventListener("change", e => {
     state.withLogo = e.target.value === "true";
-    
+
     const bulkChk = document.getElementById("bulkLogoChk");
     if (bulkChk) bulkChk.checked = state.withLogo;
     if (document.querySelector(".tab[data-tab='bulk']")?.classList.contains("active") && state.bulkCurrentIndex >= 0) {
@@ -459,6 +464,10 @@ function initTemplateSelect() {
   });
   document.getElementById("globalNablChk").addEventListener("change", scheduleManualPreview);
   document.getElementById("globalStampChk").addEventListener("change", scheduleManualPreview);
+  document.getElementById("globalSheetLinkChk").addEventListener("change", e => {
+    state.withSheetLink = e.target.checked;
+    scheduleManualPreview();
+  });
 }
 
 
@@ -478,7 +487,9 @@ const PAT_FIELDS = [
   ["receipt_date", "Sample Receipt Date (DD-MM-YYYY)", ""],
   ["report_date", "Report Date (DD-MM-YYYY)", ""],
   ["remarks", "Remarks", ""],
+  ["gsheet_url", "Allele Details URL (Google Sheet link, optional)", ""],
 ];
+const PAT_FULL_WIDTH_KEYS = new Set(["remarks", "gsheet_url"]);
 
 
 
@@ -497,7 +508,9 @@ function buildPatientInfoCard(prefix, fieldsRef, rtype) {
       : el("input", { type: "text", id: `${prefix}_${key}`, value: def, oninput: scheduleManualPreview });
     if (isHlaCSpecimen) input.value = HLA_C_SPECIMEN_OPTIONS[0];
     fieldsRef[key] = input;
-    const wrap = el("div", { class: "field" + (key === "remarks" ? " full" : "") }, [
+    const isRplOnly = key === "gsheet_url";
+    const isRpl = rtype === "rpl_couple" || rtype === "single_rpl";
+    const wrap = el("div", { class: "field" + (PAT_FULL_WIDTH_KEYS.has(key) ? " full" : ""), style: (isRplOnly && !isRpl) ? "display:none" : "" }, [
       el("label", {}, label),
       input,
     ]);
@@ -1522,7 +1535,7 @@ function collectManualCase() {
       remarks: val(xf.donor.remarks),
     });
     donors = [donor];
-    const c = { report_type: rtype, nabl, with_logo: state.withLogo, signature_stamp: stamp, patient, donors, rpl_reference: {} };
+    const c = { report_type: rtype, nabl, with_logo: state.withLogo, signature_stamp: stamp, include_gsheet_link: state.withSheetLink, patient, donors, rpl_reference: {} };
     if (rtype === "cdc_crossmatch") {
       const r = manualSpecialFields.cdc_results || {};
       c.cdc_results = {
@@ -1569,7 +1582,7 @@ function collectManualCase() {
       remarks: val(lx.donor.remarks),
     });
     return {
-      report_type: rtype, nabl, with_logo: state.withLogo, signature_stamp: stamp,
+      report_type: rtype, nabl, with_logo: state.withLogo, signature_stamp: stamp, include_gsheet_link: state.withSheetLink,
       patient, donors: [donor], rpl_reference: {},
       luminex_interpretation: lx.interpretation ? lx.interpretation.value.trim() : "",
       luminex_match_score: lx.matchScore ? lx.matchScore.value.trim() : "",
@@ -1592,7 +1605,7 @@ function collectManualCase() {
     const genes = {};
     Object.entries(kir.genes || {}).forEach(([g, sel]) => genes[g] = sel.value);
     return {
-      report_type: rtype, nabl, with_logo: state.withLogo, signature_stamp: stamp,
+      report_type: rtype, nabl, with_logo: state.withLogo, signature_stamp: stamp, include_gsheet_link: state.withSheetLink,
       patient, donors: [], rpl_reference: {}, kir_genes: genes,
       kir_genotype_override: kir.genotypeOverride ? kir.genotypeOverride.value : "Auto",
       kir_interpretation: kir.interpretation ? kir.interpretation.value.trim() : "",
@@ -1611,7 +1624,7 @@ function collectManualCase() {
     patient.comments = val(pra.patient.comments);
     patient.gender = val(pra.patient.gender);
     patient.age = val(pra.patient.age);
-    const c = { report_type: rtype, nabl, with_logo: state.withLogo, signature_stamp: stamp, patient, donors: [], rpl_reference: {} };
+    const c = { report_type: rtype, nabl, with_logo: state.withLogo, signature_stamp: stamp, include_gsheet_link: state.withSheetLink, patient, donors: [], rpl_reference: {} };
     if (rtype === "mixed_pra") {
       c.pra_percentage_1 = val(pra.result.pra_percentage_1); c.pra_result_1 = val(pra.result.pra_result_1);
       c.pra_percentage_2 = val(pra.result.pra_percentage_2); c.pra_result_2 = val(pra.result.pra_result_2);
@@ -1634,7 +1647,7 @@ function collectManualCase() {
     });
     patient.comments = val(sab.patient.comments);
     const c = {
-      report_type: rtype, nabl, with_logo: state.withLogo, signature_stamp: stamp,
+      report_type: rtype, nabl, with_logo: state.withLogo, signature_stamp: stamp, include_gsheet_link: state.withSheetLink,
       patient, donors: [], rpl_reference: {},
       sab_alleles: parseSabAlleleTextLocal(sab.alleleTextarea ? sab.alleleTextarea.value : ""),
       sab_chart_bytes: sab.chartBytes || null,
@@ -1652,6 +1665,7 @@ function collectManualCase() {
     specimen: val(manualFields.specimen) || "Blood - EDTA", collection_date: val(manualFields.collection_date),
     receipt_date: val(manualFields.receipt_date), report_date: val(manualFields.report_date),
     remarks: val(manualFields.remarks),
+    gsheet_url: val(manualFields.gsheet_url),
     hla: Object.keys(manualHlaFields).length ? collectAlleles(manualHlaFields) : emptyHla(),
     photo_bytes: (rtype === "ngs_photo" || rtype === "loci11_photo" || rtype === "loci11_photo_v2" || rtype === "single_luminex" || rtype === "single_hla_photo")
       ? (manualPatientPhoto.bytes || null) : null,
@@ -1675,7 +1689,7 @@ function collectManualCase() {
     });
   }
 
-  const c = { report_type: rtype, nabl, with_logo: state.withLogo, signature_stamp: stamp, patient, donors, rpl_reference: {} };
+  const c = { report_type: rtype, nabl, with_logo: state.withLogo, signature_stamp: stamp, include_gsheet_link: state.withSheetLink, patient, donors, rpl_reference: {} };
 
   if ((rtype === "single_rpl" || rtype === "rpl_couple") && manualSpecialFields.rpl_hla_c) {
     c.rpl_reference = { hla_c_patient: manualSpecialFields.rpl_hla_c.value.trim() };
@@ -2372,6 +2386,7 @@ async function importBulkSabExcel(sabFileInput, sabKitSelect) {
       nabl: checked(document.getElementById("globalNablChk")),
       with_logo: state.withLogo,
       signature_stamp: checked(document.getElementById("globalStampChk")),
+      include_gsheet_link: state.withSheetLink,
       patient, donors: [], rpl_reference: {},
       sab_alleles: data.alleles || [],
       sab_chart_bytes: data.chart_bytes || null,
@@ -3112,6 +3127,7 @@ function renderBulkEditor(i) {
   const fields = {};
   PAT_FIELDS.forEach(([key, label]) => {
     const pk = key === "patient_name" ? "name" : key;
+    const isFullWidth = PAT_FULL_WIDTH_KEYS.has(key);
     const isRemarks = key === "remarks";
     const isHlaCSpecimen = c.report_type === "hla_c" && key === "specimen";
     let input;
@@ -3126,7 +3142,7 @@ function renderBulkEditor(i) {
     }
     fields[pk] = input;
     input.addEventListener(isHlaCSpecimen ? "change" : "input", () => { p[pk] = input.value; scheduleBulkPreview(i); });
-    grid.appendChild(el("div", { class: "field" + (isRemarks ? " full" : "") }, [el("label", {}, label), input]));
+    grid.appendChild(el("div", { class: "field" + (isFullWidth ? " full" : "") }, [el("label", {}, label), input]));
   });
   card.appendChild(grid);
   if (PHOTO_RTYPES.includes(c.report_type)) {
@@ -3394,7 +3410,8 @@ async function previewBulkCase(i) {
   const previewCase = {
     ...c, with_logo: state.withLogo,
     nabl: checked(document.getElementById("globalNablChk")),
-    signature_stamp: checked(document.getElementById("globalStampChk"))
+    signature_stamp: checked(document.getElementById("globalStampChk")),
+    include_gsheet_link: state.withSheetLink
   };
   try {
     if (statusEl) statusEl.textContent = "Generating...";

@@ -1825,6 +1825,27 @@ def _signature_block(signatories: list, S: dict) -> list:
 
 
 
+def _gsheet_link_block(case: dict, S: dict) -> list:
+    """Return flowables for the Google Sheet allele-details link (RPL reports only).
+    Suppressed if include_gsheet_link is False or no URL is set."""
+    if not case.get("include_gsheet_link", True):
+        return []
+    url = (case.get("patient") or {}).get("gsheet_url", "").strip()
+    if not url:
+        return []
+    F_CALI = _f("Calibri", "Helvetica")
+    link_style = ParagraphStyle(
+        "gsheet_link", fontName=F_CALI, fontSize=10,
+        textColor=colors.HexColor("#1F497D"), leading=13,
+        spaceAfter=2, spaceBefore=2,
+    )
+    para = Paragraph(
+        f'<b>Remark:</b> <link href="{url}" color="#1F497D"><u>Click here to view detailed allele information</u></link>',
+        link_style,
+    )
+    return [Spacer(1, 2 * mm), para, Spacer(1, 2 * mm)]
+
+
 def _build_ngs_single(case: dict, S: dict) -> list:
     """
     single_hla â title + patient block + methodology + signatures.
@@ -2647,6 +2668,7 @@ def _build_rpl_couple(case: dict, S: dict) -> list:
     elems.append(KeepTogether(disclaimers_items[:2]))
     elems.extend(disclaimers_items[2:])
 
+    elems.extend(_gsheet_link_block(case, S))
     elems.append(Spacer(1, 4 * mm))
     sig_items = _signature_block(signatories, S)
     if sig_items:
@@ -2823,6 +2845,7 @@ def _build_single_rpl(case: dict, S: dict) -> list:
     elems.append(KeepTogether(disclaimers_items[:2]))
     elems.extend(disclaimers_items[2:])
 
+    elems.extend(_gsheet_link_block(case, S))
     elems.append(Spacer(1, 4 * mm))
     sig_items = _signature_block(signatories, S)
     if sig_items:
