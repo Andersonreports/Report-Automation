@@ -1835,12 +1835,12 @@ def _gsheet_link_block(case: dict, S: dict) -> list:
         return []
     F_CALI = _f("Calibri", "Helvetica")
     link_style = ParagraphStyle(
-        "gsheet_link", fontName=F_CALI, fontSize=10,
-        textColor=colors.HexColor("#1F497D"), leading=13,
+        "gsheet_link", fontName=F_CALI, fontSize=11,
+        textColor=colors.HexColor("#1e293b"), leading=14,
         spaceAfter=2, spaceBefore=2,
     )
     para = Paragraph(
-        f'<b>Remark:</b> <link href="{url}" color="#1F497D"><u>Click here to view detailed allele information</u></link>',
+        f'<font color="#1e293b">For more allele details </font><link href="{url}" color="#1F497D"><u>click here</u></link>',
         link_style,
     )
     return [Spacer(1, 2 * mm), para, Spacer(1, 2 * mm)]
