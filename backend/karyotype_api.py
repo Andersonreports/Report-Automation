@@ -9,6 +9,7 @@ from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
+from typing import Optional
 from fastapi import UploadFile, File, Request, Form
 from fastapi.responses import FileResponse, JSONResponse
 
@@ -203,6 +204,8 @@ def _find_images_for_sample(sample_no: str, search_dir: str) -> list:
     if not sample_no or not search_dir or not os.path.isdir(search_dir):
         return []
     sample_no = str(sample_no).strip()
+    # Excel stores numbers as floats; strip trailing .0 so "260154818.0" matches "260154818.jpg"
+    sample_no = re.sub(r'\.0+$', '', sample_no)
     if not sample_no:
         return []
 
@@ -243,7 +246,8 @@ COLUMN_ALIASES = {
     "GENDER": {"GENDER", "SEX"},
     "AGE": {"AGE", "DATEOFBIRTHAGE", "DOBAGE"},
     "SPECIMEN": {"SPECIMEN", "SAMPLETYPE", "TYPEOFSAMPLE"},
-    "PIN": {"PIN", "UHID", "UMR", "UMRNO", "MRN", "PATIENTID", "PATIENTNO"},
+    "PIN": {"PIN", "UHID", "UMR", "UMRNO", "MRN", "PATIENTID", "PATIENTNO",
+            "ANDERSONID", "ANDID", "ANDERSONNO", "ANDNO"},
     "SAMPLE NUMBER": {
         "SAMPLENUMBER", "SAMPLENO", "SAMPLEID", "LABNO", "LABNUMBER",
         "ACCESSIONNO", "ACCESSIONNUMBER", "BARCODE",
@@ -349,6 +353,10 @@ def _normalize_row(row: dict) -> dict:
         canonical = k.strip()
         if canonical != k and canonical not in row:
             row[canonical] = row[k]
+    # Strip trailing .0 from SAMPLE NUMBER (Excel numeric cells become "12345.0")
+    sn = row.get("SAMPLE NUMBER", "")
+    if sn:
+        row["SAMPLE NUMBER"] = re.sub(r'\.0+$', '', sn)
     return row
 
 
@@ -539,6 +547,117 @@ def register_karyotype_routes(app):
             import traceback
             return JSONResponse({"error": str(e), "trace": traceback.format_exc()},
                                 status_code=500)
+
+    @app.post("/karyotype/parse-bulk")
+    async def karyotype_parse_bulk(
+        patient_list: Optional[UploadFile] = File(default=None),
+        result_excel: Optional[UploadFile] = File(default=None),
+        images: list[UploadFile] = File(default=[]),
+    ):
+        import io as _io
+
+        def _norm_pin(s: str) -> str:
+            return re.sub(r"[^A-Z0-9]", "", str(s or "").upper())
+
+        def _read_df(f: UploadFile):
+            """Read an uploaded file into a list of normalised row dicts."""
+            contents = f.file.read()
+            is_csv = (f.filename or "").lower().endswith(".csv")
+            rows = []
+            if is_csv:
+                df = pd.read_csv(_io.BytesIO(contents), dtype=str)
+                df.columns = [str(c).strip().upper() for c in df.columns]
+                df = df.dropna(how="all")
+                for _, ser in df.iterrows():
+                    rows.append(_normalize_row({k: v for k, v in ser.items()}))
+            else:
+                xls = pd.ExcelFile(_io.BytesIO(contents))
+                for sheet in xls.sheet_names:
+                    raw = pd.read_excel(xls, sheet_name=sheet, header=None, dtype=str, nrows=12)
+                    hdr = 0
+                    for i, rrow in raw.iterrows():
+                        vals = [_column_key(v) for v in rrow.values if str(v).strip()]
+                        if any(v in ALIAS_TO_FIELD or v in ("SNO", "SLNO", "SERIALNO") for v in vals):
+                            hdr = int(i); break
+                    df = pd.read_excel(xls, sheet_name=sheet, header=hdr, dtype=str)
+                    df.columns = [str(c).strip().upper() for c in df.columns]
+                    df = df.dropna(how="all")
+                    for _, ser in df.iterrows():
+                        rows.append(_normalize_row({k: v for k, v in ser.items()}))
+            return rows
+
+        try:
+            batch_id = uuid.uuid4().hex[:10]
+            batch_dir = os.path.join(KARYO_IMG_DIR, batch_id)
+            saved_any = False
+            for img in (images or []):
+                if not img or not img.filename:
+                    continue
+                os.makedirs(batch_dir, exist_ok=True)
+                saved_any = True
+                with open(os.path.join(batch_dir, _safe_component(img.filename)), "wb") as fh:
+                    shutil.copyfileobj(img.file, fh)
+
+            # If only result_excel supplied (old combined format), use it as patient list
+            if (not patient_list or not patient_list.filename) and (result_excel and result_excel.filename):
+                patient_list = result_excel
+                result_excel = None
+            if not patient_list or not patient_list.filename:
+                return JSONResponse({"error": "No patient list or Excel file provided."}, status_code=400)
+
+            pat_rows = [r for r in _read_df(patient_list) if _clean(r.get("NAME", ""))]
+            res_rows = _read_df(result_excel) if (result_excel and result_excel.filename) else []
+
+            # Build PIN + sample-number index on result rows for fast lookup
+            def _sn(r):
+                return re.sub(r"\.0+$", "", str(r.get("SAMPLE NUMBER") or "").strip())
+
+            res_by_pin = {}
+            res_by_sn  = {}
+            for rr in res_rows:
+                p = _norm_pin(rr.get("PIN", ""))
+                s = _sn(rr)
+                if p: res_by_pin.setdefault(p, rr)
+                if s: res_by_sn.setdefault(s, rr)
+
+            RESULT_KEYS = [
+                "RESULT", "AUTOSOME", "SEX CHROMOSOME", "METAPHASE ANALYSED",
+                "ESTIMATED BAND RESOLUTION", "INTERPRETATION", "COMMENTS",
+                "RECOMMENDATIONS", "REPORT_TYPE",
+            ]
+
+            out = []
+            for prow in pat_rows:
+                p_pin = _norm_pin(prow.get("PIN", ""))
+                p_sn  = _sn(prow)
+
+                rrow = res_by_pin.get(p_pin) or res_by_sn.get(p_sn) or {}
+
+                merged = dict(prow)
+                for k in RESULT_KEYS:
+                    if not _clean(merged.get(k, "")) and _clean(rrow.get(k, "")):
+                        merged[k] = rrow[k]
+
+                merged["REPORT_TYPE"] = _clean(merged.get("REPORT_TYPE", "")) or \
+                                        _detect_report_type(merged.get("RESULT", ""))
+                imgs = []
+                if saved_any:
+                    # Match by PIN first, then by sample number
+                    for key in ([prow.get("PIN", "")] if prow.get("PIN") else []) + \
+                                ([p_sn] if p_sn else []):
+                        imgs = [f"{batch_id}/{n}" for n in _find_images_for_sample(key, batch_dir)]
+                        if imgs:
+                            break
+                merged["IMAGES"] = imgs
+                # _matched: True if a separate result row matched, OR if the row itself has a RESULT value
+                merged["_matched"] = bool(rrow) or bool(_clean(merged.get("RESULT", "")))
+                out.append(merged)
+
+            return {"rows": out, "count": len(out), "batch_id": batch_id,
+                    "matched": sum(1 for r in out if r.get("_matched"))}
+        except Exception as e:
+            import traceback
+            return JSONResponse({"error": str(e), "trace": traceback.format_exc()}, status_code=500)
 
     @app.get("/karyotype/storage/list")
     def karyotype_storage_list():

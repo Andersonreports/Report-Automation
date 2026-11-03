@@ -181,7 +181,14 @@
     }
     .bulk-col-header > span{ display:inline-flex; align-items:center; gap:8px; }
     .bulk-col-header i{ color:var(--accent-deep); }
-    .bulk-select-row{ display:flex; gap:8px; padding:10px 14px 0; flex-shrink:0; }
+    .bulk-select-row{ display:flex; align-items:center; gap:4px; margin:5px 8px 4px;
+      background:rgba(255,255,255,0.6); padding:4px 6px; border-radius:6px;
+      border:1px solid #ddd; flex-shrink:0; }
+    .bulk-select-row button{ padding:2px 9px; font-size:10px; font-weight:600; border-radius:4px;
+      cursor:pointer; transition:.15s; border:1px solid var(--input-border);
+      background:#fff; color:var(--text-muted); font-family:inherit; }
+    .bulk-select-row button:hover{ background:var(--primary); color:#fff; border-color:var(--primary); }
+    .bulk-sel-count{ font-size:10px; color:var(--text-muted); margin-left:auto; }
     .bulk-table-scroll{ flex:1; overflow:auto; }
     .bulk-table-scroll table.bulk th{ background:#eaf0f6; }   
     .bulk-col-scroll{ flex:1; overflow:auto; padding:14px 16px; }
@@ -193,12 +200,23 @@
     .bulk-genrow{ display:flex; align-items:flex-end; gap:12px; flex-wrap:wrap; }
 
     
-    .bulk-top-bar{ display:flex; align-items:center; gap:10px; padding:10px 14px;
+    .bulk-top-bar{ display:flex; align-items:center; gap:10px; padding:8px 14px;
       background:var(--panel); backdrop-filter:blur(12px); border:1px solid var(--panel-border);
       border-radius:var(--radius); box-shadow:var(--shadow); margin-bottom:16px; flex-wrap:wrap; }
-    .bulk-path-label{ flex:1; min-width:120px; padding:7px 10px; border:1px solid var(--input-border);
-      background:#fff; border-radius:6px; font-size:11.5px; color:var(--text-muted);
+    .bulk-top-file{ flex:1; min-width:0; }
+    .drop-zone-compact{ display:flex; align-items:center; gap:10px; padding:7px 14px;
+      border:2px dashed var(--input-border); border-radius:8px; cursor:pointer;
+      color:var(--text-muted); font-size:12px; transition:.2s;
       overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .drop-zone-compact:hover, .drop-zone-compact.drag-over{
+      border-color:var(--primary); background:rgba(31,73,125,0.04); color:var(--primary); }
+    .drop-zone-compact.has-file{ border-style:solid; border-color:var(--success); color:var(--text); }
+    .drop-zone-compact i{ font-size:16px; flex-shrink:0; color:var(--primary); }
+    .bulk-top-sep{ width:1px; height:28px; background:var(--input-border); flex-shrink:0; }
+    .bulk-top-folder{ display:flex; align-items:center; gap:6px; flex-shrink:0; }
+    .bulk-top-folder > label{ font-size:11px; font-weight:600; color:var(--text-muted); white-space:nowrap; }
+    .bulk-top-folder input{ padding:6px 10px; border:1px solid var(--input-border); border-radius:6px;
+      font-size:11px; width:160px; background:var(--input-bg); color:var(--text-muted); cursor:default; }
 
     
     .cmp-upload-row{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
@@ -344,8 +362,8 @@
         <div class="glass" style="margin-bottom:18px;">
           <h3><i class="fas fa-vial"></i> Patient &amp; Result Data</h3>
           <div class="rt-row" style="margin-bottom:10px;">
-            <label class="fld"><span>From Date</span><input type="date" id="pfFromDate"></label>
-            <label class="fld"><span>To Date</span><input type="date" id="pfToDate"></label>
+            <label class="fld" style="flex:0 0 auto;max-width:155px;"><span>From Date</span><input type="date" id="pfFromDate"></label>
+            <label class="fld" style="flex:0 0 auto;max-width:155px;"><span>To Date</span><input type="date" id="pfToDate"></label>
             <button class="btn sm" id="pfFindBtn" type="button"><i class="fas fa-search"></i> Find Patients</button>
             <button class="btn sm" id="pfDownloadCsvBtn" type="button"><i class="fas fa-file-csv"></i> Download CSV</button>
             <span id="pfStatus" style="font-size:11.5px; color:#888; align-self:center;"></span>
@@ -403,14 +421,35 @@
   
   <section class="panel" id="panel-bulk">
     <div class="bulk-top-bar">
-      <input type="file" id="b_excel" accept=".xls,.xlsx,.xlsm,.csv" hidden />
-      <button class="btn primary" id="b_excel_btn"><i class="fas fa-file-excel"></i> Select Input Excel/CSV</button>
-      <span class="bulk-path-label" id="b_excel_label">No Excel/CSV file selected</span>
-
-      <input type="file" id="b_images" accept=".jpg,.jpeg,.png" multiple webkitdirectory hidden />
-      <button class="btn sm" id="b_images_btn"><i class="fas fa-images"></i> Select Image Folder</button>
-      <span class="bulk-path-label" id="b_images_label">No image folder selected (optional)</span>
-
+      <div class="bulk-top-file">
+        <div class="drop-zone-compact" id="b_patlist_zone">
+          <i class="fas fa-file-csv"></i>
+          <span id="b_patlist_label">Patient List / CSV</span>
+        </div>
+        <input type="file" id="b_patlist" accept=".xls,.xlsx,.xlsm,.csv" hidden />
+      </div>
+      <div class="bulk-top-sep"></div>
+      <div class="bulk-top-file">
+        <div class="drop-zone-compact" id="b_result_zone">
+          <i class="fas fa-dna"></i>
+          <span id="b_result_label">Result Excel (optional)</span>
+        </div>
+        <input type="file" id="b_result" accept=".xls,.xlsx,.xlsm,.csv" hidden />
+      </div>
+      <div class="bulk-top-sep"></div>
+      <div class="bulk-top-file">
+        <div class="drop-zone-compact" id="b_images_zone">
+          <i class="fas fa-images"></i>
+          <span id="b_images_label">Karyogram Image Folder (optional)</span>
+        </div>
+        <input type="file" id="b_images" accept=".jpg,.jpeg,.png" multiple webkitdirectory hidden />
+      </div>
+      <div class="bulk-top-sep"></div>
+      <div class="bulk-top-folder">
+        <label>Output:</label>
+        <input type="text" id="b_outdir" readonly placeholder="Select output folder" value="">
+        <button class="btn sm" id="b_selectdir" style="white-space:nowrap;"><i class="fas fa-folder-open"></i> Select Folder</button>
+      </div>
       <span class="preview-status" id="b_loadstatus" style="flex:0 1 auto;white-space:nowrap;"></span>
     </div>
 
@@ -419,15 +458,16 @@
       <div class="bulk-col bulk-col-left">
         <div class="bulk-col-header"><span><i class="fas fa-table"></i> Review &amp; Edit Patients</span></div>
         <div class="bulk-select-row">
-          <button class="btn sm" id="b_selall">Select All</button>
-          <button class="btn sm" id="b_deselall">Deselect All</button>
+          <button id="b_selall">Select All</button>
+          <button id="b_deselall">Deselect All</button>
+          <span class="bulk-sel-count" id="b_selcount"></span>
         </div>
         <div class="bulk-table-scroll">
           <table class="bulk">
             <thead><tr>
               <th><input type="checkbox" id="b_checkall" /></th>
               <th>#</th><th>Patient Name</th><th>Sample No.</th>
-              <th>ISCN Result</th><th>Report Type</th><th>Images</th>
+              <th>ISCN Result</th><th>Report Type</th><th>Images</th><th>Result</th>
             </tr></thead>
             <tbody id="b_tbody">
               <tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:24px;">No data loaded</td></tr>
@@ -474,10 +514,6 @@
     
     <div class="glass" style="margin-top:18px;">
       <h3><i class="fas fa-cog"></i> 3. Generate Reports</h3>
-      <div class="folder-row">
-        <input type="text" id="b_outdir" readonly placeholder="No output folder selected — reports saved to default folder" value="">
-        <button class="btn sm" id="b_selectdir"><i class="fas fa-folder-open"></i> Select Output Folder</button>
-      </div>
       <div class="bulk-genrow">
         <label class="fld" style="margin-bottom:0;max-width:200px;"><span>Logo</span>
           <select id="b_logo"><option>With Logo</option><option>Without Logo</option></select></label>
@@ -823,7 +859,7 @@
     return String(name||"").replace(/\.[^.]+$/,"").replace(/[_+\-]/g," ").replace(/\s+/g," ").trim();
   }
   function matchImagesForSample(images, sampleNo){
-    var sample=String(sampleNo||"").trim();
+    var sample=String(sampleNo||"").trim().replace(/\.0+$/,"");
     if(!sample) return [];
     return (images||[]).filter(function(im){
       var stem=imageStem(im.original||im.filename);
@@ -1239,27 +1275,60 @@
   var b_timer=null;
   function b_schedule(){ if(B_current<0) return; clearTimeout(b_timer); b_timer=setTimeout(b_run,900); }
 
-  $("b_excel_btn").addEventListener("click", function(){ $("b_excel").click(); });
-  $("b_images_btn").addEventListener("click", function(){ $("b_images").click(); });
+  function _setupSheetZone(zoneId, inputId, labelId, isSheet) {
+    var zone=$(""+zoneId), inp=$(""+inputId);
+    zone.addEventListener("click", function(){ inp.click(); });
+    ["dragover","dragenter"].forEach(function(ev){
+      zone.addEventListener(ev, function(e){ e.preventDefault(); zone.classList.add("drag-over"); });
+    });
+    zone.addEventListener("dragleave", function(){ zone.classList.remove("drag-over"); });
+    zone.addEventListener("drop", function(e){
+      e.preventDefault(); zone.classList.remove("drag-over");
+      if(!e.dataTransfer.files.length) return;
+      var dt=new DataTransfer();
+      var accept=isSheet ? /\.(xls|xlsx|xlsm|csv)$/i : /\.(jpe?g|png)$/i;
+      Array.prototype.forEach.call(e.dataTransfer.files, function(f){ if(accept.test(f.name)) dt.items.add(f); });
+      if(!dt.files.length) return;
+      inp.files=dt.files;
+      inp.dispatchEvent(new Event("change"));
+    });
+  }
+  _setupSheetZone("b_patlist_zone","b_patlist","b_patlist_label",true);
+  _setupSheetZone("b_result_zone","b_result","b_result_label",true);
+  _setupSheetZone("b_images_zone","b_images","b_images_label",false);
 
+  $("b_patlist").addEventListener("change", function(){
+    if(this.files[0]){
+      $("b_patlist_label").textContent=this.files[0].name;
+      $("b_patlist_zone").classList.add("has-file");
+    }
+    loadAndParseBulk();
+  });
+  $("b_result").addEventListener("change", function(){
+    if(this.files[0]){
+      $("b_result_label").textContent=this.files[0].name;
+      $("b_result_zone").classList.add("has-file");
+    }
+    loadAndParseBulk();
+  });
   $("b_images").addEventListener("change", function(){
     var imgs=Array.prototype.filter.call(this.files, function(f){ return /\.(jpe?g|png)$/i.test(f.name); });
     var folder=(this.files[0] && this.files[0].webkitRelativePath) ? this.files[0].webkitRelativePath.split("/")[0] : "";
     $("b_images_label").textContent = imgs.length
       ? (imgs.length+" image(s)"+(folder?(' in "'+folder+'"'):""))
-      : "No image folder selected (optional)";
-  });
-
-  $("b_excel").addEventListener("change", function(){
-    if(this.files[0]) $("b_excel_label").textContent = this.files[0].name;
-    loadAndParseBulk();
+      : "Karyogram Image Folder (optional)";
+    $("b_images_zone").classList.toggle("has-file", imgs.length>0);
+    if($("b_patlist").files[0] || $("b_result").files[0]) loadAndParseBulk();
   });
 
   function loadAndParseBulk(){
-    var ex=$("b_excel").files[0];
-    if(!ex){ return; }
-    var fd=new FormData(); fd.append("file",ex);
-    
+    var patFile=$("b_patlist").files[0];
+    var resultFile=$("b_result").files[0];
+    if(!patFile && !resultFile){ return; }
+    var fd=new FormData();
+    if(patFile) fd.append("patient_list", patFile);
+    if(resultFile) fd.append("result_excel", resultFile);
+
     var bulkFiles=Array.prototype.slice.call($("b_images").files||[]).filter(function(f){ return /\.(jpe?g|png)$/i.test(f.name); });
     bulkFiles.forEach(function(f){ fd.append("images",f); });
     $("b_loadstatus").innerHTML='<span class="spinner"></span> Parsing...';
@@ -1269,7 +1338,7 @@
       });
     })).then(function(clientImages){
       B_uploadedImages=clientImages;
-      return fetch(API+"/karyotype/parse-excel",{method:"POST",body:fd});
+      return fetch(API+"/karyotype/parse-bulk",{method:"POST",body:fd});
     })
       .then(function(r){return r.json();})
       .then(function(j){
@@ -1277,14 +1346,19 @@
         B_rows=(j.rows||[]).map(function(row){
           row.IMAGES=row.IMAGES||[];
           if(!row.IMAGES.length){
-            row.IMAGES=matchImagesForSample(B_uploadedImages, row["SAMPLE NUMBER"]);
+            row.IMAGES=matchImagesForSample(B_uploadedImages, row["SAMPLE NUMBER"])
+                    || matchImagesForSample(B_uploadedImages, row["PIN"]);
           }
           if(!row.REPORT_TYPE) row.REPORT_TYPE=detectReportType(row.RESULT||"");
           return row;
         });
-        B_checked={};   
+        B_checked={};
         var withImgs=B_rows.filter(function(r){return (r.IMAGES||[]).length;}).length;
-        $("b_loadstatus").textContent="Loaded "+B_rows.length+" patient(s)"+(bulkFiles.length?(" — "+withImgs+" matched to images"):"")+".";
+        var matched=j.matched||0;
+        var statusParts=["Loaded "+B_rows.length+" patient(s)"];
+        if(matched) statusParts.push(matched+" with results");
+        if(bulkFiles.length) statusParts.push(withImgs+" with images");
+        $("b_loadstatus").textContent=statusParts.join(" — ")+".";
         renderBulkTable();
         $("b_gensel").disabled=B_rows.length===0; $("b_genall").disabled=B_rows.length===0;
         B_current=-1; $("b_editor").style.display="none"; $("b_editor_ph").style.display="";
@@ -1296,7 +1370,7 @@
 
   function renderBulkTable(){
     var tb=$("b_tbody");
-    if(!B_rows.length){ tb.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:24px;">No data loaded</td></tr>'; return; }
+    if(!B_rows.length){ tb.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--text-muted);padding:24px;">No data loaded</td></tr>'; return; }
     tb.innerHTML="";
     B_rows.forEach(function(row,i){
       var tr=document.createElement("tr"); tr.dataset.idx=i;
@@ -1308,7 +1382,8 @@
         '<td>'+esc(row["SAMPLE NUMBER"]||"")+'</td>'+
         '<td>'+esc(row.RESULT||"")+'</td>'+
         '<td><span class="pill">'+esc(row.REPORT_TYPE||"")+'</span></td>'+
-        '<td class="'+(nimg?"":"noimg")+'">'+(nimg?nimg+" image(s)":"No images")+'</td>';
+        '<td class="'+(nimg?"":"noimg")+'">'+(nimg?nimg+" image(s)":"No images")+'</td>'+
+        '<td>'+(row._matched===false?'<span style="color:var(--danger);font-size:10px;font-weight:700;">No result</span>':(row._matched?'<span style="color:var(--success);font-size:10px;font-weight:700;">Matched</span>':''))+'</td>';
       tr.addEventListener("click", function(e){ if(e.target.classList.contains("b_chk")) return; selectRow(i); });
       tb.appendChild(tr);
       var chk=tr.querySelector(".b_chk");
@@ -1326,6 +1401,8 @@
     var boxes=document.querySelectorAll(".b_chk");
     var allOn=boxes.length>0 && Array.prototype.every.call(boxes, function(c){ return c.checked; });
     $("b_checkall").checked=allOn;
+    var n=Array.prototype.filter.call(boxes,function(c){return c.checked;}).length;
+    var sc=$("b_selcount"); if(sc) sc.textContent=boxes.length?(n+" of "+boxes.length+" selected"):"";
   }
   function setAllChecked(val){
     B_rows.forEach(function(_,i){ B_checked[i]=val; });
