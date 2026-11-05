@@ -751,10 +751,12 @@
 
   var REPORT_TEMPLATES = {
     "Normal Male": {
+      RESULT:"46,XY", "METAPHASE ANALYSED":"25", "ESTIMATED BAND RESOLUTION":"475",
       INTERPRETATION:"Karyotype shows an apparently normal male.", COMMENTS:"",
       RECOMMENDATIONS: BULLET+" Genetic counseling is recommended to discuss the implications of the result.\n"+BULLET+" Additional genetic testing may be warranted based on the specific phenotypic indication.",
       AUTOSOME:"Normal", "SEX CHROMOSOME":"Normal" },
     "Normal Female": {
+      RESULT:"46,XX", "METAPHASE ANALYSED":"25", "ESTIMATED BAND RESOLUTION":"475",
       INTERPRETATION:"Karyotype shows an apparently normal female.", COMMENTS:"",
       RECOMMENDATIONS: BULLET+" Genetic counseling is recommended to discuss the implications of the result.\n"+BULLET+" Additional genetic testing may be warranted based on the specific phenotypic indication.",
       AUTOSOME:"Normal", "SEX CHROMOSOME":"Normal" },
@@ -892,15 +894,16 @@
       inputs[k].value=v;
     }
   }
+  var RESULT_FIELDS = ["RESULT","METAPHASE ANALYSED","ESTIMATED BAND RESOLUTION","AUTOSOME","SEX CHROMOSOME"];
   function applyTemplate(inputs, tplName){
     var tpl=REPORT_TEMPLATES[tplName]||{};
     TEXT_KEYS.forEach(function(k){ if(inputs[k] && tpl[k]!=null) inputs[k].value=tpl[k]; });
-    ["AUTOSOME","SEX CHROMOSOME"].forEach(function(k){ if(inputs[k]&&tpl[k]!=null) inputs[k].value=tpl[k]; });
+    RESULT_FIELDS.forEach(function(k){ if(inputs[k]&&tpl[k]!=null) inputs[k].value=tpl[k]; });
   }
   function withTemplateDefaults(data, tplName){
     var out={}, tpl=REPORT_TEMPLATES[tplName]||{};
     Object.keys(data||{}).forEach(function(k){ out[k]=data[k]; });
-    TEXT_KEYS.concat(["AUTOSOME","SEX CHROMOSOME"]).forEach(function(k){
+    TEXT_KEYS.concat(RESULT_FIELDS).forEach(function(k){
       if((out[k]==null || String(out[k]).trim()==="") && tpl[k]!=null) out[k]=tpl[k];
     });
     return out;

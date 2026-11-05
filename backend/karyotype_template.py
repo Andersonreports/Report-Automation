@@ -322,9 +322,6 @@ class KaryotypeReportGenerator:
         c.setFillColor(DARK_BLUE)
         c.drawCentredString(W / 2, title_y, "Peripheral Blood Karyotyping")
 
-        c.setFillColor(FIELD_BG)
-        c.rect(LX, _rl(120.0) - 5 * 29.5, RX - LX, 5 * 29.5, fill=1, stroke=0)
-
         c.drawImage(_img_white_to_alpha(_assets.STAMP),
                     STAMP_X, STAMP_Y, STAMP_W, STAMP_H, mask="auto")
 
@@ -396,7 +393,7 @@ class KaryotypeReportGenerator:
 
     def _page1_with_metaphase(self, c):
         top_y  = self._page1_common(c, page_num=1, total_pages=2)
-        meta_h = 19.5 * 2
+        meta_h = 22.0 * 2
 
         meta_bot  = FTR_Y + FTR_H + 22
         kgram_bot = meta_bot + meta_h + 8
@@ -406,7 +403,7 @@ class KaryotypeReportGenerator:
 
     def _page1(self, c):
         top_y  = self._page1_common(c, page_num=1, total_pages=3)
-        meta_h = 19.5 * 2
+        meta_h = 22.0 * 2
         meta_bot  = FTR_Y + FTR_H + 22
         kgram_bot = meta_bot + meta_h + 8
         self._draw_karyograms(c, top_y, kgram_bot)
@@ -459,11 +456,10 @@ class KaryotypeReportGenerator:
             c.drawImage(_img(_assets.HEADER), HDR_X, HDR_Y, HDR_W, HDR_H, mask="auto")
             c.drawImage(_img(_assets.FOOTER), FTR_X, FTR_Y, FTR_W, FTR_H, mask="auto")
 
-        if self.include_logo:
-            c.setFont(F_BODY, 8)
-            c.setFillColor(BLACK)
-            pg_str = f"{page_num}  |  P a g e"
-            c.drawRightString(DIV_X1, FTR_Y + FTR_H + 4, pg_str)
+        c.setFont(F_BODY, 8)
+        c.setFillColor(BLACK)
+        pg_str = f"Page {page_num} of {total_pages}"
+        c.drawRightString(DIV_X1, FTR_Y + FTR_H + 4, pg_str)
 
     def _draw_patient_table(self, c):
         rows = [
@@ -499,7 +495,7 @@ class KaryotypeReportGenerator:
             c.drawString(COLON_X_L, baseline, ":")
 
             c.setFont(F_TBL_LBL, value_size)
-            _wrap_text(c, lv.title(), LEFT_VAL_X, baseline,
+            _wrap_text(c, lv, LEFT_VAL_X, baseline,
                        RIGHT_LBL_X - LEFT_VAL_X - 8, F_TBL_LBL, value_size, leading=11)
 
             c.setFont(F_TBL_LBL, label_size)
@@ -654,33 +650,31 @@ class KaryotypeReportGenerator:
         band_val = self._get("ESTIMATED BAND RESOLUTION")
         sex_val  = self._get("SEX CHROMOSOME", "SEX CHROMOSOME ")
 
-        row_h  = 19.5
+        row_h  = 22.0
+        fs     = 10
         tbl_x0 = LX + 12
         tbl_x1 = RX - 12
         mid_x  = (tbl_x0 + tbl_x1) / 2
         col1_x = tbl_x0 + 8
-        col2_x = col1_x + 175
         col3_x = mid_x + 18
-        col4_x = col3_x + 175
 
         c.setFillColor(FIELD_BG)
         c.rect(tbl_x0, rl_y, tbl_x1 - tbl_x0, row_h * 2, fill=1, stroke=0)
 
+        cap_h = fs * 0.74 / 2
+        label_y1 = rl_y + row_h * 2 - row_h / 2 - cap_h
+        label_y2 = rl_y + row_h       - row_h / 2 - cap_h
 
-        cap_h9 = 9 * 0.74 / 2
-        label_y1 = rl_y + row_h * 2 - row_h / 2 - cap_h9
-        label_y2 = rl_y + row_h       - row_h / 2 - cap_h9
-
-        c.setFont(F_BODY, 9)
-        left_colon_x  = col1_x + max(c.stringWidth("Metaphase analysed",        F_BODY, 9),
-                                     c.stringWidth("Estimated band resolution",  F_BODY, 9)) + 8
-        right_colon_x = col3_x + max(c.stringWidth("Autosome",      F_BODY, 9),
-                                     c.stringWidth("Sex chromosome", F_BODY, 9)) + 8
-        left_val_x    = left_colon_x  + c.stringWidth(":", F_BODY, 9) + 10
-        right_val_x   = right_colon_x + c.stringWidth(":", F_BODY, 9) + 10
+        c.setFont(F_BODY, fs)
+        left_colon_x  = col1_x + max(c.stringWidth("Metaphase analysed",        F_BODY, fs),
+                                     c.stringWidth("Estimated band resolution",  F_BODY, fs)) + 8
+        right_colon_x = col3_x + max(c.stringWidth("Autosome",      F_BODY, fs),
+                                     c.stringWidth("Sex chromosome", F_BODY, fs)) + 8
+        left_val_x    = left_colon_x  + c.stringWidth(":", F_BODY, fs) + 10
+        right_val_x   = right_colon_x + c.stringWidth(":", F_BODY, fs) + 10
 
         def _cell(lbl, val, lx, colon_x, val_x, ly):
-            c.setFont(F_BODY, 9); c.setFillColor(BLACK)
+            c.setFont(F_BODY, fs); c.setFillColor(BLACK)
             c.drawString(lx, ly, lbl)
             c.drawString(colon_x, ly, ":")
             c.drawString(val_x, ly, val)
