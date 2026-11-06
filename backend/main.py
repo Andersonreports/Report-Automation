@@ -1423,19 +1423,8 @@ async def nipt_parse_excel(file: UploadFile = File(...)):
             if id1 and id2:
                 df[id1] = df[id1].apply(_norm_id)
                 df_z[id2] = df_z[id2].apply(_norm_id)
-                matched_ids = set(df[id1]) & set(df_z[id2])
-                unmatched_pos = [i for i, v in enumerate(
-                    df[id1]) if v not in matched_ids]
-                leftover_z = df_z[~df_z[id2].isin(
-                    matched_ids)].reset_index(drop=True)
                 df = pd.merge(df, df_z, left_on=id1, right_on=id2,
                               how="left").reset_index(drop=True)
-                if len(unmatched_pos) > 0 and len(unmatched_pos) == len(leftover_z):
-                    z_cols = [c for c in df_z.columns if c != id2]
-                    for pos, s1p in enumerate(unmatched_pos):
-                        for col in z_cols:
-                            if col in df.columns:
-                                df.at[s1p, col] = leftover_z.at[pos, col]
 
         raw = df.to_dict("records")
         patients = []
