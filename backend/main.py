@@ -1308,6 +1308,7 @@ async def nipt_generate(request: Request):
         formats = options.get("formats", ["pdf"])
         template = int(options.get("template", 1) or 1)
 
+        output_folder = str(options.get("output_folder", "") or "").strip()
         base = _nipt_base_filename(p_info.get("name", ""), show_logo, template)
         results = {}
 
@@ -1325,7 +1326,15 @@ async def nipt_generate(request: Request):
                 p_info, z_scores, with_logo=show_logo)
             results["docx"] = {"file": fn, "url": f"/reports-nipt/{fn}"}
 
-        return {"status": "success", "results": results}
+        saved_to = None
+        if output_folder and os.path.isdir(output_folder):
+            import shutil
+            for info in results.values():
+                shutil.copy2(os.path.join(NIPT_REPORT_DIR, info["file"]),
+                             os.path.join(output_folder, info["file"]))
+            saved_to = output_folder
+
+        return {"status": "success", "results": results, "saved_to": saved_to}
     except Exception as e:
         import traceback
         traceback.print_exc()
@@ -1344,6 +1353,7 @@ async def nipt_generate_batch(request: Request):
         show_logo = bool(options.get("show_logo", True))
         formats   = options.get("formats", ["pdf"])
         template  = int(options.get("template", 1) or 1)
+        output_folder = str(options.get("output_folder", "") or "").strip()
 
         def _gen_one(pat):
             p_info   = _norm_patient(dict(pat))
@@ -1361,6 +1371,11 @@ async def nipt_generate_batch(request: Request):
                 fp = os.path.join(NIPT_REPORT_DIR, fn)
                 NIPTDocxGenerator(fp, template=template).generate(p_info, z_scores, with_logo=show_logo)
                 out["docx"] = {"file": fn, "url": f"/reports-nipt/{fn}"}
+            if output_folder and os.path.isdir(output_folder):
+                import shutil
+                for info in out.values():
+                    shutil.copy2(os.path.join(NIPT_REPORT_DIR, info["file"]),
+                                 os.path.join(output_folder, info["file"]))
             return {"name": p_info.get("name", ""), "results": out}
 
         import concurrent.futures
@@ -1375,7 +1390,8 @@ async def nipt_generate_batch(request: Request):
                 except Exception as e:
                     errors.append(str(e))
 
-        return {"status": "success", "results": results, "errors": errors}
+        saved_to = output_folder if (output_folder and os.path.isdir(output_folder)) else None
+        return {"status": "success", "results": results, "errors": errors, "saved_to": saved_to}
     except Exception as e:
         import traceback
         traceback.print_exc()

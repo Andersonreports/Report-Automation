@@ -2393,23 +2393,26 @@
       if (document.getElementById('cbDocx').checked) formats.push('docx');
       if (!formats.length) { alert('Select at least one format (PDF or DOCX).'); return; }
       showResult('manualResult', 'success', '<i class="fas fa-spinner fa-spin"></i> Generating report…');
+      const folder = document.getElementById('outFolder').value.trim();
+      const serverFolder = !_niptDirHandle && folder ? folder : '';
       try {
         const r = await _apiFetch('/nipt/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             patient_data: p, z_scores: z,
-            options: { show_logo: document.getElementById('cbBranding').checked, formats, template: parseInt(document.getElementById('templateSelect').value, 10) }
+            options: { show_logo: document.getElementById('cbBranding').checked, formats,
+              template: parseInt(document.getElementById('templateSelect').value, 10),
+              output_folder: serverFolder }
           })
         });
         const d = await r.json();
         if (d.status === 'success') {
           const files = Object.values(d.results || {}).map(v => v.file);
-          const folder = document.getElementById('outFolder').value.trim();
-          const savedTo = _niptDirHandle ? ` Saved to: ${folder}` : '';
+          const savedTo = d.saved_to ? ` Saved to: ${d.saved_to}` : (_niptDirHandle ? ` Saved to: ${folder}` : '');
           showResult('manualResult', 'success', `✓ Report generated.${savedTo}`,
             files.map(f => ({ file: f })));
-          for (const f of files) await _saveGeneratedFile(f);
+          if (!d.saved_to) for (const f of files) await _saveGeneratedFile(f);
         } else {
           showResult('manualResult', 'error', '✗ ' + (d.error || 'Generation failed'));
         }
@@ -3007,13 +3010,17 @@
       pt.textContent = `Sending ${batchPatients.length} patients to server…`;
       showResult('batchResult', 'success', '<i class="fas fa-spinner fa-spin"></i> Generating all reports…');
 
+      const folder = (document.getElementById('batchOutFolder') || document.getElementById('outFolder')).value.trim();
+      const serverFolder = !_niptDirHandle && folder ? folder : '';
       try {
         const r = await _apiFetch('/nipt/generate-batch', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             patients: batchPatients,
-            options: { show_logo: document.getElementById('cbBranding').checked, formats, template: parseInt(document.getElementById('templateSelect').value, 10) }
+            options: { show_logo: document.getElementById('cbBranding').checked, formats,
+              template: parseInt(document.getElementById('templateSelect').value, 10),
+              output_folder: serverFolder }
           })
         });
         const d = await r.json();
@@ -3026,12 +3033,13 @@
         const errHtml = d.errors?.length
           ? `<br><span style="color:#dc2626;">Errors (${d.errors.length}): ${d.errors.join(', ')}</span>` : '';
         const allFiles = results.flatMap(r => Object.values(r.results || {}).map(v => v.file));
-        const folder = document.getElementById('outFolder').value.trim();
-        const savedTo = _niptDirHandle ? ` → ${folder}` : '';
+        const savedTo = d.saved_to ? ` → ${d.saved_to}` : (_niptDirHandle ? ` → ${folder}` : '');
         const linkHtml = allFiles.map(f => _dlBtn(f)).join('');
         showResult('batchResult', 'success', `✓ Generated ${ok}/${batchPatients.length} reports.${savedTo}${errHtml}${linkHtml}`);
-        pt.textContent = _niptDirHandle ? `Saving ${allFiles.length} files to ${folder}…` : 'Done.';
-        for (const f of allFiles) await _saveGeneratedFile(f);
+        if (!d.saved_to) {
+          pt.textContent = _niptDirHandle ? `Saving ${allFiles.length} files to ${folder}…` : 'Done.';
+          for (const f of allFiles) await _saveGeneratedFile(f);
+        }
         pt.textContent = 'Done.';
       } catch (e) {
         _serverUp = false;
