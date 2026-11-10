@@ -1,4 +1,4 @@
-
+# -*- coding: utf-8 -*-
 import pdfplumber
 from pgta_classify import auto_map_cnvs
 from pgta_docx_generator import PGTADocxGenerator
