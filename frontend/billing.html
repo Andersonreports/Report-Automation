@@ -1838,7 +1838,7 @@ ${hasB2B ? '<th>B2B</th>' : ''}
 <tr>
 <td>${i + 1}</td>
 <td class="al">${r.desc || '—'}</td>
-${hasDeliverables ? `<td class="al">${r.deliverables ? r.deliverables.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').split('\n').filter(l=>l.trim()).join(', ') : '—'}</td>` : ''}
+${hasDeliverables ? `<td style="text-align:justify;line-height:1.5">${r.deliverables ? r.deliverables.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').split('\n').filter(l=>l.trim()).join(', ') : '—'}</td>` : ''}
 <td>${r.sType || '—'}</td>
 <td>${r.nSamples || '—'}</td>
 ${hasDataSize ? `<td>${r.dataSize || '—'}</td>` : ''}
