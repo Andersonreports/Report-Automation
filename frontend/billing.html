@@ -1449,6 +1449,7 @@ KEGG pathway analysis</textarea>
                     tat: r.tat,
                     mrp: r.mrp,
                     b2b: r.b2b,
+                    deliverables: r.deliverables,
                     price: r.price
                 })),
                 extraRows: getExtraRows()
@@ -1526,6 +1527,8 @@ KEGG pathway analysis</textarea>
                         if (tatEl) tatEl.value = r.tat || '';
                         if (mrpEl) mrpEl.value = r.mrp || '';
                         if (b2bEl) b2bEl.value = r.b2b || '';
+                        const dlvEl = document.getElementById('dlv_' + id);
+                        if (dlvEl) dlvEl.value = r.deliverables || '';
                         if (pr) pr.value = r.price;
                     });
                     _loading = false;
@@ -1625,6 +1628,10 @@ KEGG pathway analysis</textarea>
             </div>
         </div>
         <div class="fg">
+            <label>Deliverables <span style="font-weight:400;color:#999;font-size:.7rem">(optional, one per line)</span></label>
+            <textarea id="dlv_${id}" rows="2" placeholder="e.g. RNA Extraction and QC&#10;Library Preparation by Bacterial Ribodepletion kit&#10;Sequencing using Illumina PE150, ~5-6 Gb data/Sample" oninput="refresh()" style="resize:vertical;min-height:48px;font-size:.83rem"></textarea>
+        </div>
+        <div class="fg">
             <label>Price per Sample (₹)</label>
             <input type="number" id="pr_${id}" placeholder="e.g. 13500" min="0" oninput="refresh()" onwheel="this.blur()">
         </div>
@@ -1704,11 +1711,12 @@ KEGG pathway analysis</textarea>
                 const tat = $(`tat_${id}`)?.value?.trim() || '';
                 const mrp = parseFloat($(`mrp_${id}`)?.value) || 0;
                 const b2b = parseFloat($(`b2b_${id}`)?.value) || 0;
+                const deliverables = $(`dlv_${id}`)?.value?.trim() || '';
                 const price = parseFloat($(`pr_${id}`)?.value) || 0;
                 const rowTotal = nSamples * price;
                 const rtEl = $(`rt_${id}`);
                 if (rtEl) rtEl.textContent = `Row Total: ₹ ${inr(rowTotal)}`;
-                rows.push({ id, desc, sType, nSamples, dataSize, tat, mrp, b2b, price, rowTotal });
+                rows.push({ id, desc, sType, nSamples, dataSize, tat, mrp, b2b, deliverables, price, rowTotal });
             });
             return rows;
         }
@@ -1787,15 +1795,17 @@ KEGG pathway analysis</textarea>
                 if ($('sp-delivery')) $('sp-delivery').textContent = ($('scopeDelivery')?.value || '').trim() || 'Provided that there are no unexpected difficulties, 6-8 weeks from the date of Data Received';
             }
 
+            const hasDeliverables = rows.some(r => r.deliverables);
             const hasDataSize = rows.some(r => r.dataSize);
             const hasTAT = rows.some(r => r.tat);
             const hasMRP = rows.some(r => r.mrp);
             const hasB2B = rows.some(r => r.b2b);
-            const extraCols = (hasDataSize ? 1 : 0) + (hasTAT ? 1 : 0) + (hasMRP ? 1 : 0) + (hasB2B ? 1 : 0);
+            const extraCols = (hasDeliverables ? 1 : 0) + (hasDataSize ? 1 : 0) + (hasTAT ? 1 : 0) + (hasMRP ? 1 : 0) + (hasB2B ? 1 : 0);
 
             $('p-thead').innerHTML = `<tr>
 <th style="width:5%">S.No</th>
 <th>Service Description</th>
+${hasDeliverables ? '<th>Deliverables</th>' : ''}
 <th>Sample Type</th>
 <th>No. of sample</th>
 ${hasDataSize ? '<th>Data Size</th>' : ''}
@@ -1822,6 +1832,7 @@ ${hasB2B ? '<th>B2B</th>' : ''}
 <tr>
 <td>${i + 1}</td>
 <td class="al">${r.desc || '—'}</td>
+${hasDeliverables ? `<td class="al">${r.deliverables ? r.deliverables.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').split('\n').filter(l=>l.trim()).join(', ') : '—'}</td>` : ''}
 <td>${r.sType || '—'}</td>
 <td>${r.nSamples || '—'}</td>
 ${hasDataSize ? `<td>${r.dataSize || '—'}</td>` : ''}
