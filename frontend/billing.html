@@ -1021,7 +1021,7 @@ KEGG pathway analysis</textarea>
                     </div>
                     <div class="fg">
                         <label>Delivery Time</label>
-                        <input type="text" id="scopeDelivery" value="6-8 weeks from the date of Data Received" oninput="refresh()">
+                        <input type="text" id="scopeDelivery" value="Provided that there are no unexpected difficulties, 6-8 weeks from the date of Data Received" oninput="refresh()">
                     </div>
                 </div>
 
@@ -1784,7 +1784,7 @@ KEGG pathway analysis</textarea>
                 if ($('sp-lib-prep')) $('sp-lib-prep').innerHTML = textToList($('scopeLibPrep')?.value || '');
                 if ($('sp-seq'))      $('sp-seq').innerHTML      = textToList($('scopeSeq')?.value     || '');
                 if ($('sp-analysis')) $('sp-analysis').innerHTML = textToList($('scopeAnalysis')?.value || '');
-                if ($('sp-delivery')) $('sp-delivery').textContent = ($('scopeDelivery')?.value || '').trim() || '6-8 weeks from the date of Data Received';
+                if ($('sp-delivery')) $('sp-delivery').textContent = ($('scopeDelivery')?.value || '').trim() || 'Provided that there are no unexpected difficulties, 6-8 weeks from the date of Data Received';
             }
 
             const hasDataSize = rows.some(r => r.dataSize);
@@ -1883,7 +1883,7 @@ ${hasB2B ? `<td>${r.b2b ? inr(r.b2b) : '—'}</td>` : ''}
             if ($('showScopePage')) $('showScopePage').checked = true;
             if ($('scopeSampleType')) $('scopeSampleType').value = '';
             ['scopeSampleReq','scopeSampleQC','scopeLibPrep','scopeSeq','scopeAnalysis'].forEach(id => { if ($(id)) $(id).value = ''; });
-            if ($('scopeDelivery')) $('scopeDelivery').value = '6-8 weeks from the date of Data Received';
+            if ($('scopeDelivery')) $('scopeDelivery').value = 'Provided that there are no unexpected difficulties, 6-8 weeks from the date of Data Received';
 
             $('cfgName').value = 'Anderson Diagnostic Services Private Limited';
             $('cfgAddr1').value = 'No.26, Rajaratnam Street, Kilpauk';
