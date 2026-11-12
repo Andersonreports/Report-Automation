@@ -1126,11 +1126,12 @@ KEGG pathway analysis</textarea>
                 <button class="btn-preview" onclick="openMailModal()">&#9993; Draft Mail</button>
                 <button class="btn-dl" id="dlBtn" onclick="downloadPDF()">&#11015; Download PDF</button>
                 <button class="btn-compress" id="dlBtnSmall" onclick="downloadCompressedPDF()">&#11015; Download Compressed PDF</button>
+                <button class="btn-dl" id="showPreviewBtn" onclick="togglePreview()" style="display:none;background:#1a5276;width:100%">&#9650; Show Preview</button>
             </div>
         </aside>
         
-        <section class="preview-panel">
-            <div class="panel-hdr">Live Preview</div>
+        <section class="preview-panel" id="previewPanel">
+            <div class="panel-hdr">Live Preview <button onclick="togglePreview()" id="hidePreviewBtn" style="float:right;background:rgba(255,255,255,.25);border:1px solid rgba(255,255,255,.5);color:#fff;border-radius:4px;padding:2px 10px;cursor:pointer;font-size:.78rem">Hide</button></div>
             <div class="doc-wrap">
                 <div id="quotation-doc">
 
@@ -1690,6 +1691,21 @@ KEGG pathway analysis</textarea>
             });
             return rows;
         }
+        function togglePreview() {
+            const panel = $('previewPanel');
+            const layout = document.querySelector('.layout');
+            const showBtn = $('showPreviewBtn');
+            if (panel.style.display === 'none') {
+                panel.style.display = '';
+                layout.style.gridTemplateColumns = '400px 1fr';
+                showBtn.style.display = 'none';
+            } else {
+                panel.style.display = 'none';
+                layout.style.gridTemplateColumns = '1fr';
+                showBtn.style.display = '';
+            }
+        }
+
         function toggleCustom(id) {
             const sel = $(`sd_${id}`);
             const wrap = $(`sd_custom_wrap_${id}`);
