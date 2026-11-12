@@ -150,7 +150,22 @@
             border-bottom: none;
             padding-bottom: 4px;
             margin-bottom: 12px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            user-select: none;
         }
+        .sec-title::after {
+            content: '\25B2';
+            font-size: .6rem;
+            transition: transform .2s;
+        }
+        .sec-title.collapsed::after {
+            transform: rotate(180deg);
+        }
+        .sec-body { transition: none; }
+        .sec-body.hidden { display: none; }
 
         .form-section {
             margin-bottom: 20px;
@@ -945,7 +960,8 @@
             <div class="form-scroll">
                 
                 <div class="form-section">
-                    <div class="sec-title">Quote Information</div>
+                    <div class="sec-title" onclick="toggleSection(this)">Quote Information</div>
+                    <div class="sec-body">
                     <div class="fg">
                         <label>Document Title</label>
                         <input type="text" id="docTitle" value="QUOTATION" placeholder="e.g. QUOTATION" oninput="refresh()">
@@ -974,10 +990,12 @@
                             Include Cover Page (Eurofins-style letter)
                         </label>
                     </div>
+                    </div>
                 </div>
 
                 <div class="form-section">
-                    <div class="sec-title">Scope of Work</div>
+                    <div class="sec-title" onclick="toggleSection(this)">Scope of Work</div>
+                    <div class="sec-body">
                     <div class="fg" style="margin-bottom:8px">
                         <label style="display:flex;align-items:center;gap:7px;cursor:pointer">
                             <input type="checkbox" id="showScopePage" checked onchange="refresh()" style="width:auto;padding:0">
@@ -1023,10 +1041,12 @@ KEGG pathway analysis</textarea>
                         <label>Delivery Time</label>
                         <input type="text" id="scopeDelivery" value="Provided that there are no unexpected difficulties, 6-8 weeks from the date of Data Received" oninput="refresh()">
                     </div>
+                    </div>
                 </div>
 
                 <div class="form-section">
-                    <div class="sec-title">Quotation From</div>
+                    <div class="sec-title" onclick="toggleSection(this)">Quotation From</div>
+                    <div class="sec-body">
                     <div class="fg">
                         <label>Company Name</label>
                         <input type="text" id="cfgName" placeholder="e.g. Anderson Diagnostic Services Pvt. Ltd." oninput="refresh()">
@@ -1043,15 +1063,17 @@ KEGG pathway analysis</textarea>
                         <label>City &amp; PIN</label>
                         <input type="text" id="cfgCity" placeholder="e.g. Chennai – 600 010" oninput="refresh()">
                     </div>
+                    </div>
                 </div>
                 
                 <div class="form-section">
-                    <div class="sec-title" style="display:flex;align-items:center;gap:8px;">
-                        <select id="toLabel" onchange="refresh()" style="width:auto;font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.9px;color:var(--orange);border:none;background:transparent;padding:0;margin:0;">
+                    <div class="sec-title" onclick="toggleSection(this)">
+                        <select id="toLabel" onchange="refresh()" onclick="event.stopPropagation()" style="width:auto;font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.9px;color:var(--orange);border:none;background:transparent;padding:0;margin:0;">
                             <option value="Quotation To">Quotation To</option>
                             <option value="Quotation">Quotation</option>
                         </select>
                     </div>
+                    <div class="sec-body">
                     <div class="fg">
                         <label>Name</label>
                         <input type="text" id="toName" placeholder="e.g. Dr. Murali TS" />
@@ -1082,16 +1104,20 @@ KEGG pathway analysis</textarea>
                             <input type="text" id="toPin" placeholder="e.g. Karnataka – 576104" />
                         </div>
                     </div>
+                    </div>
                 </div>
-                
+
                 <div class="form-section">
-                    <div class="sec-title">Service Details</div>
+                    <div class="sec-title" onclick="toggleSection(this)">Service Details</div>
+                    <div class="sec-body">
                     <div id="svcRows"></div>
                     <button class="btn-add" onclick="addRow()">+ Add Service Row</button>
+                    </div>
                 </div>
                 
                 <div class="form-section">
-                    <div class="sec-title">Note</div>
+                    <div class="sec-title" onclick="toggleSection(this)">Note</div>
+                    <div class="sec-body">
                     <div class="fg">
                         <label style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
                             <input type="checkbox" id="poNoteEnabled" checked onchange="refresh()" style="width:auto;padding:0" />
@@ -1107,12 +1133,15 @@ KEGG pathway analysis</textarea>
                         <label>Bill Note <span style="font-weight:400;color:#999;font-size:.7rem">(optional — shown below service rows with ***)</span></label>
                         <textarea id="billNote" rows="2" placeholder="e.g. Additional remarks." oninput="refresh()" style="resize:vertical;min-height:52px;font-size:.83rem"></textarea>
                     </div>
+                    </div>
                 </div>
                 
                 <div class="form-section">
-                    <div class="sec-title">Additional Details <span style="font-weight:400;color:#999;font-size:.7rem;text-transform:none;letter-spacing:0">(optional table)</span></div>
+                    <div class="sec-title" onclick="toggleSection(this)">Additional Details <span style="font-weight:400;color:#999;font-size:.7rem;text-transform:none;letter-spacing:0">(optional table)</span></div>
+                    <div class="sec-body">
                     <div id="extraRows"></div>
                     <button class="btn-add" onclick="addExtraRow()" style="margin-top:2px">+ Add Row</button>
+                    </div>
                 </div>
                 
                 <div class="sum-box">
@@ -1691,6 +1720,14 @@ KEGG pathway analysis</textarea>
             });
             return rows;
         }
+        function toggleSection(el) {
+            el.classList.toggle('collapsed');
+            var body = el.nextElementSibling;
+            if (body && body.classList.contains('sec-body')) {
+                body.classList.toggle('hidden');
+            }
+        }
+
         function togglePreview() {
             const panel = $('previewPanel');
             const layout = document.querySelector('.layout');
