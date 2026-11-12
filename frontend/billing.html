@@ -1722,6 +1722,12 @@ KEGG pathway analysis</textarea>
         }
         
         function refresh() {
+            const scopeType = ($('scopeSampleType')?.value || '').trim();
+            if (scopeType) {
+                document.querySelectorAll('[id^="st_"]').forEach(el => {
+                    if (!el.value.trim()) el.value = scopeType;
+                });
+            }
             const rows = getRows();
             const sub = rows.reduce((s, r) => s + r.rowTotal, 0);
             const cgst = sub * 0.09;
