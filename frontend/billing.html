@@ -419,12 +419,32 @@
         .q-page {
             background: #fff;
             width: 794px;
-            
+
             min-height: 1123px;
             padding: 32px 36px;
             margin: 0 auto 28px;
             page-break-after: always;
             box-shadow: 0 2px 12px rgba(0, 0, 0, .15);
+            position: relative;
+            overflow: hidden;
+        }
+        .q-page::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 500px;
+            height: 500px;
+            transform: translate(-50%, -50%);
+            background: url('Logos/loggg.jpg') no-repeat center center;
+            background-size: contain;
+            opacity: 0.06;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .q-page > * {
+            position: relative;
+            z-index: 1;
         }
 
         .q-page:last-child {
