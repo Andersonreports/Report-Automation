@@ -1861,6 +1861,139 @@ ${hasB2B ? `<td>${r.b2b ? inr(r.b2b) : '—'}</td>` : ''}
                     extraEl.innerHTML = '';
                 }
             }
+
+            var coverPage = $('cover-page');
+            if (coverPage) {
+                var showCover = $('coverLetterToggle') && $('coverLetterToggle').checked;
+                coverPage.style.display = showCover ? '' : 'none';
+
+                if (showCover) {
+                    var mainHdrImg = document.querySelector('#quote-page .q-hdr img');
+                    var coverHdrImg = $('cp-hdr-img');
+                    if (mainHdrImg && coverHdrImg) coverHdrImg.src = mainHdrImg.src;
+
+                    $('cp-date').textContent = $('p-date').textContent;
+
+                    var validity = $('quoteValidity') ? $('quoteValidity').value : '';
+                    $('cp-validity').textContent = validity;
+
+                    var cpQn = $('quoteNo').value.trim();
+                    var cpQnLine = $('cp-quoteNo-line');
+                    if (cpQn) { $('cp-quoteNo-val').textContent = cpQn; cpQnLine.style.display = ''; }
+                    else { cpQnLine.style.display = 'none'; }
+
+                    var toLines = [];
+                    if ($('toName').value) toLines.push($('toName').value);
+                    if ($('toDesig').value) toLines.push($('toDesig').value);
+                    if ($('toDept').value) toLines.push($('toDept').value);
+                    if ($('toSchool').value) toLines.push($('toSchool').value);
+                    if ($('toInst').value) toLines.push($('toInst').value);
+                    var toCityPin = [$('toCity').value, $('toPin').value].filter(Boolean).join(' – ');
+                    if (toCityPin) toLines.push(toCityPin);
+                    $('cp-to').innerHTML = toLines.join('<br>');
+
+                    var proj = $('projectTitle').value.trim();
+                    var cpProj = $('cp-project');
+                    if (proj) { cpProj.innerHTML = '<strong>Project:</strong> ' + proj.replace(/</g, '&lt;').replace(/>/g, '&gt;'); cpProj.style.display = ''; }
+                    else { cpProj.style.display = 'none'; }
+
+                    var sType = $('sampleType').value.trim();
+                    var sNotes = $('sampleNotes').value.trim();
+                    var cpSampleReq = $('cp-sample-req');
+                    if (sType || sNotes) {
+                        cpSampleReq.style.display = '';
+                        $('cp-sample-type').innerHTML = sType ? '&#8226; Sample Type: ' + sType.replace(/</g, '&lt;').replace(/>/g, '&gt;') : '';
+                        if (sNotes) {
+                            var cpNoteLines = sNotes.split('\n').filter(function(l) { return l.trim(); });
+                            $('cp-sample-notes').innerHTML = cpNoteLines.map(function(l) {
+                                return '<p>&#8226; ' + l.trim().replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</p>';
+                            }).join('');
+                        } else {
+                            $('cp-sample-notes').innerHTML = '';
+                        }
+                    } else {
+                        cpSampleReq.style.display = 'none';
+                    }
+                }
+            }
+
+            // Scope of Work page
+            var sowPage = $('sow-page');
+            if (sowPage) {
+                var showSow = $('sowToggle') && $('sowToggle').checked;
+                var anySowContent = false;
+
+                var sowBullets = function(text) {
+                    return text.split('\n').filter(function(l) { return l.trim(); }).map(function(l) {
+                        return '<p class="sow-bullet">• ' + l.trim().replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</p>';
+                    }).join('');
+                };
+
+                if (showSow) {
+                    var mainHdr = document.querySelector('#quote-page .q-hdr img');
+                    var sowHdr = $('sow-hdr-img');
+                    if (mainHdr && sowHdr) sowHdr.src = mainHdr.src;
+
+                    // Sample Requirement (from existing sampleType + sampleNotes)
+                    var sType = $('sampleType') ? $('sampleType').value.trim() : '';
+                    var sNotes = $('sampleNotes') ? $('sampleNotes').value.trim() : '';
+                    var sowSampleEl = $('sow-s-sample');
+                    if (sType || sNotes) {
+                        anySowContent = true;
+                        var html = '';
+                        if (sType) html += '<p class="sow-bullet">• Sample Type: ' + sType.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '</p>';
+                        if (sNotes) html += sowBullets(sNotes);
+                        $('sow-sample-content').innerHTML = html;
+                        sowSampleEl.style.display = '';
+                    } else {
+                        sowSampleEl.style.display = 'none';
+                    }
+
+                    // SOW text sections
+                    var sowFields = [
+                        { id: 'sowQC', section: 'sow-s-qc', content: 'sow-qc-content' },
+                        { id: 'sowLibPrep', section: 'sow-s-libprep', content: 'sow-libprep-content' },
+                        { id: 'sowSeq', section: 'sow-s-seq', content: 'sow-seq-content' },
+                        { id: 'sowAnalysis', section: 'sow-s-analysis', content: 'sow-analysis-content' }
+                    ];
+                    sowFields.forEach(function(f) {
+                        var el = $(f.id);
+                        var val = el ? el.value.trim() : '';
+                        if (val) {
+                            anySowContent = true;
+                            $(f.content).innerHTML = sowBullets(val);
+                            $(f.section).style.display = '';
+                        } else {
+                            $(f.section).style.display = 'none';
+                        }
+                    });
+
+                    // Delivery Time (paragraph, not bullets)
+                    var deliveryEl = $('sowDelivery');
+                    var deliveryVal = deliveryEl ? deliveryEl.value.trim() : '';
+                    if (deliveryVal) {
+                        anySowContent = true;
+                        $('sow-delivery-content').textContent = deliveryVal;
+                        $('sow-s-delivery').style.display = '';
+                    } else {
+                        $('sow-s-delivery').style.display = 'none';
+                    }
+
+                    // Confidentiality (paragraph, not bullets)
+                    var confidEl = $('sowConfidentiality');
+                    var confidVal = confidEl ? confidEl.value.trim() : '';
+                    if (confidVal) {
+                        anySowContent = true;
+                        $('sow-confidentiality-content').textContent = confidVal;
+                        $('sow-s-confidentiality').style.display = '';
+                    } else {
+                        $('sow-s-confidentiality').style.display = 'none';
+                    }
+                }
+
+                sowPage.style.display = (showSow && anySowContent) ? '' : 'none';
+            }
+
             saveData();
         }
         
