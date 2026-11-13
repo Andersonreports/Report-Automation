@@ -1096,15 +1096,15 @@ KEGG pathway analysis</textarea>
                     </div>
                     <div class="fg">
                         <label>Address Line 1</label>
-                        <input type="text" id="cfgAddr1" placeholder="e.g. No.26, Rajaratnam Street, Kilpauk" oninput="refresh()">
+                        <input type="text" id="cfgAddr1" placeholder="e.g. 1st, 2nd, 3rd Floor, New No.4, No.6/1, Deccan House, Harrington Road" oninput="refresh()">
                     </div>
                     <div class="fg">
                         <label>Address Line 2 <span style="font-weight:400;color:#999;font-size:.7rem">(optional)</span></label>
-                        <input type="text" id="cfgAddr2" placeholder="e.g. Second floor" oninput="refresh()">
+                        <input type="text" id="cfgAddr2" placeholder="e.g. 7th Avenue, Chetpet" oninput="refresh()">
                     </div>
                     <div class="fg">
                         <label>City &amp; PIN</label>
-                        <input type="text" id="cfgCity" placeholder="e.g. Chennai – 600 010" oninput="refresh()">
+                        <input type="text" id="cfgCity" placeholder="e.g. Chennai, Tamil Nadu – 600 031" oninput="refresh()">
                     </div>
                     </div>
                 </div>
@@ -1304,10 +1304,10 @@ KEGG pathway analysis</textarea>
                             <tr>
                                 <td>
                                     <b>From,</b>
-                                    <span id="p-from-name">Anderson Diagnostic Services Private Limited</span>,<br>
-                                    <span id="p-from-addr1">No.26, Rajaratnam Street, Kilpauk</span>,<br>
-                                    <span id="p-from-addr2"></span>
-                                    <span id="p-from-city">Chennai 600 010</span>
+                                    <span id="p-from-name">Anderson Diagnostic Services Pvt. Ltd.</span>,<br>
+                                    <span id="p-from-addr1">1st, 2nd, 3rd Floor, New No.4, No.6/1, Deccan House, Harrington Road</span>,<br>
+                                    <span id="p-from-addr2">7th Avenue, Chetpet,<br></span>
+                                    <span id="p-from-city">Chennai, Tamil Nadu – 600 031</span>
                                 </td>
                                 <td>
                                     <b><span id="p-to-label">Quotation to</span>,</b>
@@ -1432,10 +1432,10 @@ KEGG pathway analysis</textarea>
 
                         <div style="margin-bottom:24px;line-height:1.8;font-size:15px">
                             <p style="font-weight:600" id="accept-company">Anderson Diagnostic Services Pvt. Ltd.,</p>
-                            <p id="accept-addr1">No.26, Rajaratnam Street, Kilpauk,</p>
-                            <p id="accept-addr2"></p>
-                            <p id="accept-city">Chennai 600 010</p>
-                            <p>Tamil Nadu, India.</p>
+                            <p id="accept-addr1">1st, 2nd, 3rd Floor, New No.4, No.6/1, Deccan House, Harrington Road,</p>
+                            <p id="accept-addr2">7th Avenue, Chetpet,</p>
+                            <p id="accept-city">Chennai, Tamil Nadu – 600 031</p>
+                            <p>India.</p>
                         </div>
 
                         <p style="font-weight:700;color:var(--orange);margin-bottom:14px;font-size:16px;text-decoration:underline">ACCEPTANCE OF PROPOSAL:</p>
@@ -1584,6 +1584,19 @@ KEGG pathway analysis</textarea>
             sessionStorage.setItem(RECIPIENT_SESSION_KEY, JSON.stringify(recipient));
         }
 
+        const FROM_DEFAULT = {
+            name: 'Anderson Diagnostic Services Pvt. Ltd.',
+            addr1: '1st, 2nd, 3rd Floor, New No.4, No.6/1, Deccan House, Harrington Road',
+            addr2: '7th Avenue, Chetpet',
+            city: 'Chennai, Tamil Nadu – 600 031'
+        };
+        function setFromDefaults() {
+            $('cfgName').value = FROM_DEFAULT.name;
+            $('cfgAddr1').value = FROM_DEFAULT.addr1;
+            $('cfgAddr2').value = FROM_DEFAULT.addr2;
+            $('cfgCity').value = FROM_DEFAULT.city;
+        }
+
         function loadData() {
             const raw = localStorage.getItem(STORAGE_KEY);
             if (!raw) return false;
@@ -1620,15 +1633,16 @@ KEGG pathway analysis</textarea>
                 } catch (e) { }
                 $('poNoteEnabled').checked = data.poNoteEnabled !== false;
                 if (data.settings) {
-                    $('cfgName').value = data.settings.name || 'Anderson Diagnostic Services Private Limited';
-                    $('cfgAddr1').value = data.settings.addr1 || 'No.26, Rajaratnam Street, Kilpauk';
-                    $('cfgAddr2').value = data.settings.addr2 || '';
-                    $('cfgCity').value = data.settings.city || 'Chennai  600 010';
+                    if (!data.settings.addr1 || /Rajaratnam/i.test(data.settings.addr1)) {
+                        setFromDefaults();   // old Kilpauk address -> new Chetpet address
+                    } else {
+                        $('cfgName').value = data.settings.name || FROM_DEFAULT.name;
+                        $('cfgAddr1').value = data.settings.addr1;
+                        $('cfgAddr2').value = data.settings.addr2 || '';
+                        $('cfgCity').value = data.settings.city || FROM_DEFAULT.city;
+                    }
                 } else {
-                    $('cfgName').value = 'Anderson Diagnostic Services Private Limited';
-                    $('cfgAddr1').value = 'No.26, Rajaratnam Street, Kilpauk';
-                    $('cfgAddr2').value = '';
-                    $('cfgCity').value = 'Chennai  600 010';
+                    setFromDefaults();
                 }
                 if (data.rows && data.rows.length > 0) {
                     _loading = true;
@@ -2167,10 +2181,7 @@ ${hasB2B ? `<td>${r.b2b ? inr(r.b2b) : '—'}</td>` : ''}
             ['scopeSampleReq','scopeSampleQC','scopeLibPrep','scopeSeq','scopeAnalysis'].forEach(id => { if ($(id)) $(id).value = ''; });
             if ($('scopeDelivery')) $('scopeDelivery').value = 'Provided that there are no unexpected difficulties, 6-8 weeks from the date of Data Received';
 
-            $('cfgName').value = 'Anderson Diagnostic Services Private Limited';
-            $('cfgAddr1').value = 'No.26, Rajaratnam Street, Kilpauk';
-            $('cfgAddr2').value = '';
-            $('cfgCity').value = 'Chennai  600 010';
+            setFromDefaults();
             
             $('svcRows').innerHTML = '';
             rowSeq = 0;
@@ -2520,10 +2531,7 @@ ${hasB2B ? `<td>${r.b2b ? inr(r.b2b) : '—'}</td>` : ''}
 
             if (!loadData()) {
                 $('quoteDate').valueAsDate = new Date();
-                $('cfgName').value = 'Anderson Diagnostic Services Private Limited';
-                $('cfgAddr1').value = 'No.26, Rajaratnam Street, Kilpauk';
-                $('cfgAddr2').value = '';
-                $('cfgCity').value = 'Chennai  600 010';
+                setFromDefaults();
                 addRow();
             }
         });
