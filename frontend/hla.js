@@ -1099,7 +1099,9 @@ function _attachRelatedAs(input) {
 // ── DSA Fertility (Paternal Antibody) result fields ──────────────────────────
 // Manual entry: Result / MFI / Risk Level for Class I and II, plus optional
 // Impression / Interpretation overrides (left blank -> generated in the PDF).
-function buildDsaFertilityResultFields(resGrid, data, onChange, liveBind = false) {
+// sharedComments: { ta, set } -- the patient card's comments textarea, used as the
+// single Comments box (auto-filled from the risk levels, editable).
+function buildDsaFertilityResultFields(resGrid, data, onChange, liveBind = false, sharedComments = null) {
   const r = {};
   const sel = (opts, value) => {
     const s = el("select", {}, opts.map(([v, t]) => el("option", { value: v }, t)));
@@ -1130,17 +1132,58 @@ function buildDsaFertilityResultFields(resGrid, data, onChange, liveBind = false
     ta("impression", "Anti-paternal HLA Class I IgG detected \u2014 MFI ..., Risk level ..."), true);
   add("interpretation", "Interpretation (optional - auto-generated if blank)",
     ta("interpretation", "Luminex bead-based screening of the patient's serum against the husband's lymphocytes ..."), true);
+
+  // Comments: filled from the selected risk levels, editable. Once edited by
+  // hand it is no longer overwritten (clear it to get the automatic text back).
+  let commentsTa;
+  if (sharedComments && sharedComments.ta) {
+    commentsTa = sharedComments.ta;        // patient card's comments box
+    r.comments = commentsTa;
+  } else {
+    commentsTa = ta("comments", "Filled automatically from the risk levels");
+    commentsTa.rows = 4;
+    add("comments", "Comments (auto-filled from risk levels - editable)", commentsTa, true);
+  }
+  const pushComments = () => {
+    if (liveBind) data.comments = commentsTa.value;
+    if (sharedComments && sharedComments.set) sharedComments.set(commentsTa.value);
+  };
+  if (commentsTa.value.trim()) commentsTa.dataset.userEdited = "1";
+  const regenComments = () => {
+    if (commentsTa.dataset.userEdited === "1") return;
+    const risks = [r.class1_risk.value, r.class2_risk.value];
+    commentsTa.value = ["IV", "III", "II", "I"]
+      .filter(lvl => risks.includes(lvl) && DSA_FERT_RISK_COMMENTS[lvl])
+      .map(lvl => DSA_FERT_RISK_COMMENTS[lvl]).join("\n");
+    pushComments();
+  };
+  commentsTa.addEventListener("input", () => {
+    commentsTa.dataset.userEdited = commentsTa.value.trim() ? "1" : "";
+    pushComments();
+    if (!commentsTa.value.trim()) regenComments();
+    onChange();
+  });
+  [r.class1_risk, r.class2_risk].forEach(s => s.addEventListener("change", () => { regenComments(); onChange(); }));
+  r.regenComments = regenComments;
+  regenComments();
+
   if (liveBind) {
     // make sure defaults shown in the selects are saved on the case too
-    Object.entries(r).forEach(([k, inp]) => { if (data[k] == null) data[k] = inp.value; });
+    Object.entries(r).forEach(([k, inp]) => { if (inp && inp.tagName && data[k] == null) data[k] = inp.value; });
   }
   return r;
 }
 
+// Risk-level comment lines (same wording as the report).
+const DSA_FERT_RISK_COMMENTS = {
+  IV: "*INTERPRETATION- Risk Level-*IV – MFI >5000 – Indicates Transplant veto apart from exceptional cases. Further testing such as CDC tests, or complement fixation in Luminex assays (C1q, C3d or C4d) should be considered in these cases to further refine risk profiles.",
+  I: "*INTERPRETATION- Risk Level-*I – MFI < 1000 – Indicates No detectable HLA antibody.",
+};
+
 function readDsaFertilityResultFields(r) {
   const out = {};
   ["class1_result", "class1_mfi", "class1_risk", "class2_result", "class2_mfi", "class2_risk",
-   "report_status", "impression", "interpretation"].forEach(k => { out[k] = r[k] ? r[k].value.trim() : ""; });
+   "report_status", "impression", "interpretation", "comments"].forEach(k => { out[k] = r[k] ? r[k].value.trim() : ""; });
   out.class1_result = out.class1_result || "Negative";
   out.class2_result = out.class2_result || "Negative";
   out.report_status = out.report_status || "Final";
@@ -1149,8 +1192,11 @@ function readDsaFertilityResultFields(r) {
 
 function fillDsaFertilityResultFields(r, src) {
   Object.entries(r).forEach(([k, inp]) => {
-    if (inp && src[k] != null && String(src[k]).trim()) inp.value = src[k];
+    if (inp && inp.tagName && src[k] != null && String(src[k]).trim()) inp.value = src[k];
   });
+  // saved comments count as hand-edited; otherwise rebuild from the risk levels
+  if (r.comments && src.comments && String(src.comments).trim()) r.comments.dataset.userEdited = "1";
+  if (r.regenComments) r.regenComments();
 }
 
 function buildCrossmatchSection(col, rtype) {
@@ -1167,9 +1213,15 @@ function buildCrossmatchSection(col, rtype) {
   }
   const xf = { patient: {}, donor: {}, patientPhoto: null, donorPhoto: null };
   PAT_X_FIELDS.forEach(([k, l]) => {
-    const input = el("input", { type: "text", oninput: scheduleManualPreview });
+    // DSA Fertility: the comments box is the report's single Comments section,
+    // auto-filled from the risk levels (see buildDsaFertilityResultFields)
+    const isFertComments = isFert && k === "comments";
+    const input = isFertComments
+      ? el("textarea", { rows: "4", oninput: scheduleManualPreview })
+      : el("input", { type: "text", oninput: scheduleManualPreview });
     xf.patient[k] = input;
-    patGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), input]));
+    patGrid.appendChild(el("div", { class: "field" + (isFertComments ? " full" : "") }, [
+      el("label", {}, isFertComments ? "Comments (auto-filled from risk levels - editable)" : l), input]));
   });
   patCard.appendChild(patGrid);
   if (!isFert) patCard.appendChild(buildPhotoUploadField("Patient Photo", b64 => { xf.patientPhoto = b64; }));
@@ -1238,7 +1290,8 @@ function buildCrossmatchSection(col, rtype) {
     });
     manualSpecialFields.dsa_results = r;
   } else if (rtype === "dsa_fertility") {
-    manualSpecialFields.dsa_results = buildDsaFertilityResultFields(resGrid, {}, scheduleManualPreview);
+    manualSpecialFields.dsa_results = buildDsaFertilityResultFields(resGrid, {}, scheduleManualPreview, false,
+      { ta: xf.patient.comments });
   } else if (rtype === "flow_crossmatch") {
     const r = {};
     [["t_mcs", "T-Cells MCS"], ["t_interpretation", "T-Cells Interpretation"],
@@ -2693,7 +2746,8 @@ function renderBulkCrossmatchEditor(editCol, c, i) {
   xCommentsTA.addEventListener("input", () => { p.comments = xCommentsTA.value; refresh(); });
   xRemCard.appendChild(el("div", { class: "field-grid" }, [
     el("div", { class: "field full" }, [el("label", {}, "Remarks"), xRemarksTA]),
-    el("div", { class: "field full" }, [el("label", {}, "Additional Comments"), xCommentsTA]),
+    el("div", { class: "field full" }, [el("label", {},
+      isFert ? "Comments (auto-filled from risk levels - editable)" : "Additional Comments"), xCommentsTA]),
   ]));
   editCol.appendChild(xRemCard);
 
@@ -2743,7 +2797,8 @@ function renderBulkCrossmatchEditor(editCol, c, i) {
     });
   } else if (isFert) {
     const r = c.dsa_results || (c.dsa_results = {});
-    buildDsaFertilityResultFields(resGrid, r, () => { refresh(); }, true);
+    buildDsaFertilityResultFields(resGrid, r, () => { refresh(); }, true,
+      { ta: xCommentsTA, set: v => { p.comments = v; } });
   } else if (c.report_type === "dsa_crossmatch") {
     const r = c.dsa_results || {};
     [["class1_result", "Class I Result"], ["class1_mfi", "Class I MFI"], ["class1_cutoff", "Class I Cutoff"],

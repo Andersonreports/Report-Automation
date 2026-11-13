@@ -4364,14 +4364,17 @@ def _build_dsa_fertility_report(case: dict, S: dict) -> list:
     elems.append(KeepTogether([Paragraph("HLA-DSA-IgG Screen", s_sub), scr_t, method]))
     elems.append(Spacer(1, 3 * mm))
 
-    # Comments (risk-level interpretation lines + user comments)
+    # Comments: the form has ONE Comments box (patient card), auto-filled from the
+    # risk levels and editable.  Its text is printed as is; when it is empty the
+    # risk-level lines are generated here.
     comment_lines = []
-    for lvl in ("IV", "III", "II", "I"):
-        if any(c["risk"] == lvl for c in classes) and lvl in DSA_FERT_RISK_TEXT:
-            comment_lines.append(DSA_FERT_RISK_TEXT[lvl])
-    user_comment = _txt(patient.get("comments"))
-    if user_comment and user_comment.lower() not in ("na", "-", "--"):
-        comment_lines.append(_esc(user_comment))
+    box_text = _txt(dsa.get("comments")) or _txt(patient.get("comments"))
+    if box_text and box_text.lower() not in ("na", "-", "--"):
+        comment_lines = [_esc(l.strip()) for l in box_text.splitlines() if l.strip()]
+    else:
+        for lvl in ("IV", "III", "II", "I"):
+            if any(c["risk"] == lvl for c in classes) and lvl in DSA_FERT_RISK_TEXT:
+                comment_lines.append(DSA_FERT_RISK_TEXT[lvl])
     rmk = _txt(patient.get("remarks"))
     if rmk:
         comment_lines.append(f"<b>Remarks :</b> {_esc(rmk)}")
