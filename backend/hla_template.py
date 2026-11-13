@@ -1026,7 +1026,7 @@ class _HFCanvas:
         if with_logo:
             _rtype = self.case.get("report_type", "")
             _nabl_in_header = nabl and _rtype in (
-                "cdc_crossmatch", "dsa_crossmatch", "flow_crossmatch",
+                "cdc_crossmatch", "dsa_crossmatch", "dsa_fertility", "flow_crossmatch",
                 "sab_class1", "sab_class2")
             _hdr_raw = hla_assets.get_image_bytes(
                 hla_assets.HEADER_NABL_CDC_B64 if _nabl_in_header else hla_assets.HEADER_NONNABL_B64)
@@ -4043,6 +4043,411 @@ def _build_dsa_report(case: dict, S: dict) -> list:
 
 
 
+# ── DSA Fertility (Paternal Antibody – HLA Cross Matching, DSA Luminex) ────────
+
+DSA_FERT_VALIDITY_COMMENT = (
+    "The Screening result of donor specific HLA antibodies-IgG is valid up to 72 hours only. "
+    "In case the transplant is postponed beyond this period, it is recommended to get the test "
+    "repeated with fresh samples prior to the transplant."
+)
+DSA_FERT_GUIDELINE_REF = (
+    "Guidelines for the detection and characterisation of clinically relevant antibodies in "
+    "allotransplantation. British Society for Histocompatibility &amp; Immunogenetics, British "
+    "Transplantation Society, 2016 Dec:12-15."
+)
+DSA_FERT_RISK_TEXT = {
+    "IV": ("*INTERPRETATION- Risk Level-*IV – MFI &gt;5000 – Indicates Transplant veto apart "
+           "from exceptional cases. Further testing such as CDC tests, or complement fixation in "
+           "Luminex assays (C1q, C3d or C4d) should be considered in these cases to further refine "
+           "risk profiles."),
+    "I":  "*INTERPRETATION- Risk Level-*I – MFI &lt; 1000 – Indicates No detectable HLA antibody.",
+}
+DSA_FERT_NEXT_STEP = (
+    "Review with the patient's HLA report and LIT history; the laboratory notes that CDC or "
+    "complement-fixing Luminex assays (C1q, C3d, C4d) can further refine the risk profile."
+)
+DSA_FERT_EVIDENCE = (
+    "HLA antibodies in women with recurrent miscarriage have been associated with a reduced chance "
+    "of live birth. DSA results are valid for 72 hours; transfusion, pregnancy or vaccination can "
+    "change levels."
+)
+DSA_FERT_RELEASE_CHECK = (
+    "MFI is released after review of the LIT history: whether LIT was recommended in the HLA report "
+    "and whether it was done. Risk scoring: MFI &lt;1000 negative; 1000–2000 positive; "
+    "&gt;2000 strong positive."
+)
+DSA_FERT_REFERENCES = [
+    "Nielsen HS, et al. HLA antibodies in recurrent miscarriage patients are associated with a "
+    "reduced chance of live birth. J Reprod Immunol 2010;87:67-73.",
+]
+DSA_FERT_DISCLAIMER = [
+    "This report is issued on the recommendation of the referring clinician and must be interpreted "
+    "with the patient’s clinical history and other laboratory findings.",
+    "Results relate only to the specimen received and depend on its quality and collection; a single "
+    "result is not always indicative of disease.",
+    "Clinical insights are decision support for the treating clinician and do not constitute a "
+    "prescription or treatment plan.",
+    "Laboratory-developed tests (LDT) are not intended for specific diagnostic claims. "
+    "Inter-laboratory variation may occur.",
+    "Test results are not valid for medico-legal purposes.",
+    "Kindly discuss with the signatories if results do not correlate clinically.",
+]
+
+_ROMAN_RISK = {"1": "I", "2": "II", "3": "III", "4": "IV",
+               "i": "I", "ii": "II", "iii": "III", "iv": "IV"}
+
+
+def _norm_risk_level(val) -> str:
+    """'4', 'IV', '*IV', 'Level 4', 'Risk Level-*IV' -> 'IV'.  Unknown text is kept as typed."""
+    s = str(val or "").strip()
+    if not s or s.lower() in ("nan", "none", "na", "-", "--"):
+        return ""
+    m = re.search(r"\b(iv|iii|ii|i|[1-4])\b", re.sub(r"[*\-]", " ", s), re.IGNORECASE)
+    return _ROMAN_RISK.get(m.group(1).lower(), s) if m else s
+
+
+def _dsa_fert_is_positive(result: str) -> bool:
+    r = (result or "").strip().lower()
+    return bool(r) and "neg" not in r and "not" not in r
+
+
+def _build_dsa_fertility_report(case: dict, S: dict) -> list:
+    """Paternal Antibody – HLA Cross Matching (DSA Luminex) for fertility / RPL cases.
+
+    Body layout follows the reference paternal-antibody report; header, footer and
+    signatures are the standard Anderson ones (drawn by _HFCanvas / _signature_block).
+    """
+    from xml.sax.saxutils import escape as _esc
+
+    patient = case.get("patient", {})
+    donors  = case.get("donors", [])
+    donor   = donors[0] if donors else {}
+    dsa     = case.get("dsa_results", {}) or {}
+
+    F_BOLD = _f("SegoeUI-Bold", "Helvetica-Bold")
+    F_REG  = _f("SegoeUI",      "Helvetica")
+    NAVY   = C_NGS_TITLE
+    GREY   = colors.HexColor("#6B6B6B")
+    RULE   = colors.HexColor("#BFBFBF")
+    cw     = CONTENT_W - 12   # frame padding 6pt each side: keeps tables flush with text
+
+    def _txt(v):
+        s = str(v).strip() if v is not None else ""
+        return "" if s.lower() in ("", "nan", "none") else s
+
+    def _show(v, name=False):
+        s = _txt(v)
+        if not s:
+            return "NA"
+        return _esc(_title_case(s, is_name=True) if name else s)
+
+    def st(name, font=F_REG, size=9.5, color=BLACK, align=TA_LEFT, leading=None, **kw):
+        return ParagraphStyle(name, fontName=font, fontSize=size, textColor=color,
+                              alignment=align, leading=leading or size * 1.45, **kw)
+
+    # House style of the HLA reports: Segoe UI Bold for labels / headings,
+    # Calibri for tables and running text.
+    F_CALI   = _f("Calibri",      "Helvetica")
+    F_CALI_B = _f("Calibri-Bold", "Helvetica-Bold")
+    TXT      = colors.HexColor("#333333")
+
+    s_lbl     = st("_df_lbl", F_BOLD, 10, BLACK, leading=12)
+    s_val     = st("_df_val", F_BOLD, 10, BLACK, leading=12)
+    s_body    = st("_df_body", F_CALI, 11, BLACK, TA_JUSTIFY, leading=14.5)
+    s_small   = st("_df_small", F_CALI, 11, BLACK, leading=14)
+    s_sec     = st("_df_sec", F_BOLD, 12, NAVY, leading=15)
+    s_sub     = st("_df_sub", F_BOLD, 11, NAVY, leading=14, spaceBefore=0, spaceAfter=4)
+    s_caps    = st("_df_caps", F_BOLD, 10, BLACK, leading=12, spaceBefore=0, spaceAfter=3)
+    s_th      = st("_df_th", F_CALI_B, 11, BLACK, leading=13)
+    s_th_c    = st("_df_thc", F_CALI_B, 11, BLACK, TA_CENTER, leading=13)
+    s_td      = st("_df_td", F_CALI, 11, BLACK, leading=13)
+    s_td_c    = st("_df_tdc", F_CALI, 11, BLACK, TA_CENTER, leading=13)
+    s_td_b    = st("_df_tdb", F_CALI_B, 11, BLACK, TA_CENTER, leading=13)
+    s_tag     = st("_df_tag", F_CALI_B, 9, GREY, leading=11, spaceBefore=3)
+    s_imp_lbl = st("_df_implbl", F_BOLD, 10, NAVY, leading=12)
+    s_imp     = st("_df_imp", F_CALI_B, 11.5, NAVY, leading=14)
+
+    def spaced(t):
+        return t
+
+    def caps(t):
+        return Paragraph(t, s_caps)
+
+    def _ga(v):
+        return _normalize_age(re.sub(r"\(s\)", "", _txt(v), flags=re.IGNORECASE))
+
+    elems = []
+
+    # ── 1. Demographics: reference-report grid (3 rows x 4 cells) ────────────
+    # Small letter-spaced caps label above each value, thin rules between cells.
+    p_age = _esc(_ga(patient.get("gender_age")) or "NA")
+    d_age_g = _esc(_ga(donor.get("gender_age")) or "NA")
+    s_glbl  = st("_df_glbl", F_BOLD, 7.5, colors.HexColor("#6B6B6B"), leading=9)
+    s_gval  = st("_df_gval", F_BOLD, 10, BLACK, leading=12)
+    s_gname = st("_df_gname", F_BOLD, 11, BLACK, leading=13)
+
+    def lbl_caps(t):
+        return t.upper()
+
+    def cell(label, value, style=None):
+        return [Paragraph(lbl_caps(label), s_glbl), Spacer(1, 1.2 * mm),
+                Paragraph(value, style or s_gval)]
+
+    grid = [
+        [cell("Patient name", _show(patient.get("name"), True), s_gname),
+         cell("Age / Gender", p_age),
+         cell("Sample collected on", _show(patient.get("collection_date"))),
+         cell("Reported on", _show(patient.get("report_date")))],
+        [cell("Doctor name", _show(patient.get("referred_by"), True)),
+         cell("Hospital name", _show(patient.get("hospital_clinic"), True)),
+         cell("Sample type", _show(patient.get("sample_type"))),
+         cell("Sample ID", _show(patient.get("sample_number")))],
+        [cell("Husband name", _show(donor.get("name"), True)),
+         cell("Husband age / gender", d_age_g),
+         cell("Diagnosis", _show(patient.get("diagnosis"))),
+         cell("PIN", _show(patient.get("pin")))],
+    ]
+    grid_t = Table(grid, colWidths=[cw * 0.27, cw * 0.26, cw * 0.24, cw * 0.23])
+    grid_t.setStyle(TableStyle([
+        ("BOX",           (0, 0), (-1, -1), 0.9, BLACK),
+        ("INNERGRID",     (0, 0), (-1, -1), 0.5, BLACK),
+        ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+        ("TOPPADDING",    (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 6),
+    ]))
+    elems += [grid_t, Spacer(1, 4 * mm)]
+
+    # ── 2. Results ────────────────────────────────────────────────────────────
+    elems.append(Paragraph("Results: Detection of HLA Class I &amp; II Donor Specific Antibodies – IgG", s_sec))
+    elems.append(HRFlowable(width=cw, thickness=0.8, color=NAVY, spaceBefore=1, spaceAfter=4))
+
+    # Donor details
+    d_ga   = _txt(donor.get("gender_age"))
+    m_age  = re.search(r"(\d+)\s*(?:y|yrs?|years?|\b)", d_ga, re.IGNORECASE)
+    d_age  = f"{m_age.group(1)} Years" if m_age else "NA"
+    m_gen  = re.search(r"\b(male|female|m|f)\b", d_ga, re.IGNORECASE)
+    d_gen  = {"m": "Male", "f": "Female"}.get(m_gen.group(1).lower(), m_gen.group(1).title()) if m_gen else "NA"
+    d_rel  = _txt(_auto_relation_from_gender(donor.get("relationship", ""), d_ga)) or "Husband"
+    donor_rows = [
+        ["Donor's Name", _show(donor.get("name"), True)],
+        ["Age", d_age],
+        ["Gender", d_gen],
+        ["Donor Specimen", _show(donor.get("sample_type"))],
+        ["Relationship (As per self-declaration)", _esc(_title_case(d_rel))],
+    ]
+    donor_t = Table([[Paragraph(k, s_td), Paragraph(v, s_td)] for k, v in donor_rows],
+                    colWidths=[cw * 0.40, cw * 0.60])
+    donor_t.setStyle(TableStyle([
+        ("LINEABOVE",     (0, 0), (-1, 0), 0.9, BLACK),
+        ("LINEBELOW",     (0, 0), (-1, -1), 0.4, RULE),
+        ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING",    (0, 0), (-1, -1), 1),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 0),
+    ]))
+    elems += [caps("Donor details"), donor_t, Spacer(1, 3 * mm)]
+
+    # HLA-DSA-IgG Screen
+    classes = []
+    for cls, key in (("I", "class1"), ("II", "class2")):
+        res  = _norm_dsa_result(dsa.get(f"{key}_result", "Negative"))
+        mfi  = _txt(dsa.get(f"{key}_mfi"))
+        risk = _norm_risk_level(dsa.get(f"{key}_risk"))
+        classes.append({"cls": cls, "result": res, "mfi": mfi, "risk": risk,
+                        "pos": _dsa_fert_is_positive(res)})
+
+    scr = [[Paragraph("Test", s_th)] + [Paragraph(h, s_th_c) for h in ("Result", "MFI Value", "Risk Level")]]
+    for c in classes:
+        hexc = "%02x%02x%02x" % tuple(int(round(x * 255)) for x in
+                                     (_cdc_result_color(c["result"]).red,
+                                      _cdc_result_color(c["result"]).green,
+                                      _cdc_result_color(c["result"]).blue))
+        scr.append([
+            Paragraph(f"Anti HLA-Class {c['cls']} IgG", s_td),
+            Paragraph(f"<font color='#{hexc}'><b>{_esc(c['result'].upper())}</b></font>", s_td_c),
+            Paragraph(_esc(c["mfi"]) or "NA", s_td_b),
+            Paragraph(f"*{c['risk']}" if c["risk"] else "NA", s_td_c),
+        ])
+    scr_t = Table(scr, colWidths=[cw * 0.34, cw * 0.22, cw * 0.22, cw * 0.22])
+    scr_t.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, 0), C_INFO_BG),
+        ("LEFTPADDING",   (0, 0), (0, -1), 4),
+        ("LINEBELOW",     (0, 0), (-1, 0), 0.9, BLACK),
+        ("LINEBELOW",     (0, 1), (-1, -1), 0.4, RULE),
+        ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING",    (0, 0), (-1, -1), 3.5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3.5),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 0),
+    ]))
+    method = Paragraph("<b>Method:</b> HLA Cross Matching (DSA Luminex) \u2013 Luminex bead based assay",
+                       st("_df_meth", F_CALI, 10, TXT, leading=12, spaceBefore=3))
+    elems.append(KeepTogether([Paragraph("HLA-DSA-IgG Screen", s_sub), scr_t, method]))
+    elems.append(Spacer(1, 3 * mm))
+
+    # Comments (risk-level interpretation lines + user comments)
+    comment_lines = []
+    for lvl in ("IV", "III", "II", "I"):
+        if any(c["risk"] == lvl for c in classes) and lvl in DSA_FERT_RISK_TEXT:
+            comment_lines.append(DSA_FERT_RISK_TEXT[lvl])
+    user_comment = _txt(patient.get("comments"))
+    if user_comment and user_comment.lower() not in ("na", "-", "--"):
+        comment_lines.append(_esc(user_comment))
+    rmk = _txt(patient.get("remarks"))
+    if rmk:
+        comment_lines.append(f"<b>Remarks :</b> {_esc(rmk)}")
+    if comment_lines:
+        elems.append(Paragraph("Comments", s_sub))
+        for line in comment_lines:
+            elems.append(Paragraph(line, st("_df_cm", F_CALI, 11, BLACK, TA_JUSTIFY, leading=13, spaceAfter=2)))
+
+    # Impression
+    rel_word = d_rel.lower() if d_rel else "husband"
+
+    def _auto_impression():
+        parts = []
+        for c in classes:
+            mfi, rk = c["mfi"] or "NA", c["risk"] or "NA"
+            if c["pos"]:
+                parts.append(f"Anti-paternal HLA Class {c['cls']} IgG detected — MFI {mfi}, Risk level {rk}.")
+            else:
+                parts.append(f"HLA Class {c['cls']} IgG not detected (MFI {mfi}, Risk level {rk}).")
+        return " ".join(parts)
+
+    impression = _txt(dsa.get("impression")) or _auto_impression()
+    imp_t = Table([[[Paragraph("Impression", s_imp_lbl), Spacer(1, 1.5 * mm),
+                     Paragraph(_esc(impression), s_imp)]]], colWidths=[cw])
+    imp_t.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, -1), colors.HexColor("#FBEAF0")),
+        ("LINEBEFORE",    (0, 0), (0, -1), 3, colors.HexColor("#E79AB5")),
+        ("TOPPADDING",    (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 12),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 10),
+    ]))
+    elems += [Spacer(1, 2.5 * mm), imp_t]
+
+    elems.append(PageBreak())
+
+    # ── 3. Page 2: label column + content column sections ────────────────────
+    LBL_W = cw * 0.24
+    s_side = st("_df_side", F_BOLD, 12, NAVY, leading=15)
+
+    def section(label, flowables):
+        t = Table([[Paragraph(label, s_side), flowables]], colWidths=[LBL_W, cw - LBL_W])
+        t.setStyle(TableStyle([
+            ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+            ("LINEABOVE",     (0, 0), (-1, 0), 0.5, RULE),
+            ("TOPPADDING",    (0, 0), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 0),
+            ("RIGHTPADDING",  (1, 0), (1, -1), 0),
+        ]))
+        return t
+
+    s_sub2 = st("_df_sub2", F_BOLD, 11, NAVY, leading=14, spaceBefore=4, spaceAfter=2)
+    status = _txt(dsa.get("report_status")) or "Final"
+    lab = [
+        Paragraph(f"<font name='{F_BOLD}' size='10'>Sample received on :</font>&nbsp;&nbsp;"
+                  f"{_show(patient.get('receipt_date'))}", s_small),
+        Paragraph("Comments", s_sub2), Paragraph(DSA_FERT_VALIDITY_COMMENT, s_body),
+        Paragraph("Reference", s_sub2), Paragraph(DSA_FERT_GUIDELINE_REF, s_body),
+        Paragraph("Report status", s_sub2),
+        Paragraph(f"Report Status: {_esc(status)}", s_body),
+        Paragraph("KINDLY CORRELATE RESULTS WITH CLINICAL FINDINGS.", s_body),
+    ]
+    elems.append(section("Laboratory details", lab))
+
+    # Interpretation
+    def _auto_interp():
+        c1, c2 = classes
+        def detail(c):
+            return f"MFI {c['mfi'] or 'NA'}; Risk level {c['risk'] or 'NA'}"
+        s1 = (f"Luminex bead-based screening of the patient's serum against the {rel_word}'s lymphocytes "
+              + (f"detects donor (partner)-specific HLA Class I IgG antibody ({detail(c1)})."
+                 if c1["pos"] else
+                 f"does not detect donor (partner)-specific HLA Class I IgG antibody ({detail(c1)})."))
+        s2 = (f" Donor-specific HLA Class II IgG antibody is "
+              + ("detected" if c2["pos"] else "not detected") + f" ({detail(c2)}).")
+        return s1 + s2
+
+    interp = _txt(dsa.get("interpretation")) or _auto_interp()
+    elems.append(section("Interpretation", [Paragraph(_esc(interp), s_body)]))
+
+    # Clinical insights (2 x 2)
+    pos = [c for c in classes if c["pos"]]
+    neg = [c for c in classes if not c["pos"]]
+    if pos:
+        high = any(c["risk"] == "IV" for c in pos)
+        means = (f"Anti-paternal (partner-specific) HLA Class {' & '.join(c['cls'] for c in pos)} IgG "
+                 f"antibody is present against the {rel_word}'s lymphocytes"
+                 + (" at a high level" if high else "")
+                 + " (" + "; ".join(f"MFI {c['mfi'] or 'NA'}, Risk level {c['risk'] or 'NA'}" for c in pos) + ").")
+        if neg:
+            means += " " + " ".join(f"Class {c['cls']} antibody is below the detection threshold "
+                                    f"(MFI {c['mfi'] or 'NA'})." for c in neg)
+    else:
+        means = (f"No anti-paternal (partner-specific) HLA Class I or Class II IgG antibody is detected "
+                 f"against the {rel_word}'s lymphocytes (Class I MFI {classes[0]['mfi'] or 'NA'}; "
+                 f"Class II MFI {classes[1]['mfi'] or 'NA'}).")
+    means = _txt(dsa.get("result_means")) or means
+
+    s_ins_h = st("_df_insh", F_BOLD, 11, NAVY, leading=14, spaceAfter=3)
+    s_ins   = st("_df_ins", F_CALI, 10.5, BLACK, leading=13.5)
+
+    def insight(head, body, tag=""):
+        out = [Paragraph(head, s_ins_h), Paragraph(body, s_ins)]
+        if tag:
+            out.append(Paragraph(spaced(tag), s_tag))
+        return out
+
+    half = (cw - LBL_W) / 2
+    ins_t = Table([
+        [insight("What this result means", _esc(means)),
+         insight("Suggested next step", DSA_FERT_NEXT_STEP)],
+        [insight("Evidence", DSA_FERT_EVIDENCE, "Nielsen et al. 2010"),
+         insight("Paternal antibody release check", DSA_FERT_RELEASE_CHECK)],
+    ], colWidths=[half, half])
+    ins_t.setStyle(TableStyle([
+        ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+        ("LINEABOVE",     (0, 0), (-1, -1), 0.4, RULE),
+        ("TOPPADDING",    (0, 0), (-1, -1), 5),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING",  (0, 0), (0, -1), 10),
+        ("RIGHTPADDING",  (1, 0), (1, -1), 0),
+    ]))
+    elems.append(section("Clinical insights", [ins_t]))
+
+    # References
+    refs = [Paragraph(f"{i}. {r}", st("_df_ref", F_CALI, 10.5, TXT, leading=13.5))
+            for i, r in enumerate(DSA_FERT_REFERENCES, 1)]
+    elems.append(PageBreak())   # page 3: references, sign-off, disclaimer
+    elems.append(section("References", refs))
+
+    # Disclaimer
+    s_disc = st("_df_disc", F_CALI, 10, TXT, leading=13, spaceAfter=3)
+    half_n = (len(DSA_FERT_DISCLAIMER) + 1) // 2
+    disc_t = Table([[[Paragraph(t, s_disc) for t in DSA_FERT_DISCLAIMER[:half_n]],
+                     [Paragraph(t, s_disc) for t in DSA_FERT_DISCLAIMER[half_n:]]]],
+                   colWidths=[half, half])
+    disc_t.setStyle(TableStyle([
+        ("VALIGN",        (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING",  (0, 0), (0, -1), 10),
+        ("RIGHTPADDING",  (1, 0), (1, -1), 0),
+    ]))
+    elems.append(Spacer(1, 2 * mm))
+    elems.extend(_signature_block(case.get("signatories", []), S))
+    elems.append(Spacer(1, 3 * mm))
+    elems.append(section("Disclaimer", [disc_t]))
+    elems.append(Spacer(1, 4 * mm))
+    elems.append(Paragraph("*** End of Report ***", st("_df_end", F_BOLD, 10, BLACK, TA_CENTER, leading=12)))
+    return elems
+
+
+
 _LUMINEX_AUTO_INTERP_RE = re.compile(
     r"^The Patient \((?P<p>.*?)\) had showed about (?P<m>.*?) match "
     r"with the Donor \((?P<d>.*?)\)\.\s*$",
@@ -5504,6 +5909,7 @@ def generate_pdf(case: dict, output_path: str) -> str:
         "single_rpl":       "HLA Typing \u2013 NGS High Resolution Typing",
         "cdc_crossmatch":   "Complement Dependent Cytotoxicity (CDC) Cross match",
         "dsa_crossmatch":   "Donor Specific Antibody Crossmatch",
+        "dsa_fertility":    "Paternal Antibody \u2013 HLA Cross Matching (DSA Luminex)",
         "sab_class1":       "",
         "sab_class2":       "",
         "flow_crossmatch":  "Flow Cytometry Cross match",
@@ -5582,6 +5988,8 @@ def generate_pdf(case: dict, output_path: str) -> str:
         body = _build_cdc_report(case, S)
     elif report_type == "dsa_crossmatch":
         body = _build_dsa_report(case, S)
+    elif report_type == "dsa_fertility":
+        body = _build_dsa_fertility_report(case, S)
     elif report_type in ("sab_class1", "sab_class2"):
         body = _build_sab_report(case, S)
     elif report_type == "flow_crossmatch":
@@ -5654,7 +6062,7 @@ def make_filename(case: dict) -> str:
              "loci11_photo": "HLA_NGS_PHOTO", "loci11_photo_v2": "HLA_NGS_PHOTO",
              "single_hla_photo": "HLA_NGS_PHOTO",
              "rpl_couple": "RPL", "single_rpl": "RPL_SINGLE", "cdc_crossmatch": "CDC",
-             "dsa_crossmatch": "DSA", "sab_class1": "SAB_C1", "sab_class2": "SAB_C2",
+             "dsa_crossmatch": "DSA", "dsa_fertility": "DSA_FERTILITY", "sab_class1": "SAB_C1", "sab_class2": "SAB_C2",
              "flow_crossmatch": "FLOW", "luminex_typing": "HLA_LUMINEX",
              "single_luminex": "HLA_LUMINEX_SINGLE",
              "kir_genotyping": "KIR", "pra_class1": "PRA_C1",

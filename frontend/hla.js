@@ -17,6 +17,7 @@ const REPORT_TEMPLATES = [
   { name: "HLA Typing High Resolution (11 Loci with Photo - New Template)", report_type: "loci11_photo_v2" },
   { name: "CDC", report_type: "cdc_crossmatch" },
   { name: "DSA", report_type: "dsa_crossmatch" },
+  { name: "DSA Fertility", report_type: "dsa_fertility" },
   { name: "SAB Class I", report_type: "sab_class1" },
   { name: "SAB Class II", report_type: "sab_class2" },
   { name: "Flow", report_type: "flow_crossmatch" },
@@ -48,6 +49,7 @@ const RTYPE_COLORS = {
   loci11_photo_v2:    "#b9770e",
   cdc_crossmatch:     "#2980b9",
   dsa_crossmatch:     "#2471a3",
+  dsa_fertility:      "#c2185b",
   sab_class1:         "#27ae60",
   sab_class2:         "#1e8449",
   flow_crossmatch:    "#117a65",
@@ -74,7 +76,7 @@ function isSeparateDrb(rtype) { return rtype !== "loci11" && rtype !== "loci11_p
 
 const DEFAULT_SIG_COUNTS = {
   single_hla: 3, single_hla_photo: 2, rpl_couple: 2, single_rpl: 2, single_locus: 2, hla_c: 2,
-  transplant_donor: 2, ngs_photo: 2, loci11: 3, loci11_photo: 3, loci11_photo_v2: 2, cdc_crossmatch: 2, dsa_crossmatch: 2,
+  transplant_donor: 2, ngs_photo: 2, loci11: 3, loci11_photo: 3, loci11_photo_v2: 2, cdc_crossmatch: 2, dsa_crossmatch: 2, dsa_fertility: 2,
   sab_class1: 2, sab_class2: 2,
   flow_crossmatch: 2, luminex_typing: 2, single_luminex: 2, kir_genotyping: 2, pra_class1: 2,
   pra_class2: 2, mixed_pra: 2,
@@ -398,6 +400,8 @@ function restorePatientAfterRender() {
       if (r.t_cell) r.t_cell.value = src.t_cell || "Negative";
       if (r.b_cell) r.b_cell.value = src.b_cell || "Negative";
       set(r.t_with_dtt, src.t_with_dtt); set(r.b_with_dtt, src.b_with_dtt);
+    } else if (state.rtype === "dsa_fertility" && manualSpecialFields.dsa_results && stash.dsa_results) {
+      fillDsaFertilityResultFields(manualSpecialFields.dsa_results, stash.dsa_results);
     } else if (state.rtype === "dsa_crossmatch" && manualSpecialFields.dsa_results && stash.dsa_results) {
       const r = manualSpecialFields.dsa_results, src = stash.dsa_results;
       set(r.class1_result, src.class1_result); set(r.class1_mfi, src.class1_mfi); set(r.class1_cutoff, src.class1_cutoff);
@@ -767,12 +771,12 @@ function clearManualRefs() {
 }
 
 const SPECIALIZED_RTYPES = [
-  "cdc_crossmatch", "dsa_crossmatch", "flow_crossmatch", "luminex_typing",
+  "cdc_crossmatch", "dsa_crossmatch", "dsa_fertility", "flow_crossmatch", "luminex_typing",
   "kir_genotyping", "pra_class1", "pra_class2", "mixed_pra",
   "sab_class1", "sab_class2",
 ];
 
-const CROSSMATCH_RTYPES = ["cdc_crossmatch", "dsa_crossmatch", "flow_crossmatch"];
+const CROSSMATCH_RTYPES = ["cdc_crossmatch", "dsa_crossmatch", "dsa_fertility", "flow_crossmatch"];
 
 
 
@@ -990,7 +994,7 @@ function renderManualForm() {
     col.appendChild(card);
   }
 
-  if (rtype === "cdc_crossmatch" || rtype === "dsa_crossmatch" || rtype === "flow_crossmatch") {
+  if (CROSSMATCH_RTYPES.includes(rtype)) {
     buildCrossmatchSection(col, rtype);
   }
 
@@ -1092,6 +1096,63 @@ function _attachRelatedAs(input) {
   });
 }
 
+// ── DSA Fertility (Paternal Antibody) result fields ──────────────────────────
+// Manual entry: Result / MFI / Risk Level for Class I and II, plus optional
+// Impression / Interpretation overrides (left blank -> generated in the PDF).
+function buildDsaFertilityResultFields(resGrid, data, onChange, liveBind = false) {
+  const r = {};
+  const sel = (opts, value) => {
+    const s = el("select", {}, opts.map(([v, t]) => el("option", { value: v }, t)));
+    if (value != null && value !== "") s.value = value;
+    return s;
+  };
+  const RESULT_OPTS = [["Negative", "Negative"], ["Positive", "Positive"]];
+  const RISK_OPTS = [["", "-- Select --"], ["I", "I"], ["II", "II"], ["III", "III"], ["IV", "IV"]];
+  const add = (key, label, input, full = false) => {
+    r[key] = input;
+    if (liveBind) {
+      const ev = input.tagName === "SELECT" ? "change" : "input";
+      input.addEventListener(ev, () => { data[key] = input.value; onChange(); });
+    } else {
+      input.addEventListener(input.tagName === "SELECT" ? "change" : "input", onChange);
+    }
+    resGrid.appendChild(el("div", { class: "field" + (full ? " full" : "") }, [el("label", {}, label), input]));
+  };
+  ["1", "2"].forEach(n => {
+    const cls = n === "1" ? "Class I" : "Class II";
+    add(`class${n}_result`, `${cls} Result`, sel(RESULT_OPTS, data[`class${n}_result`] || "Negative"));
+    add(`class${n}_mfi`, `${cls} MFI Value`, el("input", { type: "text", value: data[`class${n}_mfi`] || "", placeholder: "e.g. 929" }));
+    add(`class${n}_risk`, `${cls} Risk Level`, sel(RISK_OPTS, data[`class${n}_risk`] || ""));
+  });
+  add("report_status", "Report Status", el("input", { type: "text", value: data.report_status || "Final" }));
+  const ta = (key, ph) => { const t = el("textarea", { placeholder: ph }); t.value = data[key] || ""; return t; };
+  add("impression", "Impression (optional - auto-generated if blank)",
+    ta("impression", "Anti-paternal HLA Class I IgG detected \u2014 MFI ..., Risk level ..."), true);
+  add("interpretation", "Interpretation (optional - auto-generated if blank)",
+    ta("interpretation", "Luminex bead-based screening of the patient's serum against the husband's lymphocytes ..."), true);
+  if (liveBind) {
+    // make sure defaults shown in the selects are saved on the case too
+    Object.entries(r).forEach(([k, inp]) => { if (data[k] == null) data[k] = inp.value; });
+  }
+  return r;
+}
+
+function readDsaFertilityResultFields(r) {
+  const out = {};
+  ["class1_result", "class1_mfi", "class1_risk", "class2_result", "class2_mfi", "class2_risk",
+   "report_status", "impression", "interpretation"].forEach(k => { out[k] = r[k] ? r[k].value.trim() : ""; });
+  out.class1_result = out.class1_result || "Negative";
+  out.class2_result = out.class2_result || "Negative";
+  out.report_status = out.report_status || "Final";
+  return out;
+}
+
+function fillDsaFertilityResultFields(r, src) {
+  Object.entries(r).forEach(([k, inp]) => {
+    if (inp && src[k] != null && String(src[k]).trim()) inp.value = src[k];
+  });
+}
+
 function buildCrossmatchSection(col, rtype) {
   const patCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-user" }), " Patient (Crossmatch)"])]);
   const patGrid = el("div", { class: "field-grid" });
@@ -1099,6 +1160,11 @@ function buildCrossmatchSection(col, rtype) {
   ["sample_number", "Sample Number"], ["diagnosis", "Diagnosis"], ["hospital_clinic", "Hospital/Clinic"],
   ["sample_type", "Sample Type"], ["collection_date", "Collection Date"], ["receipt_date", "Receipt Date"],
   ["report_date", "Report Date"], ["remarks", "Remarks (optional)"], ["comments", "Additional Comments (optional)"]];
+  const isFert = rtype === "dsa_fertility";
+  if (isFert) {
+    PAT_X_FIELDS.splice(1, 0, ["referred_by", "Doctor Name"]);
+    PAT_X_FIELDS.forEach(f => { if (f[0] === "sample_number") f[1] = "Sample ID"; });
+  }
   const xf = { patient: {}, donor: {}, patientPhoto: null, donorPhoto: null };
   PAT_X_FIELDS.forEach(([k, l]) => {
     const input = el("input", { type: "text", oninput: scheduleManualPreview });
@@ -1106,10 +1172,11 @@ function buildCrossmatchSection(col, rtype) {
     patGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), input]));
   });
   patCard.appendChild(patGrid);
-  patCard.appendChild(buildPhotoUploadField("Patient Photo", b64 => { xf.patientPhoto = b64; }));
+  if (!isFert) patCard.appendChild(buildPhotoUploadField("Patient Photo", b64 => { xf.patientPhoto = b64; }));
   col.appendChild(patCard);
 
-  const donCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-user-friends" }), " Donor (Crossmatch)"])]);
+  const donCard = el("div", { class: "card" }, [el("h3", {}, [el("i", { class: "fas fa-user-friends" }),
+    isFert ? " Husband / Donor" : " Donor (Crossmatch)"])]);
   const donGrid = el("div", { class: "field-grid" });
   const DON_X_FIELDS = [["name", "Donor Name"], ["gender_age", "Gender / Age"], ["pin", "PIN"],
     ["sample_number", "Sample Number"], ["relationship", "Relationship"], ["sample_type", "Sample Type"],
@@ -1120,12 +1187,19 @@ function buildCrossmatchSection(col, rtype) {
     const input = isRemarks
       ? el("textarea", { oninput: scheduleManualPreview })
       : el("input", { type: "text", oninput: scheduleManualPreview });
-    if (k === "relationship") _attachRelatedAs(input);
+    if (k === "relationship" && !isFert) _attachRelatedAs(input);
     xf.donor[k] = input;
     donGrid.appendChild(el("div", { class: "field" + (isRemarks ? " full" : "") }, [el("label", {}, l), input]));
   });
   donCard.appendChild(donGrid);
-  donCard.appendChild(buildPhotoUploadField("Donor Photo", b64 => { xf.donorPhoto = b64; }));
+  if (isFert) {
+    // Donor Specimen wording on the fertility report
+    const stLbl = donGrid.querySelectorAll("label")[DON_X_FIELDS.findIndex(f => f[0] === "sample_type")];
+    if (stLbl) stLbl.textContent = "Donor Specimen";
+    if (xf.donor.relationship && !xf.donor.relationship.value) xf.donor.relationship.value = "Husband";
+  } else {
+    donCard.appendChild(buildPhotoUploadField("Donor Photo", b64 => { xf.donorPhoto = b64; }));
+  }
   col.appendChild(donCard);
 
   manualSpecialFields.crossmatch = xf;
@@ -1160,6 +1234,8 @@ function buildCrossmatchSection(col, rtype) {
       resGrid.appendChild(el("div", { class: "field" }, [el("label", {}, l), input]));
     });
     manualSpecialFields.dsa_results = r;
+  } else if (rtype === "dsa_fertility") {
+    manualSpecialFields.dsa_results = buildDsaFertilityResultFields(resGrid, {}, scheduleManualPreview);
   } else if (rtype === "flow_crossmatch") {
     const r = {};
     [["t_mcs", "T-Cells MCS"], ["t_interpretation", "T-Cells Interpretation"],
@@ -1516,12 +1592,13 @@ function collectManualCase() {
 
   let patient, donors = [];
 
-  if (rtype === "cdc_crossmatch" || rtype === "dsa_crossmatch" || rtype === "flow_crossmatch") {
+  if (CROSSMATCH_RTYPES.includes(rtype)) {
     const xf = manualSpecialFields.crossmatch || { patient: {}, donor: {} };
     patient = emptyPerson({
       name: val(xf.patient.name), gender_age: val(xf.patient.gender_age), pin: val(xf.patient.pin),
       sample_number: val(xf.patient.sample_number), diagnosis: val(xf.patient.diagnosis) || "NA",
       hospital_clinic: val(xf.patient.hospital_clinic), sample_type: val(xf.patient.sample_type) || "Serum",
+      referred_by: val(xf.patient.referred_by),
       collection_date: val(xf.patient.collection_date), receipt_date: val(xf.patient.receipt_date),
       report_date: val(xf.patient.report_date), photo_bytes: xf.patientPhoto || null,
       remarks: val(xf.patient.remarks), comments: val(xf.patient.comments),
@@ -1529,7 +1606,7 @@ function collectManualCase() {
     const donor = emptyPerson({
       name: val(xf.donor.name), gender_age: val(xf.donor.gender_age), pin: val(xf.donor.pin) || "NA",
       sample_number: val(xf.donor.sample_number) || "NA", relationship: val(xf.donor.relationship),
-      sample_type: val(xf.donor.sample_type) || "Sodium Heparin Whole Blood",
+      sample_type: val(xf.donor.sample_type) || (rtype === "dsa_fertility" ? "Peripheral Blood (ACD) - Lymphocytes" : "Sodium Heparin Whole Blood"),
       collection_date: val(xf.donor.collection_date), receipt_date: val(xf.donor.receipt_date),
       report_date: val(xf.donor.report_date), photo_bytes: xf.donorPhoto || null,
       remarks: val(xf.donor.remarks),
@@ -1551,6 +1628,8 @@ function collectManualCase() {
         class1_cutoff: val(r.class1_cutoff) || ">1000", class2_result: val(r.class2_result) || "Negative",
         class2_mfi: val(r.class2_mfi), class2_cutoff: val(r.class2_cutoff) || ">1000",
       };
+    } else if (rtype === "dsa_fertility") {
+      c.dsa_results = readDsaFertilityResultFields(manualSpecialFields.dsa_results || {});
     } else if (rtype === "flow_crossmatch") {
       const r = manualSpecialFields.flow_results || {};
       c.flow_results = {
@@ -1942,12 +2021,13 @@ function populateManualForm(c) {
   const p = c.patient || {};
   function set(input, value) { if (input && value != null && String(value).trim()) input.value = value; }
 
-  if (rtype === "cdc_crossmatch" || rtype === "dsa_crossmatch" || rtype === "flow_crossmatch") {
+  if (CROSSMATCH_RTYPES.includes(rtype)) {
     const xf = manualSpecialFields.crossmatch;
     if (xf) {
       set(xf.patient.name, p.name); set(xf.patient.gender_age, p.gender_age); set(xf.patient.pin, p.pin);
       set(xf.patient.sample_number, p.sample_number); set(xf.patient.diagnosis, p.diagnosis);
       set(xf.patient.hospital_clinic, p.hospital_clinic); set(xf.patient.sample_type, p.sample_type);
+      set(xf.patient.referred_by, p.referred_by);
       set(xf.patient.collection_date, p.collection_date); set(xf.patient.receipt_date, p.receipt_date);
       set(xf.patient.report_date, p.report_date); set(xf.patient.remarks, p.remarks); set(xf.patient.comments, p.comments);
       if (p.photo_bytes) xf.patientPhoto = p.photo_bytes;
@@ -1968,6 +2048,8 @@ function populateManualForm(c) {
       const r = manualSpecialFields.dsa_results, src = c.dsa_results;
       set(r.class1_result, src.class1_result); set(r.class1_mfi, src.class1_mfi); set(r.class1_cutoff, src.class1_cutoff);
       set(r.class2_result, src.class2_result); set(r.class2_mfi, src.class2_mfi); set(r.class2_cutoff, src.class2_cutoff);
+    } else if (rtype === "dsa_fertility" && c.dsa_results && manualSpecialFields.dsa_results) {
+      fillDsaFertilityResultFields(manualSpecialFields.dsa_results, c.dsa_results);
     } else if (rtype === "flow_crossmatch" && c.flow_results && manualSpecialFields.flow_results) {
       const r = manualSpecialFields.flow_results, src = c.flow_results;
       set(r.t_mcs, src.t_mcs); set(r.t_interpretation, src.t_interpretation);
@@ -2591,8 +2673,10 @@ function renderBulkCrossmatchEditor(editCol, c, i) {
   ["sample_number", "Sample Number"], ["diagnosis", "Diagnosis"], ["hospital_clinic", "Hospital/Clinic"],
   ["sample_type", "Sample Type"], ["collection_date", "Collection Date"],
   ["receipt_date", "Receipt Date"], ["report_date", "Report Date"]];
+  const isFert = c.report_type === "dsa_fertility";
+  if (isFert) PAT_X.splice(1, 0, ["referred_by", "Doctor Name"]);
   const patCard = _buildBulkPatientCard(p, PAT_X, refresh);
-  patCard.appendChild(buildPhotoUploadField("Patient Photo",
+  if (!isFert) patCard.appendChild(buildPhotoUploadField("Patient Photo",
     b64 => { p.photo_bytes = b64; refresh(); }, p.photo_bytes || null));
   editCol.appendChild(patCard);
 
@@ -2625,7 +2709,7 @@ function renderBulkCrossmatchEditor(editCol, c, i) {
   donCard.appendChild(el("div", { class: "field-grid" }, [
     el("div", { class: "field full" }, [el("label", {}, "Donor Remarks"), donRemarksTA]),
   ]));
-  donCard.appendChild(buildPhotoUploadField("Donor Photo",
+  if (!isFert) donCard.appendChild(buildPhotoUploadField("Donor Photo",
     b64 => { d.photo_bytes = b64; refresh(); }, d.photo_bytes || null));
   editCol.appendChild(donCard);
 
@@ -2653,6 +2737,9 @@ function renderBulkCrossmatchEditor(editCol, c, i) {
       });
       resGrid.appendChild(el("div",{class:"field"},[el("label",{},l),inp]));
     });
+  } else if (isFert) {
+    const r = c.dsa_results || (c.dsa_results = {});
+    buildDsaFertilityResultFields(resGrid, r, () => { refresh(); }, true);
   } else if (c.report_type === "dsa_crossmatch") {
     const r = c.dsa_results || {};
     [["class1_result", "Class I Result"], ["class1_mfi", "Class I MFI"], ["class1_cutoff", "Class I Cutoff"],
@@ -3074,7 +3161,7 @@ function renderBulkEditor(i) {
     _bulkRefreshRow(editCol, i);
     return;
   }
-  if (c.report_type === "cdc_crossmatch" || c.report_type === "dsa_crossmatch" || c.report_type === "flow_crossmatch") {
+  if (CROSSMATCH_RTYPES.includes(c.report_type)) {
     renderBulkCrossmatchEditor(editCol, c, i);
     return;
   }
