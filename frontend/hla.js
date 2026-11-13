@@ -1195,8 +1195,11 @@ function buildCrossmatchSection(col, rtype) {
   if (isFert) {
     // Donor Specimen wording on the fertility report
     const stLbl = donGrid.querySelectorAll("label")[DON_X_FIELDS.findIndex(f => f[0] === "sample_type")];
-    if (stLbl) stLbl.textContent = "Donor Specimen";
+    if (stLbl) stLbl.textContent = "Husband Sample Type";
+    if (xf.donor.sample_type && !xf.donor.sample_type.value) xf.donor.sample_type.value = "ACD whole blood";
     if (xf.donor.relationship && !xf.donor.relationship.value) xf.donor.relationship.value = "Husband";
+    // default sample type for the wife's sample (editable)
+    if (xf.patient.sample_type && !xf.patient.sample_type.value) xf.patient.sample_type.value = "Serum";
   } else {
     donCard.appendChild(buildPhotoUploadField("Donor Photo", b64 => { xf.donorPhoto = b64; }));
   }
@@ -1597,7 +1600,8 @@ function collectManualCase() {
     patient = emptyPerson({
       name: val(xf.patient.name), gender_age: val(xf.patient.gender_age), pin: val(xf.patient.pin),
       sample_number: val(xf.patient.sample_number), diagnosis: val(xf.patient.diagnosis) || "NA",
-      hospital_clinic: val(xf.patient.hospital_clinic), sample_type: val(xf.patient.sample_type) || "Serum",
+      hospital_clinic: val(xf.patient.hospital_clinic),
+      sample_type: val(xf.patient.sample_type) || "Serum",
       referred_by: val(xf.patient.referred_by),
       collection_date: val(xf.patient.collection_date), receipt_date: val(xf.patient.receipt_date),
       report_date: val(xf.patient.report_date), photo_bytes: xf.patientPhoto || null,
@@ -1606,7 +1610,7 @@ function collectManualCase() {
     const donor = emptyPerson({
       name: val(xf.donor.name), gender_age: val(xf.donor.gender_age), pin: val(xf.donor.pin) || "NA",
       sample_number: val(xf.donor.sample_number) || "NA", relationship: val(xf.donor.relationship),
-      sample_type: val(xf.donor.sample_type) || (rtype === "dsa_fertility" ? "Peripheral Blood (ACD) - Lymphocytes" : "Sodium Heparin Whole Blood"),
+      sample_type: val(xf.donor.sample_type) || (rtype === "dsa_fertility" ? "ACD whole blood" : "Sodium Heparin Whole Blood"),
       collection_date: val(xf.donor.collection_date), receipt_date: val(xf.donor.receipt_date),
       report_date: val(xf.donor.report_date), photo_bytes: xf.donorPhoto || null,
       remarks: val(xf.donor.remarks),

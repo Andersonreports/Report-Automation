@@ -1026,7 +1026,7 @@ class _HFCanvas:
         if with_logo:
             _rtype = self.case.get("report_type", "")
             _nabl_in_header = nabl and _rtype in (
-                "cdc_crossmatch", "dsa_crossmatch", "dsa_fertility", "flow_crossmatch",
+                "cdc_crossmatch", "dsa_crossmatch", "flow_crossmatch",
                 "sab_class1", "sab_class2")
             _hdr_raw = hla_assets.get_image_bytes(
                 hla_assets.HEADER_NABL_CDC_B64 if _nabl_in_header else hla_assets.HEADER_NONNABL_B64)
@@ -4174,7 +4174,18 @@ def _build_dsa_fertility_report(case: dict, S: dict) -> list:
         return Paragraph(t, s_caps)
 
     def _ga(v):
-        return _normalize_age(re.sub(r"\(s\)", "", _txt(v), flags=re.IGNORECASE))
+        """Reference format: '35 Y(s) / Female'.  Months-only or unparsable
+        ages fall back to the house normaliser."""
+        t = _txt(v)
+        m_a = re.search(r"(\d+)\s*(?:y|yrs?|years?)(?:\s*\(s\))?|^\s*(\d+)\s*(?=/|$)|/\s*(\d+)\s*$",
+                        t, re.IGNORECASE)
+        m_g = re.search(r"\b(male|female|m|f)\b", t, re.IGNORECASE)
+        if m_a:
+            n = next(g for g in m_a.groups() if g)
+            gen = ({"m": "Male", "f": "Female"}.get(m_g.group(1).lower(), m_g.group(1).title())
+                   if m_g else "")
+            return f"{n} Y(s)" + (f" / {gen}" if gen else "")
+        return _normalize_age(re.sub(r"\(s\)", "", t, flags=re.IGNORECASE))
 
     elems = []
 
@@ -4189,10 +4200,56 @@ def _build_dsa_fertility_report(case: dict, S: dict) -> list:
     def lbl_caps(t):
         return t.upper()
 
+    def _cap1(t):
+        t = _txt(t)
+        t = t[:1].upper() + t[1:] if t else ""
+        # keep sample-tube acronyms in capitals ("acd blood" -> "ACD blood")
+        return re.sub(r"\b(acd|edta|cpda)\b", lambda m: m.group(1).upper(), t, flags=re.IGNORECASE)
+
+    # Form holds the short names ("Serum", "ACD whole blood"); the report adds
+    # the owner: "Patient serum" / "Donor ACD whole blood".
+    def _with_prefix(prefix, t):
+        if re.match(rf"^{prefix}'?s?\b", t, re.IGNORECASE):
+            return t
+        # lower-case the first letter of a plain phrase ("Serum" -> "serum"), but
+        # keep acronyms ("ACD ...") and Title Case text ("Peripheral Blood ...")
+        words = t.split()
+        acronym = len(t) > 1 and t[1].isupper()
+        title_case = any(w[:1].isupper() for w in words[1:])
+        first = t if (acronym or title_case) else t[:1].lower() + t[1:]
+        return f"{prefix} {first}"
+
+    p_st = _cap1(patient.get("sample_type")) or "Serum"
+    d_st = _txt(donor.get("sample_type"))
+    sample_type_disp = _with_prefix("Patient", p_st)
+    h_st = _with_prefix("Donor", _cap1(d_st) or "ACD whole blood")
+
+    def _specimen(text, who):
+        """One person's specimen for the details table, without the
+        'Patient'/'Donor' prefix: 'Patient serum' -> 'Serum',
+        'Donor ACD whole blood' -> 'ACD whole blood'.  A combined value
+        ('Patients serum \\ Donor ACD whole blood') is split at the backslash/slash."""
+        parts = re.split(r"\s*[\\/]\s*(?=donor)", text, flags=re.IGNORECASE)
+        if who == "donor" and len(parts) > 1:
+            part = parts[1]
+        else:
+            part = parts[0]
+        part = re.sub(r"^(patient|donor)'?s?\s+", "", part.strip(), flags=re.IGNORECASE)
+        return _cap1(part)
+
     def cell(label, value, style=None):
         return [Paragraph(lbl_caps(label), s_glbl), Spacer(1, 1.2 * mm),
                 Paragraph(value, style or s_gval)]
 
+    # Sample type cell = patient's sample type "\" husband's sample type, as on the
+    # reference ("Patient serum \ Donor ACD whole blood").  A patient value that
+    # already names the donor sample is used as typed.
+    if "donor" in sample_type_disp.lower():
+        sample_cell = sample_type_disp
+    else:
+        sample_cell = f"{sample_type_disp} \\ {h_st}"
+
+    # Same order as the reference report.
     grid = [
         [cell("Patient name", _show(patient.get("name"), True), s_gname),
          cell("Age / Gender", p_age),
@@ -4200,7 +4257,7 @@ def _build_dsa_fertility_report(case: dict, S: dict) -> list:
          cell("Reported on", _show(patient.get("report_date")))],
         [cell("Doctor name", _show(patient.get("referred_by"), True)),
          cell("Hospital name", _show(patient.get("hospital_clinic"), True)),
-         cell("Sample type", _show(patient.get("sample_type"))),
+         cell("Sample type", _esc(sample_cell)),
          cell("Sample ID", _show(patient.get("sample_number")))],
         [cell("Husband name", _show(donor.get("name"), True)),
          cell("Husband age / gender", d_age_g),
@@ -4223,31 +4280,52 @@ def _build_dsa_fertility_report(case: dict, S: dict) -> list:
     elems.append(Paragraph("Results: Detection of HLA Class I &amp; II Donor Specific Antibodies – IgG", s_sec))
     elems.append(HRFlowable(width=cw, thickness=0.8, color=NAVY, spaceBefore=1, spaceAfter=4))
 
-    # Donor details
-    d_ga   = _txt(donor.get("gender_age"))
-    m_age  = re.search(r"(\d+)\s*(?:y|yrs?|years?|\b)", d_ga, re.IGNORECASE)
-    d_age  = f"{m_age.group(1)} Years" if m_age else "NA"
-    m_gen  = re.search(r"\b(male|female|m|f)\b", d_ga, re.IGNORECASE)
-    d_gen  = {"m": "Male", "f": "Female"}.get(m_gen.group(1).lower(), m_gen.group(1).title()) if m_gen else "NA"
-    d_rel  = _txt(_auto_relation_from_gender(donor.get("relationship", ""), d_ga)) or "Husband"
-    donor_rows = [
-        ["Donor's Name", _show(donor.get("name"), True)],
-        ["Age", d_age],
-        ["Gender", d_gen],
-        ["Donor Specimen", _show(donor.get("sample_type"))],
-        ["Relationship (As per self-declaration)", _esc(_title_case(d_rel))],
+    # Patient & donor details (side by side)
+    def _age_gender(ga):
+        ga = _txt(ga)
+        m_a = re.search(r"(\d+)\s*(?:y|yrs?|years?|\b)", ga, re.IGNORECASE)
+        m_g = re.search(r"\b(male|female|m|f)\b", ga, re.IGNORECASE)
+        # same age wording as the details grid ("35 Y(s)", "8 Months")
+        age = _ga(ga).split(" / ")[0].split("/")[0].strip() if m_a else "NA"
+        gen = ({"m": "Male", "f": "Female"}.get(m_g.group(1).lower(), m_g.group(1).title())
+               if m_g else "NA")
+        return age, gen
+
+    d_ga  = _txt(donor.get("gender_age"))
+    p_age_v, p_gen_v = _age_gender(patient.get("gender_age"))
+    d_age, d_gen     = _age_gender(d_ga)
+    d_rel = _txt(_auto_relation_from_gender(donor.get("relationship", ""), d_ga)) or "Husband"
+    det_rows = [
+        ["", "Patient", f"Donor ({_esc(_title_case(d_rel))})"],
+        ["Name", _show(patient.get("name"), True), _show(donor.get("name"), True)],
+        ["Age", p_age_v, d_age],
+        ["Gender", p_gen_v, d_gen],
+        ["Specimen", _esc(_specimen(sample_type_disp, "patient")) or "NA",
+                     _esc(_specimen(h_st, "donor")) or "NA"],
+        ["Relationship (As per self-declaration)",
+         {"husband": "Wife", "wife": "Husband", "partner": "Partner",
+          "spouse": "Spouse"}.get(d_rel.strip().lower(), "Patient"),
+         _esc(_title_case(d_rel))],
     ]
-    donor_t = Table([[Paragraph(k, s_td), Paragraph(v, s_td)] for k, v in donor_rows],
-                    colWidths=[cw * 0.40, cw * 0.60])
+    det_data = []
+    for i, (k, pv, dv) in enumerate(det_rows):
+        if i == 0:
+            # section title sits in the header row's first cell (saves a line)
+            det_data.append([Paragraph("Patient &amp; Donor details", s_th),
+                             Paragraph(pv, s_th), Paragraph(dv, s_th)])
+        else:
+            det_data.append([Paragraph(k, s_td), Paragraph(pv, s_td), Paragraph(dv, s_td)])
+    donor_t = Table(det_data, colWidths=[cw * 0.38, cw * 0.31, cw * 0.31])
     donor_t.setStyle(TableStyle([
-        ("LINEABOVE",     (0, 0), (-1, 0), 0.9, BLACK),
-        ("LINEBELOW",     (0, 0), (-1, -1), 0.4, RULE),
+        ("BACKGROUND",    (0, 0), (-1, 0), C_INFO_BG),
+        ("LINEBELOW",     (0, 0), (-1, 0), 0.9, BLACK),
+        ("LINEBELOW",     (0, 1), (-1, -1), 0.4, RULE),
         ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
         ("TOPPADDING",    (0, 0), (-1, -1), 1),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
-        ("LEFTPADDING",   (0, 0), (-1, -1), 0),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 4),
     ]))
-    elems += [caps("Donor details"), donor_t, Spacer(1, 3 * mm)]
+    elems += [donor_t, Spacer(1, 3 * mm)]
 
     # HLA-DSA-IgG Screen
     classes = []
@@ -4312,7 +4390,7 @@ def _build_dsa_fertility_report(case: dict, S: dict) -> list:
             if c["pos"]:
                 parts.append(f"Anti-paternal HLA Class {c['cls']} IgG detected — MFI {mfi}, Risk level {rk}.")
             else:
-                parts.append(f"HLA Class {c['cls']} IgG not detected (MFI {mfi}, Risk level {rk}).")
+                parts.append(f"Anti-paternal HLA Class {c['cls']} IgG not detected (MFI {mfi}, Risk level {rk}).")
         return " ".join(parts)
 
     impression = _txt(dsa.get("impression")) or _auto_impression()
@@ -4406,7 +4484,7 @@ def _build_dsa_fertility_report(case: dict, S: dict) -> list:
     ins_t = Table([
         [insight("What this result means", _esc(means)),
          insight("Suggested next step", DSA_FERT_NEXT_STEP)],
-        [insight("Evidence", DSA_FERT_EVIDENCE, "Nielsen et al. 2010"),
+        [insight("Evidence", DSA_FERT_EVIDENCE),
          insight("Paternal antibody release check", DSA_FERT_RELEASE_CHECK)],
     ], colWidths=[half, half])
     ins_t.setStyle(TableStyle([
