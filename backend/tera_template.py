@@ -686,7 +686,7 @@ class TERAReportGenerator:
         doc   = self._s(d.get("Doctor Name", "")) or "Not Provided"
         hosp  = self._title_keep_bracketed(
             self._s(d.get("Center name", d.get("Hospital", d.get("Hospital ", "")))),
-            lambda t: _title_case(t, is_name=True))
+            self._hospital_case)
         cyc_raw     = self._s(d.get("Cycle Type", d.get("Cycle type", "HRT")))
         biopsy_days = self._int(d.get("Biopsy", ""))
         cyc_upper   = cyc_raw.upper()
@@ -732,6 +732,28 @@ class TERAReportGenerator:
     @staticmethod
     def _fix_relation_case(name: str) -> str:
         return re.sub(r'\b([WSD])/O\b', lambda m: m.group(1).lower() + '/o', name)
+
+    @staticmethod
+    def _hospital_case(text: str) -> str:
+        """Title-case a hospital/clinic name, but keep acronyms the user typed
+        deliberately in upper-case within a mixed-case entry.
+
+        Plain ``_title_case(..., is_name=True)`` lowercases an all-caps word
+        unless it has no vowels, so "ICF Hospital" became "Icf Hospital". When
+        the whole entry is NOT all-caps, an all-caps word is a deliberate
+        acronym and is preserved ("ICF" stays "ICF"); a fully upper-case entry
+        ("ICF HOSPITAL") is still normalized via the name rules.
+        """
+        if not text:
+            return text
+        mixed = text != text.upper()
+
+        def _word(tok: str) -> str:
+            if mixed and len(tok) > 1 and tok.isalpha() and tok == tok.upper():
+                return tok
+            return _title_case(tok, is_name=True)
+
+        return re.sub(r'\S+', lambda m: _word(m.group(0)), text)
 
     @staticmethod
     def _title_keep_bracketed(text: str, case=str.title) -> str:
