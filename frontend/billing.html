@@ -1039,6 +1039,12 @@
                     <div class="sec-title" onclick="toggleSection(this)">Scope of Work</div>
                     <div class="sec-body">
                     <div class="fg">
+                        <label style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
+                            <input type="checkbox" id="scopeEnabled" checked onchange="refresh()" style="width:auto;padding:0" />
+                            Include Scope of Work page <span style="font-weight:400;color:#999;font-size:.7rem">(optional — untick to remove page 2)</span>
+                        </label>
+                    </div>
+                    <div class="fg">
                         <label>Sample Type</label>
                         <select id="scopeSampleTypeSelect" onchange="onSampleTypeChange()" style="margin-bottom:6px">
                             <option value="" selected>-- Select --</option>
@@ -1557,6 +1563,7 @@ KEGG pathway analysis</textarea>
                     scopeDelivery:   $('scopeDelivery').value,
                 },
                 poNoteEnabled: $('poNoteEnabled').checked,
+                scopeEnabled: $('scopeEnabled').checked,
                 settings: {
                     name: $('cfgName').value,
                     addr1: $('cfgAddr1').value,
@@ -1632,6 +1639,7 @@ KEGG pathway analysis</textarea>
                     }
                 } catch (e) { }
                 $('poNoteEnabled').checked = data.poNoteEnabled !== false;
+                $('scopeEnabled').checked = data.scopeEnabled !== false;
                 if (data.settings) {
                     if (!data.settings.addr1 || /Rajaratnam/i.test(data.settings.addr1)) {
                         setFromDefaults();   // old Kilpauk address -> new Chetpet address
@@ -2062,7 +2070,7 @@ KEGG pathway analysis</textarea>
             }
 
             // Scope of work page
-            const showScope = true;
+            const showScope = $('scopeEnabled') ? $('scopeEnabled').checked : true;
             const scopePage = $('scope-page');
             if (scopePage) scopePage.style.display = showScope ? '' : 'none';
             if (showScope) {
@@ -2173,6 +2181,7 @@ ${hasB2B ? `<td>${r.b2b ? inr(r.b2b) : '—'}</td>` : ''}
             $('toLabel').value = 'Quotation To';
             $('poDays').value = 30;
             $('poNoteEnabled').checked = true;
+            $('scopeEnabled').checked = true;
             if ($('quoteValidity')) $('quoteValidity').value = '3 months';
             if ($('quoteValiditySelect')) { $('quoteValiditySelect').value = '3 months'; $('quoteValidity').style.display = 'none'; }
             if ($('projectSubject')) $('projectSubject').value = '';
@@ -2331,7 +2340,7 @@ ${hasB2B ? `<td>${r.b2b ? inr(r.b2b) : '—'}</td>` : ''}
 
                 
                 
-                const pages = document.querySelectorAll('#quotation-doc .q-page');
+                const pages = [...document.querySelectorAll('#quotation-doc .q-page')].filter(p => p.style.display !== 'none');
                 for (let i = 0; i < pages.length; i++) {
                     if (i > 0) pdf.addPage();
                     const canvas = await html2canvas(pages[i], {
@@ -2359,7 +2368,7 @@ ${hasB2B ? `<td>${r.b2b ? inr(r.b2b) : '—'}</td>` : ''}
             const pdf = new jsPDF('p', 'mm', 'a4', { compress: true });
             const A4_W = 210, A4_H = 297;
 
-            const pages = document.querySelectorAll('#quotation-doc .q-page');
+            const pages = [...document.querySelectorAll('#quotation-doc .q-page')].filter(p => p.style.display !== 'none');
             for (let i = 0; i < pages.length; i++) {
                 if (i > 0) pdf.addPage();
                 const canvas = await html2canvas(pages[i], {
